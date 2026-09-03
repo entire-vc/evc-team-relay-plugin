@@ -29,6 +29,56 @@ npm run lint
 3. Enable the plugin in Obsidian Settings > Community Plugins
 4. Point it at your local Team Relay instance
 
+## Releases
+
+**`main.js`, `manifest.json` and `styles.css`, and the GitHub Release that carries
+them, are produced by the pipeline only.** A manual build is fine for debugging and
+sideloading. Publishing one by hand is not.
+
+To release: tag the commit with a **bare semver** and push the tag.
+
+```bash
+git tag 1.2.3          # bare — a 'v' prefix will NOT trigger the workflow
+git push origin 1.2.3
+```
+
+`.github/workflows/release.yml` then builds the tagged tree, restores the committed
+`manifest.json`, verifies the tag equals `manifest.version`, attests build provenance
+for `main.js`/`styles.css`, and creates the release with the three assets. The tag is
+the version — there is no step where a human types the version anywhere else.
+
+### Why hand-publishing is refused
+
+`npm run build` rewrites `manifest.json`'s version in place from `git describe`
+(`esbuild.config.mjs`, `updateManifest`). A hand-published artifact therefore carries
+whatever the build stamped rather than the release version, and it skips both the
+`tag == manifest.version` check and the provenance attestation. This is not
+hypothetical: a published manifest once shipped `"version": "1.1.43-237-g1833d8a"` —
+an upstream tag, a commit count and a source-tree hash, in the file Obsidian's
+catalogue reads.
+
+So: after any local `npm run build`, check `git status --short` and restore the file
+before committing.
+
+```bash
+git checkout -- manifest.json
+```
+
+### The guards that will stop you, and why they stay
+
+Three checks exist specifically to make the failure above loud. If one blocks you,
+the answer is to tag properly — not to loosen the check.
+
+- `esbuild.config.mjs` runs `git describe --tags` **without** `--always`. In a git
+  repository with no reachable tag it throws. `--always` would turn "no usable tag"
+  into a bare hash and hand you a string instead of an error.
+- Under `CI_COMMIT_TAG`, a version that is not `^\d+\.\d+\.\d+$` refuses to build.
+- CI's `manifest-check` refuses a *committed* manifest whose version is not bare
+  semver, and keeps `package.json`, `manifest.json`, `manifest-beta.json` and
+  `versions.json` in agreement. It deliberately runs in its own clone: sharing a
+  workspace with `build` would compare against a just-stamped manifest and fail on
+  every green build.
+
 ## Pull Requests
 
 1. Create a branch from `main`
