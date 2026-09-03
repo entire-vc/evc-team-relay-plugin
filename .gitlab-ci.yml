@@ -1,0 +1,405 @@
+# CI for the GitLab canon (git.entire.host/entire-vc/evc-team-relay-plugin).
+#
+# ## Why this file exists
+#
+# Development moved from GitHub to GitLab on 2026-08-23 (§0z). The checks that
+# guarded merges here — type-check, Jest, ESLint, build smoke, manifest version
+# sync, the derivativeness legal gate, Hold gate — live in `.github/workflows/`
+# and are executed by GitHub Actions. They still run, on a repository nobody
+# merges into any more. Until this file existed every merge request on the
+# canon landed on `main` having been checked by nothing: no pipeline, no
+# required check. Not a bypassed gate — an absent one.
+#
+# Modelled on `entire-vc/evc-mesh:.gitlab-ci.yml`, the first canon repo to get
+# a pipeline.
+#
+# ## Honest scope — what is NOT here
+#
+#   * **manifest monotonicity guard** — "version must be strictly greater than
+#     the latest published release". It reads `gh api repos/.../releases/latest`,
+#     and plugin releases genuinely still live on GitHub (§0z p.5: public repos
+#     keep releases, tags, assets and issues there). Porting it needs a GitHub
+#     token as a CI variable; setting project CI variables needs Maintainer and
+#     every agent account on this group is Developer(30). `GET
+#     /projects/11/variables` answers 403 under this token, so this file cannot
+#     even establish whether such a variable already exists. The LOCAL half of
+#     that check — package.json / manifest.json / manifest-beta.json /
+#     versions.json must agree — is portable and IS ported below.
+#
+#   * `.github/workflows/release.yml` — release publication, still GitHub's job
+#     by the same rule. Deliberately not mirrored.
+#
+# The `CI_MODE` REPORT/ENFORCE burn-in switch from the GitHub workflow is not
+# reproduced: that repo is already `CI_MODE=ENFORCE`, so every job here is
+# blocking. Nor is `LEGAL_GATE3_MODE` — see the legal-verbatim-distinct job.
+#
+# ## The half that is not in this file
+#
+# A pipeline is a display until `only_allow_merge_if_pipeline_succeeds` is true
+# on the project — until then GitLab merges over a red run via the web button
+# or a bare `glab mr merge`. That setting needs Maintainer; the sole holder of
+# 40+ on this group is `pavel`. Tracked separately (`#11421131`).
+
+workflow:
+  rules:
+    # MR pipelines are the ones that matter — they are what a merge consults,
+    # and the only context where $CI_MERGE_REQUEST_LABELS exists at all.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Never run a branch pipeline for a branch that already has an open MR:
+    # GitLab's classic duplicate-pipeline trap, and it doubles load on the one
+    # shared runner this fleet has.
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+stages: [gate, check, build]
+
+variables:
+  # npm's cache defaults to $HOME/.npm, outside $CI_PROJECT_DIR, where `cache:`
+  # cannot reach it — point it inside the project dir or the cache block below
+  # silently caches an empty directory.
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+default:
+  tags: [docker]
+  interruptible: true
+  image: node:22-alpine   # matches node-version "22" in .github/workflows/ci.yml
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
+
+# ── gate ────────────────────────────────────────────────────────────────────
+# Makes the `hold` label a gate here too. On GitHub this is a required status
+# check (.github/workflows/hold-gate.yml); `~/bin/glab-merge` reads the same
+# label list, but a wrapper is a request, not a wall — the web button and a
+# bare `glab mr merge` never ask it.
+#
+# The label list is READ FROM `.github/hold-labels.txt`, the file already in
+# this repository, rather than copied into this one. A second copy is a second
+# thing to drift, and the fleet already paid for that once: the CI copy on
+# evc-mesh drifted from the wrapper list within a day of being written.
+hold-gate:
+  stage: gate
+  image: alpine:latest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - |
+      set -eu
+      LABELS_FILE=.github/hold-labels.txt
+      # Fail closed on every unknown. "I could not check" must never read the
+      # same as "I checked and it is clean" — that equivalence is the defect
+      # this whole gate family exists to kill.
+      test -f "$LABELS_FILE" || { echo "REFUSING: $LABELS_FILE missing — cannot know what 'held' means"; exit 1; }
+      HOLD=$(grep -vE '^\s*(#|$)' "$LABELS_FILE" | tr 'A-Z' 'a-z' | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -c . || true)
+      test "$HOLD" -gt 0 || { echo "REFUSING: $LABELS_FILE parsed to zero labels — a gate that knows no hold label passes everything"; exit 1; }
+      echo "hold labels known: $HOLD"
+      echo "labels on this merge request: '${CI_MERGE_REQUEST_LABELS:-}'"
+      FOUND=""
+      OLDIFS=$IFS; IFS=','
+      for L in ${CI_MERGE_REQUEST_LABELS:-}; do
+        L=$(printf '%s' "$L" | tr 'A-Z' 'a-z' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        [ -n "$L" ] || continue
+        if grep -vE '^\s*(#|$)' "$LABELS_FILE" | tr 'A-Z' 'a-z' | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -qxF "$L"; then
+          FOUND="$FOUND $L"
+        fi
+      done
+      IFS=$OLDIFS
+      if [ -n "$FOUND" ]; then
+        echo "REFUSING to let this merge request through: it carries a hold label —$FOUND"
+        echo "Remove the label when the work is ready; this job re-runs on the next pipeline."
+        exit 1
+      fi
+      echo "no hold label present ✓"
+
+# ── check ───────────────────────────────────────────────────────────────────
+.node_job: &node_job
+  stage: check
+  timeout: 20m
+  before_script:
+    - npm ci
+
+type-check:
+  <<: *node_job
+  script:
+    - npx tsc --noEmit --skipLibCheck
+
+# tsconfig.json's `include` is TS-only (**/*.ts), so `type-check` above never
+# looks inside a .svelte file's <script> block or template expressions, and
+# `test` below never transforms .svelte either. A class member renamed across
+# the TS surface (e.g. by the gate-4 naming waves) can go stale in a .svelte
+# consumer with zero red anywhere in this pipeline -- confirmed twice for
+# real: NavTrail.svelte and FolderPathAutocomplete.svelte both shipped a
+# stale rename past tsc/jest/lint/build/legal-naming across 4 rounds of
+# independent review before a manual sweep caught them (Mesh #acf0e621).
+#
+# Ratcheted against scripts/svelte-check-baseline.json rather than gated on
+# zero errors: a full run surfaces 37 pre-existing, unrelated type errors
+# (missing generic type arguments, mismatched literal-union types, etc.)
+# that are out of scope for this gate to fix and would otherwise block every
+# unrelated PR forever. Only a NEW error (not in the frozen baseline) fails
+# this job -- see scripts/check-svelte-types.py for the full rationale, same
+# shape as `legal-naming`'s `--max-work N` basket below.
+#
+# `--self-test` reintroduces the actual historical NavTrail.svelte bug in a
+# scratch copy and proves the gate goes red on it, then restores it and
+# proves green -- the same "prove it can fail before trusting a pass" contract
+# as legal-naming's own self-test.
+svelte-check:
+  <<: *node_job
+  before_script:
+    # node:22-alpine (the shared &node_job image) ships busybox sh only, no
+    # bash -- check-svelte-types.sh has a `#!/usr/bin/env bash` shebang and is
+    # invoked directly as `bash scripts/...sh`, same reason legal-naming's
+    # python:3.12-alpine image installs bash for check-naming.sh. It also
+    # ships no python3 -- check-svelte-types.py (the actual gate logic the
+    # shell wrapper calls into) is a Python script, same reason legal-naming
+    # runs on a python:3.12-alpine base instead of node:22-alpine.
+    - apk add --no-cache bash python3
+    - npm ci
+  script:
+    - bash scripts/check-svelte-types.sh --self-test
+    - bash scripts/check-svelte-types.sh
+
+# tsconfig.json's `include` is `**/*.ts` but its `exclude` drops `__tests__`
+# entirely, and ts-jest runs with `isolatedModules: true` (per-file
+# transpile, no type-checking) -- so, symmetrically to svelte-check above,
+# nothing in this pipeline ever type-checked a file under __tests__. A
+# hand-rolled mock that declares its OWN shape for a field instead of
+# referencing the real production type can go stale after a rename with zero
+# red anywhere -- confirmed twice for real in one evening, same file:
+# FakeFolder.connected -> isOnline (MR !228) and FakeFile.guid -> entityGuid
+# (MR !235, Mesh #fe4e6843) both shipped past tsc/jest/lint/build before an
+# accidental assertion failure caught them (Mesh #00631a54).
+#
+# Ratcheted against scripts/tests-typecheck-baseline.json rather than gated
+# on zero errors: a full run surfaces 209 pre-existing, unrelated type
+# errors (missing `import type` under verbatimModuleSyntax, mock/Response
+# type mismatches, call sites with a stale argument count, etc.) that are
+# out of scope for this gate to fix and would otherwise block every
+# unrelated PR forever. Only a NEW error (not in the frozen baseline) fails
+# this job -- see scripts/check-tests-types.py for the full rationale, same
+# shape as svelte-check's own baseline and `legal-naming`'s `--max-work N`
+# basket below.
+#
+# `--self-test` reintroduces BOTH actual historical bugs in a scratch copy
+# and proves the gate goes red on each, naming the file, then restores and
+# proves green -- plus a THIRD control on a file with zero pre-existing
+# errors and no relation to either historical case, proving this is a
+# general type-checker gate and not one that only recognizes two hardcoded
+# names (same "previously silent file" distinction Mesh #09b9f5ff drew for
+# svelte-check).
+tests-typecheck:
+  <<: *node_job
+  before_script:
+    # Same two packages svelte-check needs above, same reasons: bash for the
+    # `#!/usr/bin/env bash` wrapper, python3 for the gate logic itself.
+    - apk add --no-cache bash python3
+    - npm ci
+  script:
+    - bash scripts/check-tests-types.sh --self-test
+    - bash scripts/check-tests-types.sh
+
+# A Svelte producer/consumer event pair is joined by nothing but two string
+# literals in two different files (`dispatch("name", ...)` in one component,
+# `on:name={handler}` on its usage in another) -- and NOTHING else in this
+# pipeline checks that match: `type-check` treats event names as untyped
+# strings, `svelte-check` above type-checks values not event-name existence,
+# `legal-naming` reads identifiers (a string literal and an attribute name
+# are neither), `test`/`lint`/`build` don't execute a Svelte click-to-dispatch
+# interaction. Confirmed live (Mesh #8c9a4223): renamed a definitely-LIVE
+# listener (SettingsPanel.svelte's `on:goBack`, wired to the settings panel's
+# own visible "back" button) to a bogus name -- every job in this file stayed
+# exactly as green as before. Two listeners on that same element really were
+# dead (`on:close`, `on:manageRemoteFolder` -- fixed by this same card) and
+# produced the IDENTICAL all-green result when broken, which is exactly the
+# defect: nothing here could tell live from dead.
+#
+# `--self-test` runs FOUR controls, not two, and deliberately in this order --
+# a positive control on a well-known live pair, restore, a SECOND positive
+# control on a different, previously-uninvolved live pair, restore -- because
+# this gate's own origin is a false negative control: Mesh #a4ccff97's
+# accepted methodology ("break the name, nothing reddens = proof of dead")
+# turned out to be unfalsifiable for exactly this reason, and a self-test
+# that only re-proves the ONE case a gate was built for is the same shape of
+# mistake (Mesh #09b9f5ff, #00631a54 drew the identical distinction for their
+# own gates: catching known cases is not the same as being a general check).
+svelte-events:
+  <<: *node_job
+  before_script:
+    # Same two packages svelte-check/tests-typecheck need above, same
+    # reasons: bash for the `#!/usr/bin/env bash` wrapper, python3 for the
+    # gate logic itself.
+    - apk add --no-cache bash python3
+    - npm ci
+  script:
+    - bash scripts/check-svelte-events.sh --self-test
+    - bash scripts/check-svelte-events.sh
+
+lint:
+  <<: *node_job
+  script:
+    - npm run lint
+
+test:
+  <<: *node_job
+  timeout: 30m
+  script:
+    - npx jest --coverage --forceExit --passWithNoTests
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    when: always
+    paths: [coverage/]
+    expire_in: 1 week
+
+manifest-check:
+  stage: check
+  timeout: 5m
+  cache: {}          # reads four JSON files; npm deps are not involved
+  script:
+    # ⚠️ This job must never share a workspace with `build`. `npm run build`
+    # rewrites manifest.json's version in place with `git describe --tags
+    # --always` (esbuild.config.mjs `updateManifest`), so a check that ran
+    # after a build in the same directory would compare package.json against
+    # a git-describe string and fail on every green build. Separate jobs get
+    # separate clones, which is what keeps this correct — do not "optimise"
+    # these two into one job.
+    - |
+      set -eu
+      PKG_VER=$(node -p "require('./package.json').version")
+      MFT_VER=$(node -p "require('./manifest.json').version")
+      MFT_MIN=$(node -p "require('./manifest.json').minAppVersion")
+      echo "package.json:       $PKG_VER"
+      echo "manifest.json:      $MFT_VER  (minAppVersion: $MFT_MIN)"
+      if [ "$PKG_VER" != "$MFT_VER" ]; then
+        echo "REFUSING: manifest.json version ($MFT_VER) != package.json version ($PKG_VER)."
+        exit 1
+      fi
+      # Форма версии, а не только согласованность файлов. Равенство выше ловит
+      # расхождение, но пропускает СОГЛАСОВАННЫЙ мусор: одна и та же кривая строка
+      # в обоих файлах плюс запись в versions.json проходит все прежние барьеры.
+      # Реальный случай: сборка вписала в манифест "1.1.43-237-g1833d8a" (git describe)
+      # — тег ЧУЖОГО репозитория, число коммитов над ним и хеш — и это уехало в
+      # публичный первый коммит. Аллоулист, а не денилист по суффиксу: голый sha
+      # денилист пропустил бы, а это та же грязь в другой форме.
+      SHAPE_OK=$(node -e 'process.stdout.write(/^\d+\.\d+\.\d+$/.test(process.argv[1])?"1":"0")' "$MFT_VER")
+      if [ "$SHAPE_OK" != "1" ]; then
+        echo "REFUSING: version \"$MFT_VER\" is not a bare semver (X.Y.Z)."
+        echo "  A committed manifest must carry a release version, not a build string."
+        exit 1
+      fi
+      if ! grep -q "\"$MFT_VER\"" versions.json; then
+        echo "REFUSING: versions.json has no entry for $MFT_VER."
+        exit 1
+      fi
+      # manifest-beta.json is what BRAT reads directly off the default branch
+      # for beta-channel installs — not a release asset, and nothing else keeps
+      # it in sync, so it once rotted 7 releases behind with no CI signal.
+      MFB_VER=$(node -p "require('./manifest-beta.json').version")
+      echo "manifest-beta.json: $MFB_VER"
+      if [ "$MFB_VER" != "$MFT_VER" ]; then
+        echo "REFUSING: manifest-beta.json ($MFB_VER) != manifest.json ($MFT_VER) — BRAT beta users would not see this release."
+        exit 1
+      fi
+      echo "OK: package.json, manifest.json, manifest-beta.json, versions.json all agree on $PKG_VER ✓"
+      echo
+      echo "NOT CHECKED HERE: that $PKG_VER is strictly greater than the latest"
+      echo "published GitHub release. That guard needs a GitHub token this"
+      echo "pipeline does not have — see the header of this file."
+
+# Legal gate 3 of three derivativeness gates for the "remove derivativeness
+# from upstream" epic: #1 whole-file similarity (check-derivativeness.sh),
+# #2 longest verbatim run, #3 here — count of DISTINGUISHABLE verbatim lines
+# per file (framework/CSS boilerplate does not count; an author's comment or a
+# quoted literal does).
+#
+# Ported as BLOCKING, unlike its GitHub counterpart. That job is wrapped in a
+# `LEGAL_GATE3_MODE` REPORT switch because when it was written `main` held 26
+# files over the threshold and enforcing would have reddened every unrelated
+# PR. That is no longer true: measured on this branch's merge-base, files over
+# --max-distinct 15 = 0, and the check still fails at --max-distinct 0, so it
+# discriminates rather than passing vacuously. A mode flag whose only honest
+# setting is "enforce" is worse than no flag — it invites reading a warning as
+# a pass.
+#
+# Upstream is pinned to the fork-point commit read OUT OF
+# scripts/check-derivativeness.sh rather than duplicated here, so the two
+# cannot drift. Re-pinning to upstream HEAD would let upstream's own later
+# commits "clean" our files with no work of ours.
+legal-verbatim-distinct:
+  stage: check
+  image: python:3.12-alpine
+  timeout: 15m
+  cache: {}
+  before_script:
+    # No git in python:*-alpine, and this job clones upstream.
+    - apk add --no-cache git
+  script:
+    - |
+      set -eu
+      FP=$(grep -oE 'FORK_POINT="[^"]+"' scripts/check-derivativeness.sh | head -1 | sed 's/.*"\(.*\)"/\1/')
+      test -n "$FP" || { echo "REFUSING: could not read FORK_POINT out of scripts/check-derivativeness.sh"; exit 1; }
+      echo "upstream fork-point: $FP"
+      git clone --quiet "${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}" /tmp/relay-upstream
+      git -C /tmp/relay-upstream checkout --quiet "$FP"
+      python3 scripts/check-verbatim-distinct.py /tmp/relay-upstream/src src --max-distinct 15
+
+# Legal gate 4 of the "remove derivativeness from upstream" epic: how many
+# NAMES our src/ still shares with upstream — files, directories, types, class
+# members, exports. Gates 1-3 read the CONTENTS of lines; none of them reads
+# what a thing is CALLED, so a file could pass all three and still hand a
+# reader upstream's map on sight. Eight rename waves (W5 → W8, ~2000 names
+# across 156 files) drove this to zero by hand — until this job, that zero was
+# held by discipline and a manually-run script, not by CI (Mesh #50bf471c).
+#
+# `scripts/check-naming.sh` does its OWN upstream clone into a throwaway
+# tmpdir (same FORK_POINT pin as check-verbatim-distinct.py, read out of the
+# script itself so the two cannot drift) — this job does not clone directly,
+# unlike legal-verbatim-distinct above. Deliberately UNCACHED: a cached clone
+# would need its own invalidation keyed to FORK_POINT, and getting that wrong
+# means the gate silently compares against a stale upstream forever. A fresh
+# ~1s shallow-able clone every run costs less than that failure mode.
+#
+# `--self-test` runs first and is itself a gate: it proves the classifier can
+# still go RED (upstream vs itself) and still goes GREEN on a disjoint tree,
+# so a broken classifier that stopped counting anything doesn't read as "we
+# hit zero names" — a green run says "checked and clean", never "couldn't
+# check". Then `--max-work 0` is the real assertion: no additional upstream
+# names may return.
+legal-naming:
+  stage: check
+  image: python:3.12-alpine
+  timeout: 15m
+  cache: {}
+  before_script:
+    # check-naming.sh has a `#!/usr/bin/env bash` shebang; alpine ships only
+    # busybox sh, so bash is a real dependency here, not just git for the clone.
+    - apk add --no-cache git bash
+  script:
+    - bash scripts/check-naming.sh --self-test
+    - bash scripts/check-naming.sh --max-work 0
+  allow_failure: false
+
+# ── build ───────────────────────────────────────────────────────────────────
+build:
+  stage: build
+  timeout: 20m
+  before_script:
+    # git is NOT optional here and its absence does not look like a missing
+    # package: esbuild.config.mjs shells out to `git describe --tags --always`
+    # at module scope, so without git the build dies before writing a byte,
+    # with a node stack trace rather than "git: not found".
+    - apk add --no-cache git
+    - npm ci
+  script:
+    - npm run build
+    # Assert the artifact, not the exit code. esbuild can be configured into
+    # writing nothing and still exit 0; main.js is what Obsidian loads, so its
+    # existence is the only statement worth making about this build.
+    - |
+      test -f main.js || { echo "REFUSING: build exited 0 but produced no main.js"; exit 1; }
+    - echo "build OK — main.js $(wc -c < main.js) bytes"
+  artifacts:
+    paths: [main.js]
+    expire_in: 1 week
