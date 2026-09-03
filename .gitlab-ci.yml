@@ -276,6 +276,19 @@ manifest-check:
         echo "REFUSING: manifest.json version ($MFT_VER) != package.json version ($PKG_VER)."
         exit 1
       fi
+      # Форма версии, а не только согласованность файлов. Равенство выше ловит
+      # расхождение, но пропускает СОГЛАСОВАННЫЙ мусор: одна и та же кривая строка
+      # в обоих файлах плюс запись в versions.json проходит все прежние барьеры.
+      # Реальный случай: сборка вписала в манифест "1.1.43-237-g1833d8a" (git describe)
+      # — тег ЧУЖОГО репозитория, число коммитов над ним и хеш — и это уехало в
+      # публичный первый коммит. Аллоулист, а не денилист по суффиксу: голый sha
+      # денилист пропустил бы, а это та же грязь в другой форме.
+      SHAPE_OK=$(node -e 'process.stdout.write(/^\d+\.\d+\.\d+$/.test(process.argv[1])?"1":"0")' "$MFT_VER")
+      if [ "$SHAPE_OK" != "1" ]; then
+        echo "REFUSING: version \"$MFT_VER\" is not a bare semver (X.Y.Z)."
+        echo "  A committed manifest must carry a release version, not a build string."
+        exit 1
+      fi
       if ! grep -q "\"$MFT_VER\"" versions.json; then
         echo "REFUSING: versions.json has no entry for $MFT_VER."
         exit 1
