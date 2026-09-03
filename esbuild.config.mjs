@@ -18,9 +18,31 @@ if you want to view the source, please visit the github repository of this plugi
 */
 `;
 
-const gitTag = execSync("git describe --tags --always", {
+// Версия берётся из тега и вписывается в manifest.json ниже (updateManifest).
+//
+// `--always` здесь БЫЛО, и это стоило публичного релиза: при отсутствии тега флаг
+// не даёт describe упасть, а возвращает голый sha, который сборка молча вписывает
+// в манифест как версию. Так в первый коммит нового репозитория уехало
+// "1.1.43-237-g1833d8a" — тег старого репозитория, число коммитов над ним и хеш.
+// Никто не соврал: отказ был заранее выключен флагом. Не возвращать.
+const gitTag = execSync("git describe --tags", {
 	encoding: "utf8",
 }).trim();
+
+// Второй рубеж: describe может вернуть валидную строку неверной ФОРМЫ.
+// Аллоулист, а не денилист — перечисляем то, что принимаем, иначе следующая
+// неожиданная форма пройдёт молча (голый sha денилист по суффиксу не ловит).
+//
+// Проверяется только релизная сборка: на ветке describe законно даёт
+// "0.0.1-5-gabc1234", и запрет на каждой сборке закрасил бы main следующим же
+// коммитом после тега — гейт, запирающий разработку, снимут, а не починят.
+const BARE_SEMVER = /^\d+\.\d+\.\d+$/;
+if (process.env.CI_COMMIT_TAG && !BARE_SEMVER.test(gitTag)) {
+	throw new Error(
+		`refusing to build a release: version "${gitTag}" is not a bare semver. ` +
+			"Tag the commit being released (git tag X.Y.Z) — the tag IS the version.",
+	);
+}
 
 const develop = process.argv[2] === "develop";
 const staging = process.argv[2] === "staging";
