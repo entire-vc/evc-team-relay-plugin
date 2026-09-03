@@ -107,7 +107,7 @@ function isLicense(candidate: unknown): candidate is LicenseRecord {
 		typeof candidate === "object" &&
 		candidate !== null &&
 		"license" in candidate &&
-		typeof (candidate as { license: unknown }).license === "string"
+		typeof candidate.license === "string"
 	);
 }
 
@@ -118,7 +118,7 @@ function isLicenseArray(candidate: unknown): candidate is LicenseRecord[] {
 /** A response body can be a bare LicenseRecord, an array of them, or `{licenses: [...]}` — normalize to an array or throw. */
 function extractLicenses(body: unknown): LicenseRecord[] {
 	if (isLicenseArray(body)) return body;
-	if (body && typeof body === "object" && "licenses" in body && isLicenseArray((body as { licenses: unknown }).licenses)) {
+	if (body && typeof body === "object" && "licenses" in body && isLicenseArray(body.licenses)) {
 		return (body as { licenses: LicenseRecord[] }).licenses;
 	}
 	if (isLicense(body)) return [body];

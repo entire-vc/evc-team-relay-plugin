@@ -67,7 +67,7 @@ export class NotificationDispatcher {
 		this.sentLog.push(this.makeMail(sender, recipient));
 
 		if (immediate) {
-			this.deliverTo(anyRecipient, sender as unknown as Subscribable<unknown>);
+			this.deliverTo(anyRecipient, sender);
 			return;
 		}
 
@@ -76,7 +76,7 @@ export class NotificationDispatcher {
 			waiting = new Set();
 			this.mailbox.set(anyRecipient, waiting);
 		}
-		waiting.add(sender as unknown as Subscribable<unknown>);
+		waiting.add(sender);
 
 		if (!this.inTransaction && !this.flushScheduled) {
 			this.scheduleFlush();
@@ -110,7 +110,7 @@ export class NotificationDispatcher {
 		sender: Subscribable<unknown>,
 	): void {
 		recipient(sender);
-		this.deliveredLog.push(this.makeMail(sender as any, recipient as any));
+		this.deliveredLog.push(this.makeMail<unknown>(sender, recipient));
 	}
 
 	private makeMail<T>(

@@ -18,17 +18,16 @@ const WRAPPER_CLASS = "title-with-awareness";
  * `containerEl.querySelector`, so it's always attached and this is dead.
  */
 function wrapInlineTitle(containerEl: HTMLElement): HTMLElement | null {
-	const inlineTitle = containerEl.querySelector(".inline-title") as HTMLElement | null;
+	const inlineTitle = containerEl.querySelector<HTMLElement>(".inline-title");
 	if (!inlineTitle) {
 		return null;
 	}
 
-	const wrapper = activeDocument.createElement("div");
-	wrapper.className = WRAPPER_CLASS;
-	wrapper.addClass("evc-flex", "evc-align-center", "evc-justify-between", "evc-w-full");
+	const wrapper = createDiv({
+		cls: [WRAPPER_CLASS, "evc-flex", "evc-align-center", "evc-justify-between", "evc-w-full"],
+	});
 
-	const avatarContainer = activeDocument.createElement("div");
-	avatarContainer.className = "evc-user-awareness-container";
+	const avatarContainer = createDiv({ cls: "evc-user-awareness-container" });
 
 	if (inlineTitle.parentNode) {
 		inlineTitle.parentNode.insertBefore(wrapper, inlineTitle);

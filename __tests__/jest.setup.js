@@ -25,3 +25,41 @@ if (typeof global.activeWindow === "undefined") {
 if (typeof global.activeDocument === "undefined") {
 	global.activeDocument = global.document || {};
 }
+// createEl/createDiv/createSpan are also Obsidian globals (declared
+// `declare global` in obsidian.d.ts, not exports of the "obsidian" module —
+// same category as activeDocument/activeWindow above). Real Obsidian
+// implements them as detached-element factories: build a plain element via
+// document.createElement, then apply the subset of DomElementInfo this repo
+// actually uses (cls/text/attr/title). Only meaningful in a jsdom-environment
+// test file (`@jest-environment jsdom` docblock) where a real `document`
+// exists — in a plain node-env file nothing calls these, same as
+// activeDocument.createElement never being called there either.
+function applyDomElementInfo(el, o) {
+	const info = typeof o === "string" ? { text: o } : o || {};
+	if (info.cls !== undefined) {
+		const classes = Array.isArray(info.cls) ? info.cls : [info.cls];
+		el.classList.add(...classes.filter((c) => typeof c === "string" && c.length > 0));
+	}
+	if (info.text !== undefined) {
+		el.textContent = info.text;
+	}
+	if (info.title !== undefined) {
+		el.title = info.title;
+	}
+	if (info.attr) {
+		for (const [key, value] of Object.entries(info.attr)) {
+			if (value === null || value === false) continue;
+			el.setAttribute(key, value === true ? "" : String(value));
+		}
+	}
+	return el;
+}
+if (typeof global.createEl === "undefined") {
+	global.createEl = (tag, o) => applyDomElementInfo(global.document.createElement(tag), o);
+}
+if (typeof global.createDiv === "undefined") {
+	global.createDiv = (o) => global.createEl("div", o);
+}
+if (typeof global.createSpan === "undefined") {
+	global.createSpan = (o) => global.createEl("span", o);
+}

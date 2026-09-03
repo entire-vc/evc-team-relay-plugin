@@ -230,7 +230,13 @@ export class RelayOnPremAuthStore {
 
 		if (hasLocalStorage) {
 			try {
-				// store in local storage
+				// Deliberately `window.localStorage`, not Obsidian's plugin-data
+				// API (`saveData()` / `data.json`): this store persists the auth
+				// token, and `data.json` is a plugin SETTINGS file that users
+				// routinely copy into vault-share/backup destinations along with
+				// the rest of the vault -- a token living there would travel
+				// with it. `localStorage` is scoped to the local browser/Electron
+				// profile only, so it never gets swept up in that.
 				const normalizedVal: string =
 					typeof value === "string" ? value : JSON.stringify(value);
 				window.localStorage.setItem(key, normalizedVal);

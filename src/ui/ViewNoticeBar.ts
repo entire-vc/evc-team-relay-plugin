@@ -26,8 +26,7 @@ export class ViewNoticeBar {
 		let box = hostEl.querySelector(`.${BOX_CLASS}`);
 		if (box) return box;
 
-		box = activeDocument.createElement("div");
-		box.classList.add(BOX_CLASS);
+		box = createDiv({ cls: BOX_CLASS });
 		hostEl.insertBefore(box, hostEl.querySelector(".view-content"));
 		hostEl.classList.add(HOST_CLASS);
 		return box;
@@ -40,8 +39,7 @@ export class ViewNoticeBar {
 		const box = this.mount(hostEl);
 		if (box.querySelector(`.${BANNER_CLASS}`)) return true;
 
-		const banner = activeDocument.createElement("div");
-		banner.classList.add(BANNER_CLASS);
+		const banner = createDiv({ cls: BANNER_CLASS });
 		banner.createSpan().setText(this.message);
 		banner.addEventListener("click", () => {
 			void this.onActivate().then((shouldDestroy) => {
