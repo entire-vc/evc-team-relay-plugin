@@ -18,18 +18,21 @@ if you want to view the source, please visit the github repository of this plugi
 */
 `;
 
-// Версия берётся из тега и вписывается в manifest.json ниже (updateManifest).
+// The version comes from the tag and is written into manifest.json below
+// (updateManifest).
 //
-// `--always` здесь БЫЛО, и это стоило публичного релиза: при отсутствии тега флаг
-// не даёт describe упасть, а возвращает голый sha, который сборка молча вписывает
-// в манифест как версию. Так в первый коммит нового репозитория уехало
-// "1.1.43-237-g1833d8a" — тег старого репозитория, число коммитов над ним и хеш.
-// Никто не соврал: отказ был заранее выключен флагом. Не возвращать.
-// Валидатор каталога Obsidian собирает опубликованный архив, в котором .git нет
-// вовсе: там describe выходит с кодом 128 и роняет сборку на загрузке модуля.
-// Это отдельный случай от «тега нет в git-репозитории» — там падать правильно,
-// и строгость ниже сохранена. Здесь же git недоступен как таковой, и источником
-// версии становится manifest.json, который архив и так несёт.
+// `--always` USED to be here, and it cost us a public release. With no tag in
+// reach the flag stops describe from failing and hands back a bare sha, which
+// the build then silently writes into the manifest as the version. That is how
+// "1.1.43-237-g1833d8a" -- the old repository's tag, the commit count above it
+// and a hash -- shipped in this repository's first release. Nothing lied: the
+// failure had been switched off in advance. Do not put the flag back.
+// The Obsidian catalogue validator builds the published tarball, which carries
+// no .git at all: there describe exits 128 and aborts the build at module load.
+// That is a different case from "a git repository with no tag reachable" --
+// failing there is correct and the strictness below is kept intact. When git is
+// unavailable altogether the version comes from manifest.json, which the tarball
+// already ships.
 const gitTag = (() => {
 	try {
 		return execSync("git describe --tags", {
@@ -37,18 +40,20 @@ const gitTag = (() => {
 			stdio: ["ignore", "pipe", "ignore"],
 		}).trim();
 	} catch (e) {
-		if (fs.existsSync(".git")) throw e; // git есть, тега нет — падаем, как и задумано
+		// A git repository with no reachable tag must still fail, by design.
+		if (fs.existsSync(".git")) throw e;
 		return JSON.parse(fs.readFileSync("manifest.json", "utf8")).version;
 	}
 })();
 
-// Второй рубеж: describe может вернуть валидную строку неверной ФОРМЫ.
-// Аллоулист, а не денилист — перечисляем то, что принимаем, иначе следующая
-// неожиданная форма пройдёт молча (голый sha денилист по суффиксу не ловит).
+// Second line of defence: describe can return a valid string of the wrong SHAPE.
+// An allowlist, not a denylist -- we spell out what we accept, otherwise the next
+// unexpected shape passes in silence (a bare sha is not caught by a suffix rule).
 //
-// Проверяется только релизная сборка: на ветке describe законно даёт
-// "0.0.1-5-gabc1234", и запрет на каждой сборке закрасил бы main следующим же
-// коммитом после тега — гейт, запирающий разработку, снимут, а не починят.
+// Only release builds are checked: on a branch describe legitimately yields
+// "0.0.1-5-gabc1234", and enforcing this on every build would turn main red on
+// the very next commit after a tag -- a gate that blocks development gets
+// removed rather than fixed.
 const BARE_SEMVER = /^\d+\.\d+\.\d+$/;
 if (process.env.CI_COMMIT_TAG && !BARE_SEMVER.test(gitTag)) {
 	throw new Error(
@@ -65,8 +70,8 @@ const out = process.argv[3] || ".";
 const tld = staging ? "dev" : "md";
 
 // Obsidian vault plugin directory for auto-copy on build
-// Только по явной переменной. Здесь стоял личный путь конкретного разработчика:
-// публичный репозиторий его нёс, и каждая сборка писала в ту машину.
+// Opt-in only. This used to hold one developer's personal vault path: a public
+// repository carried it, and every build wrote into that machine.
 const obsidianPluginDir = process.env.OBSIDIAN_PLUGIN_DIR || null;
 
 // EVC Team Relay uses relay-onprem mode, no default System 3 URLs.
