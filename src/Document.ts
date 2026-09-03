@@ -469,7 +469,7 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 		await this._indexeddbPersistence.set(Document.SYNC_BASE_KEY, text);
 	}
 
-	static matchesTrackedExtension(vpath: string): boolean {
+	static matchesTrackedExtension(this: void, vpath: string): boolean {
 		return vpath.endsWith(".md");
 	}
 
