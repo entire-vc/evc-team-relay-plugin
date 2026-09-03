@@ -548,7 +548,7 @@
 	async function getDocumentContent(path: string): Promise<string | null> {
 		try {
 			const file = live.app.vault.getAbstractFileByPath(path);
-			if (file && "extension" in file) return await live.app.vault.read(file as any);
+			if (file && "extension" in file) return await live.app.vault.read(file as TFile);
 			return null;
 		} catch { return null; }
 	}
