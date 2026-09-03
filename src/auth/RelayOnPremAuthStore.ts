@@ -100,6 +100,31 @@ export class RelayOnPremAuthStore {
 	}
 
 	/**
+	 * Move stored auth data from one serverId to another (server-rename migration).
+	 * Verbatim: the payload is not parsed or shape-validated, so a partially written
+	 * or corrupt blob is relocated rather than silently dropped -- unlike load(),
+	 * which validates shape and would drop anything incomplete.
+	 * No-op returning false if `fromServerId` holds nothing, or if `toServerId`
+	 * already holds data -- an existing login is never overwritten.
+	 */
+	renameServer(fromServerId: string, toServerId: string): boolean {
+		const fromKey = this.getStorageKey(fromServerId);
+		const toKey = this.getStorageKey(toServerId);
+
+		const fromData = this._readStorage(fromKey);
+		if (fromData === undefined) {
+			return false;
+		}
+		if (this._readStorage(toKey) !== undefined) {
+			return false;
+		}
+
+		this._writeStorage(toKey, fromData);
+		this._deleteStorage(fromKey);
+		return true;
+	}
+
+	/**
 	 * Clear all authentication data for all servers
 	 */
 	clearAll(): void {
