@@ -1,0 +1,275 @@
+# CI — Team Relay Obsidian Plugin
+# Based on F3 ci-ts-plugin template (bob/docs/ci-templates/ci-ts-plugin.yml)
+#
+# ENFORCE mode is live: all jobs use continue-on-error: false (blocking).
+# CI_MODE=ENFORCE is set in repo Settings → Variables → Actions.
+# To revert to burn-in: set continue-on-error: true on each job and set
+# CI_MODE=REPORT (or unset it).
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# All jobs only read repo contents (checkout, npm ci, tsc, jest, eslint) or make
+# read-only `gh api` calls (manifest-check's release/contents lookups). None
+# comment on PRs, publish packages, or create releases — contents: read covers
+# every job in this file, so a single top-level block is correct (not per-job).
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+
+  # ── Type-check ──────────────────────────────────────────────────────────────
+  type-check:
+    name: "TypeScript type-check"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: tsc --noEmit
+        run: npx tsc --noEmit --skipLibCheck
+
+  # ── Unit + integration tests + coverage ────────────────────────────────────
+  unit-coverage:
+    name: "Jest (unit + integration) + coverage report"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+
+      - name: Run Jest with coverage
+        run: |
+          npx jest \
+            --coverage \
+            --forceExit \
+            --passWithNoTests
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: jest-coverage-team-relay
+          path: coverage/
+
+  # ── Build smoke ─────────────────────────────────────────────────────────────
+  build-smoke:
+    name: "Build + smoke"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build plugin
+        run: npm run build
+      - name: Verify main.js produced
+        run: test -f main.js && echo "build OK"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: team-relay-dist
+          path: main.js
+
+  # ── Lint ────────────────────────────────────────────────────────────────────
+  lint:
+    name: "ESLint"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  # ── Manifest version check ──────────────────────────────────────────────────
+  manifest-check:
+    name: "manifest.json version sync"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify manifest.json matches package.json
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          MFT_VER=$(node -p "require('./manifest.json').version")
+          MFT_MIN=$(node -p "require('./manifest.json').minAppVersion")
+          echo "package.json:   $PKG_VER"
+          echo "manifest.json:  $MFT_VER  (minAppVersion: $MFT_MIN)"
+          if [ "$PKG_VER" != "$MFT_VER" ]; then
+            echo "::error::manifest.json version ($MFT_VER) != package.json version ($PKG_VER). Run 'npm version <ver>' or manually fix manifest.json."
+            exit 1
+          fi
+          if ! grep -q "\"$MFT_VER\"" versions.json; then
+            echo "::error::versions.json is missing entry for $MFT_VER. Add it via 'npm version <ver>'."
+            exit 1
+          fi
+          echo "OK: manifest.json, package.json, versions.json all agree on $PKG_VER"
+
+          # TR-40: manifest-beta.json is what BRAT reads directly off the default
+          # branch for beta-channel installs — it's not a release asset and nothing
+          # else keeps it in sync, so it silently rotted 7 releases behind (1.1.28
+          # while manifest.json reached 1.1.35) with no CI signal. Require it to
+          # track manifest.json on every version bump, same as versions.json above.
+          MFB_VER=$(node -p "require('./manifest-beta.json').version")
+          echo "manifest-beta.json: $MFB_VER"
+          if [ "$MFB_VER" != "$MFT_VER" ]; then
+            echo "::error::manifest-beta.json version ($MFB_VER) != manifest.json version ($MFT_VER). BRAT beta-channel users won't see this release until manifest-beta.json is bumped too."
+            exit 1
+          fi
+          echo "OK: manifest-beta.json also agrees on $PKG_VER"
+
+      - name: Monotonicity guard — version must be strictly greater than latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+          fi
+          CUR_VER=$(node -p "require('./manifest.json').version")
+          # Gate on the manifest.json "version" VALUE at base vs head, NOT on whether
+          # a version FILE was touched. Dependabot bumps edit package.json (a dep range)
+          # without changing the plugin version — a file-presence skip stays red on them
+          # and, under enforce_admins=true, wedges the PR permanently (Mesh #f45df4ad,
+          # ported from evc-local-sync-plugin #fa82cc92 / PR #39).
+          BASE_VER=""
+          if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            BASE_VER=$(gh api "repos/$REPO/contents/manifest.json?ref=$BASE_SHA" --jq '.content' 2>/dev/null \
+              | base64 -d 2>/dev/null \
+              | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || true)
+          fi
+          if [ -n "$BASE_VER" ] && [ "$CUR_VER" = "$BASE_VER" ]; then
+            echo "manifest.json version unchanged ($CUR_VER vs base $BASE_VER) — not a release-bump, skipping monotonicity check."
+            exit 0
+          fi
+          LATEST_TAG=$(gh api "repos/$REPO/releases/latest" --jq '.tag_name' 2>/dev/null || echo "0.0.0")
+          LATEST_VER="${LATEST_TAG#v}"
+          echo "Latest published release: $LATEST_VER"
+          echo "Current manifest version: $CUR_VER (base $BASE_VER)"
+          # version_gt: returns 0 if $1 > $2
+          version_gt() {
+            [ "$(printf '%s\n%s' "$1" "$2" | sort -V | tail -1)" = "$1" ] && [ "$1" != "$2" ]
+          }
+          if ! version_gt "$CUR_VER" "$LATEST_VER"; then
+            echo "::error::Version $CUR_VER is not strictly greater than latest published release $LATEST_VER. Bump the version monotonically."
+            exit 1
+          fi
+          echo "OK: $CUR_VER > $LATEST_VER (monotonically increasing)"
+
+  # ── Legal gate 3: distinguishable verbatim lines from upstream ─────────────
+  # Third of three derivativeness gates for the "remove derivativeness from
+  # upstream" epic (Mesh #f3eb7b30): #1 whole-file similarity
+  # (check-derivativeness.sh), #2 longest verbatim run, #3 here — count of
+  # DISTINGUISHABLE verbatim lines per file (framework/CSS boilerplate doesn't
+  # count; an author's comment or a quoted literal does). Threshold <=15/file
+  # accepted 2026-08-22, Mesh #6b88fc6f — see that task for why distinguishable-
+  # count and not raw-%/run-length (a file can be 81% raw-identical and hold
+  # zero authored lines: Obsidian/Svelte scaffolding two independent
+  # implementations must share).
+  #
+  # Upstream is pinned to the same fork-point commit check-derivativeness.sh
+  # uses — read from that script rather than duplicated here, so the two
+  # cannot silently drift apart. Re-pinning to upstream HEAD would let
+  # upstream's own later commits "clean" our files with zero work of ours
+  # (see check-derivativeness.sh's own comment on this).
+  #
+  # Governed by its OWN mode flag (LEGAL_GATE3_MODE), separate from CI_MODE:
+  # main currently holds 26 files over the threshold (wave-4 rewrite tracked
+  # at Mesh #0ec60ab6), so folding this straight into CI_MODE=ENFORCE today
+  # would immediately block every PR to this repo, including unrelated ones —
+  # not something one task should decide unilaterally. The job itself always
+  # runs and fails loudly on exit 1 (visible red check, real CI run); flip
+  # LEGAL_GATE3_MODE=ENFORCE once #0ec60ab6 lands to make it block merges too.
+  legal-verbatim-distinct:
+    name: "Legal gate 3 — distinguishable verbatim lines (<=15/file)"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve pinned upstream fork-point
+        id: forkpoint
+        run: |
+          FP=$(grep -oP 'FORK_POINT="\K[^"]+' scripts/check-derivativeness.sh)
+          if [ -z "$FP" ]; then
+            echo "::error::could not read FORK_POINT out of scripts/check-derivativeness.sh"
+            exit 1
+          fi
+          echo "Upstream fork-point: $FP"
+          echo "sha=$FP" >> "$GITHUB_OUTPUT"
+      - name: Clone upstream at pinned fork-point
+        run: |
+          git clone --quiet https://github.com/No-Instructions/Relay.git /tmp/relay-upstream
+          git -C /tmp/relay-upstream checkout --quiet "${{ steps.forkpoint.outputs.sha }}"
+      - name: Gate 3 — distinguishable verbatim lines (<=15/file)
+        run: |
+          python3 scripts/check-verbatim-distinct.py \
+            /tmp/relay-upstream/src src --max-distinct 15
+
+  # ── Gate ────────────────────────────────────────────────────────────────────
+  ci-gate:
+    name: "CI gate"
+    runs-on: ubuntu-latest
+    needs: [type-check, unit-coverage, build-smoke, lint, manifest-check, legal-verbatim-distinct]
+    if: always()
+    steps:
+      - name: Check outcomes
+        run: |
+          MODE="${{ vars.CI_MODE || 'REPORT' }}"
+          LG3_MODE="${{ vars.LEGAL_GATE3_MODE || 'REPORT' }}"
+          TC="${{ needs.type-check.result }}"
+          UC="${{ needs.unit-coverage.result }}"
+          BS="${{ needs.build-smoke.result }}"
+          LN="${{ needs.lint.result }}"
+          MC="${{ needs.manifest-check.result }}"
+          LG3="${{ needs.legal-verbatim-distinct.result }}"
+          echo "Mode=$MODE  type-check=$TC  unit-coverage=$UC  build-smoke=$BS  lint=$LN  manifest-check=$MC"
+          echo "LEGAL_GATE3_MODE=$LG3_MODE  legal-verbatim-distinct=$LG3"
+          if [ "$MC" != "success" ]; then
+            echo "::error::manifest-check always enforced (version drift prevention)."
+            exit 1
+          fi
+          if [ "$MODE" = "ENFORCE" ]; then
+            if [ "$TC" != "success" ] || [ "$UC" != "success" ] || \
+               [ "$BS" != "success" ] || [ "$LN" != "success" ]; then
+              echo "::error::One or more CI gates failed in ENFORCE mode."
+              exit 1
+            fi
+          else
+            echo "REPORT mode — failures are informational. Flip CI_MODE=ENFORCE after 3-day green burn-in."
+          fi
+          if [ "$LG3_MODE" = "ENFORCE" ] && [ "$LG3" != "success" ]; then
+            echo "::error::legal gate 3 (verbatim-distinct) failed in ENFORCE mode."
+            exit 1
+          elif [ "$LG3" != "success" ]; then
+            echo "legal gate 3 (verbatim-distinct) is currently failing — informational until LEGAL_GATE3_MODE=ENFORCE (tracked by wave-4 rewrite, Mesh #0ec60ab6)."
+          fi
