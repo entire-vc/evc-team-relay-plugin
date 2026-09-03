@@ -1,0 +1,53 @@
+version: 2
+updates:
+  # npm — repo root
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      npm-minor-and-patch:
+        update-types: ["minor", "patch"]
+        # obsidian >=1.10 pins @codemirror/state and @codemirror/view to exact
+        # peer versions, conflicting with our devDeps and ERESOLVE-failing npm ci
+        # for the whole group. Keep these three ungrouped so one breaking bump
+        # can't block the other ~16 clean updates.
+        exclude-patterns:
+          - "obsidian"
+          - "@codemirror/state"
+          - "@codemirror/view"
+    ignore:
+      # Svelte 5 removed the class component API (`new Component({target, props})`,
+      # $set/$destroy). We use it in 35 places across 22 files; none of it is
+      # visible to tsc (tsconfig include is **/*.ts, so .svelte is never
+      # type-checked). A 2-line patch makes CI fully green with a broken
+      # plugin. Migration is tracked separately as its own effort.
+      - dependency-name: "svelte"
+        update-types: ["version-update:semver-major"]
+      # @types/node major version is a runtime-support statement, not a plain
+      # type bump — it should land together with (never ahead of) the Node
+      # version CI/release actually run on, so it doesn't drift to a non-LTS
+      # line like v26 (see PR #130, gh#8c871663). Bump both in the same PR.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 6 is a migration, not a bump. `baseUrl` and
+      # `moduleResolution: node10` are deprecated (they stop functioning in
+      # TS 7), and clearing those config errors reveals 6 real errors in
+      # src/client/provider.ts (Uint8Array<ArrayBufferLike> no longer satisfies
+      # BufferSource) plus 5 pre-existing yjs deep-import errors. Tracked
+      # separately; nothing is broken on 5.x.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 5
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      actions-all:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
