@@ -25,9 +25,22 @@ if you want to view the source, please visit the github repository of this plugi
 // в манифест как версию. Так в первый коммит нового репозитория уехало
 // "1.1.43-237-g1833d8a" — тег старого репозитория, число коммитов над ним и хеш.
 // Никто не соврал: отказ был заранее выключен флагом. Не возвращать.
-const gitTag = execSync("git describe --tags", {
-	encoding: "utf8",
-}).trim();
+// Валидатор каталога Obsidian собирает опубликованный архив, в котором .git нет
+// вовсе: там describe выходит с кодом 128 и роняет сборку на загрузке модуля.
+// Это отдельный случай от «тега нет в git-репозитории» — там падать правильно,
+// и строгость ниже сохранена. Здесь же git недоступен как таковой, и источником
+// версии становится manifest.json, который архив и так несёт.
+const gitTag = (() => {
+	try {
+		return execSync("git describe --tags", {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+	} catch (e) {
+		if (fs.existsSync(".git")) throw e; // git есть, тега нет — падаем, как и задумано
+		return JSON.parse(fs.readFileSync("manifest.json", "utf8")).version;
+	}
+})();
 
 // Второй рубеж: describe может вернуть валидную строку неверной ФОРМЫ.
 // Аллоулист, а не денилист — перечисляем то, что принимаем, иначе следующая
@@ -52,8 +65,9 @@ const out = process.argv[3] || ".";
 const tld = staging ? "dev" : "md";
 
 // Obsidian vault plugin directory for auto-copy on build
-const obsidianPluginDir = process.env.OBSIDIAN_PLUGIN_DIR ||
-	path.join(process.env.HOME, "Obsidian/Rogozhin/.obsidian/plugins/evc-team-relay");
+// Только по явной переменной. Здесь стоял личный путь конкретного разработчика:
+// публичный репозиторий его нёс, и каждая сборка писала в ту машину.
+const obsidianPluginDir = process.env.OBSIDIAN_PLUGIN_DIR || null;
 
 // EVC Team Relay uses relay-onprem mode, no default System 3 URLs.
 // (Relay health-check URL is NOT build-time config — it's derived at runtime
@@ -181,6 +195,7 @@ const move = (fnames, mapping) => {
 
 // Copy build output to Obsidian plugin directory
 const copyToObsidian = () => {
+	if (!obsidianPluginDir) return;
 	if (!fs.existsSync(obsidianPluginDir)) {
 		console.log(`Obsidian plugin dir not found: ${obsidianPluginDir}`);
 		return;

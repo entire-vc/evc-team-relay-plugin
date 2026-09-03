@@ -628,8 +628,8 @@ export default class TeamRelayPlugin extends Plugin {
 		// Store app reference for reload function (avoid window.app per Obsidian guidelines)
 		const appRef = this.app as unknown as ObsidianApp;
 		appRef.reloadRelay = async () => {
-			await appRef.plugins.disablePlugin("evc-team-relay");
-			await appRef.plugins.enablePlugin("evc-team-relay");
+			await appRef.plugins.disablePlugin("team-relay");
+			await appRef.plugins.enablePlugin("team-relay");
 		};
 
 		this.addCommand({
@@ -1791,7 +1791,7 @@ export default class TeamRelayPlugin extends Plugin {
 	async showSettingsTab(path: string = "/") {
 		const setting = (this.app as unknown as ObsidianApp).setting;
 		await setting.open();
-		await setting.openTabById("evc-team-relay");
+		await setting.openTabById("team-relay");
 		this.settingsPage.showPath(path);
 	}
 
@@ -2136,7 +2136,7 @@ export default class TeamRelayPlugin extends Plugin {
 		} else {
 			const appAny = this.app as unknown as ObsidianApp;
 			const appCommands = appAny.commands;
-			const qualifiedCommand = `evc-team-relay:${command}`;
+			const qualifiedCommand = `team-relay:${command}`;
 			if (
 				Object.prototype.hasOwnProperty.call(appCommands.commands, qualifiedCommand) ||
 				appAny.hotkeyManager.removeDefaultHotkeys(qualifiedCommand)
