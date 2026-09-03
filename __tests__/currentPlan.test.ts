@@ -17,7 +17,7 @@ const plan = (id: string, name: string, amount: number): AvailablePlan => ({
 // rendered the Current badge. Whatever else this returns, it must never be true
 // for two cards at once.
 describe("resolveCurrentPlanId", () => {
-	it("никогда не отмечает два тарифа текущими, даже когда оба без цены", () => {
+	it("never marks two plans as current, even when both are priced at zero", () => {
 		const plans = [plan("free", "Relay Free", 0), plan("builder", "Relay Builder", 0)];
 		const id = resolveCurrentPlanId({ plan: "Relay Free" }, plans);
 		const marked = plans.filter((p) => p.id === id);
@@ -25,23 +25,23 @@ describe("resolveCurrentPlanId", () => {
 		expect(id).toBe("free");
 	});
 
-	it("выбирает платный тариф, когда сервер назвал его", () => {
+	it("picks the paid plan when the server names it", () => {
 		const plans = [plan("free", "Relay Free", 0), plan("builder", "Relay Builder", 900)];
 		expect(resolveCurrentPlanId({ plan: "Relay Builder" }, plans)).toBe("builder");
 	});
 
-	it("не выбирает ничего, если сервер не назвал план", () => {
+	it("picks nothing when the server names no plan", () => {
 		const plans = [plan("free", "Relay Free", 0), plan("builder", "Relay Builder", 900)];
 		expect(resolveCurrentPlanId({ plan: "" }, plans)).toBeNull();
 		expect(resolveCurrentPlanId(null, plans)).toBeNull();
 	});
 
-	it("не выбирает ничего при неоднозначности - лучше ни одного, чем два", () => {
+	it("picks nothing when ambiguous - none is better than two", () => {
 		const plans = [plan("a", "Relay", 0), plan("b", "Relay", 900)];
 		expect(resolveCurrentPlanId({ plan: "Relay" }, plans)).toBeNull();
 	});
 
-	it("терпит регистр и пробелы вокруг имени", () => {
+	it("tolerates case and surrounding whitespace in the name", () => {
 		const plans = [plan("free", "  Relay Free ", 0), plan("builder", "Relay Builder", 900)];
 		expect(resolveCurrentPlanId({ plan: "relay free" }, plans)).toBe("free");
 	});
@@ -55,7 +55,7 @@ describe("resolveCurrentPlanId", () => {
 	// `undefined` `.id` and marked all of them "Current" at once. A client/
 	// server field-name mismatch must degrade to "no current plan", never to
 	// "every plan is current".
-	it("не выбирает ничего, если у совпавшего тарифа отсутствует id (рассинхрон схемы клиент/сервер)", () => {
+	it("picks nothing when the matched plan has no id (client/server schema drift)", () => {
 		const malformed = [
 			{ ...plan("free", "Relay Free", 0), id: undefined as unknown as string },
 			{ ...plan("builder", "Relay Builder", 900), id: undefined as unknown as string },

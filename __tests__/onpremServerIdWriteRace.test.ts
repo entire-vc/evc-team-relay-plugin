@@ -38,7 +38,7 @@ import { SettingsScope, Settings } from "../src/SettingsPersistence";
  * Serializes through JSON on every round-trip, like Obsidian's real
  * plugin-data adapter. A naive in-memory adapter that stores the object
  * *reference* would alias any in-memory mutation into what "disk" returns,
- * hiding exactly the class of bug (§0x "негативный контроль") this suite
+ * hiding exactly the class of bug (§0x "negative control") this suite
  * exists to catch — see the CONTROL2 case below, which fails first against
  * a reference-aliasing adapter and only holds once this adapter is used.
  */
