@@ -5,6 +5,14 @@
 export const requestUrl = jest.fn();
 
 /**
+ * Mock for Obsidian's `getLanguage()` (@since 1.8.7) -- returns the
+ * currently-configured interface language, defaults to "en". Tests that
+ * need a different active language call `getLanguage.mockReturnValue(...)`
+ * and should restore it (`mockReturnValue("en")` or `mockClear()`) after.
+ */
+export const getLanguage = jest.fn((): string => "en");
+
+/**
  * Minimal standin for Obsidian's `debounce()` (real signature: cb, timeout,
  * resetTimer). Trailing-edge only (fires `cb` once `timeout` ms after the
  * last call when resetTimer=true, which is the only mode this repo uses).

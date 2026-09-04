@@ -8,6 +8,7 @@
 	import type { ShareWithServer } from "../RelayOnPremShareClientManager";
 	import { RelayOnPremShareClientManager } from "../RelayOnPremShareClientManager";
 	import { RelayOnPremShareClient } from "../RelayOnPremShareClient";
+	import { uiText } from "../wording/uiText";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -79,10 +80,10 @@
 					serverName: "Default Server",
 				}));
 			} else {
-				error = "Please add a server and log in first.";
+				error = uiText("shareList.noServerError");
 			}
 		} catch (e: unknown) {
-			error = e instanceof Error ? e.message : "Failed to load shares";
+			error = e instanceof Error ? e.message : uiText("shareList.loadFailedFallback");
 		} finally {
 			loading = false;
 		}
@@ -91,19 +92,19 @@
 
 <div class="evc-share-list">
 	<div class="evc-share-list-header">
-		<div class="evc-section-title">Shares on {server.name}</div>
+		<div class="evc-section-title">{uiText("shareList.title", { serverName: server.name })}</div>
 		<button class="mod-cta" on:click={() => dispatch('createShare')}>
-			Create Share
+			{uiText("shared.createShareButton")}
 		</button>
 	</div>
 
 	{#if loading}
-		<div class="evc-loading">Loading shares...</div>
+		<div class="evc-loading">{uiText("shareList.loading")}</div>
 	{:else if error}
 		<div class="evc-error">{error}</div>
 	{:else if shares.length === 0}
 		<div class="evc-empty">
-			<p>No shares yet. Create your first share to get started!</p>
+			<p>{uiText("shareList.empty")}</p>
 		</div>
 	{:else}
 		<div class="evc-share-items">

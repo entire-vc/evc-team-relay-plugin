@@ -8,6 +8,7 @@
 	import { LimitExceededApiError } from "../RelayOnPremShareClient";
 	import { FolderPathPickerModal } from "../ui/FolderPathPickerModal";
 	import { ResourceAddress } from "../ResourceAddress";
+	import { uiText } from "../wording/uiText";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -26,7 +27,7 @@
 	function choosePath() {
 		const modal = new FolderPathPickerModal(
 			live.app,
-			"Choose folder for share...",
+			uiText("createShare.pickerTitle"),
 			new Set(),
 			live.shareRegistry,
 			(folderPath: string) => {
@@ -38,11 +39,11 @@
 
 	async function handleCreate() {
 		if (!selectedPath.trim()) {
-			new Notice("Please select a folder path");
+			new Notice(uiText("createShare.pathRequiredNotice"));
 			return;
 		}
 		if (visibility === "protected" && !password.trim()) {
-			new Notice("Password is required for protected shares");
+			new Notice(uiText("shared.passwordRequiredNotice"));
 			return;
 		}
 
@@ -61,7 +62,7 @@
 			} else if (live.shareClient) {
 				share = await live.shareClient.createShare(createRequest);
 			} else {
-				throw new Error("No share client available");
+				throw new Error(uiText("shared.noShareClientError"));
 			}
 
 			// Create local VaultShare for CRDT sync
@@ -82,18 +83,17 @@
 				}
 			}
 
-			new Notice(`Share "${share.path}" created!`);
+			new Notice(uiText("createShare.createdNotice", { path: share.path }));
 			dispatch("created", { share });
 		} catch (e: unknown) {
 			if (e instanceof LimitExceededApiError) {
 				const info = e.limitInfo;
 				new Notice(
-					`Share limit reached (${info.current}/${info.max} on ${info.plan} plan). ` +
-					`Upgrade your plan to create more shares.`,
+					uiText("createShare.limitReachedNotice", { current: info.current, max: info.max, plan: info.plan }),
 					8000,
 				);
 			} else {
-				new Notice(`Failed to create share: ${e instanceof Error ? e.message : "Unknown error"}`);
+				new Notice(uiText("createShare.createFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 			}
 		} finally {
 			creating = false;
@@ -102,41 +102,41 @@
 </script>
 
 <div class="evc-create-share">
-	<div class="evc-section-title">Create New Share</div>
+	<div class="evc-section-title">{uiText("createShare.title")}</div>
 
 	<div class="evc-form-field">
-		<label for="evc-path-btn">Path</label>
+		<label for="evc-path-btn">{uiText("createShare.pathLabel")}</label>
 		<div class="evc-path-selector">
 			<button id="evc-path-btn" class="evc-path-btn" on:click={choosePath}>
-				{selectedPath || "Choose folder..."}
+				{selectedPath || uiText("createShare.choosePlaceholder")}
 			</button>
 		</div>
 	</div>
 
 	<div class="evc-form-field">
-		<label for="evc-kind">Type</label>
+		<label for="evc-kind">{uiText("createShare.typeLabel")}</label>
 		<select id="evc-kind" class="dropdown" bind:value={kind}>
-			<option value="doc">Document</option>
-			<option value="folder">Folder</option>
+			<option value="doc">{uiText("createShare.docOption")}</option>
+			<option value="folder">{uiText("createShare.folderOption")}</option>
 		</select>
 	</div>
 
 	<div class="evc-form-field">
-		<label for="evc-visibility">Visibility</label>
+		<label for="evc-visibility">{uiText("createShare.visibilityLabel")}</label>
 		<select id="evc-visibility" class="dropdown" bind:value={visibility}>
-			<option value="private">Private - Only members</option>
-			<option value="public">Public - Anyone with link</option>
-			<option value="protected">Protected - Password required</option>
+			<option value="private">{uiText("createShare.privateVisibilityOption")}</option>
+			<option value="public">{uiText("createShare.publicVisibilityOption")}</option>
+			<option value="protected">{uiText("createShare.protectedVisibilityOption")}</option>
 		</select>
 	</div>
 
 	{#if visibility === "protected"}
 		<div class="evc-form-field">
-			<label for="evc-password">Password</label>
+			<label for="evc-password">{uiText("shared.passwordLabel")}</label>
 			<input
 				id="evc-password"
 				type="password"
-				placeholder="Enter password for protected share"
+				placeholder={uiText("createShare.passwordPlaceholder")}
 				bind:value={password}
 			/>
 		</div>
@@ -144,9 +144,9 @@
 
 	<div class="evc-form-actions">
 		<button class="mod-cta" on:click={handleCreate} disabled={creating}>
-			{creating ? "Creating..." : "Create Share"}
+			{creating ? uiText("shared.creatingEllipsis") : uiText("shared.createShareButton")}
 		</button>
-		<button on:click={() => dispatch('cancel')}>Cancel</button>
+		<button on:click={() => dispatch('cancel')}>{uiText("shared.cancelButton")}</button>
 	</div>
 </div>
 
