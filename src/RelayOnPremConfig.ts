@@ -9,6 +9,10 @@
 export const EVC_SERVER_ID = "evc-team-relay";
 export const EVC_CP_URL = "https://cp.tr.entire.vc";
 
+/** Well-known Team Relay RU server (partner instance, added #1f3f16eb) */
+export const TR_RU_SERVER_ID = "teamrelay-ru";
+export const TR_RU_CP_URL = "https://cp.teamrelay.ru";
+
 /**
  * Generate a unique server ID from URL
  */
@@ -108,7 +112,20 @@ export const DEFAULT_RELAY_ONPREM_SETTINGS: RelayOnPremSettings = {
 			controlPlaneUrl: EVC_CP_URL,
 			isValidated: false,
 		},
+		{
+			id: TR_RU_SERVER_ID,
+			name: "Team Relay RU",
+			controlPlaneUrl: TR_RU_CP_URL,
+			isValidated: false,
+		},
 	],
+	// #1f3f16eb (Pavel, 2026-09-02): the second server is for NEW installs
+	// only — this default only applies via the `!oldSettings` branch of
+	// migrateRelayOnPremSettings() below. The existing-settings branch never
+	// adds a server that isn't already in the saved list, so an established
+	// install's servers[] is untouched by this addition. Stays on the EVC
+	// server (Daedalus, 2026-09-04: "минимум неожиданности" — nothing forces
+	// a user already using EVC onto a different default).
 	defaultServerId: EVC_SERVER_ID,
 };
 
