@@ -14,6 +14,22 @@ export const TR_RU_SERVER_ID = "teamrelay-ru";
 export const TR_RU_CP_URL = "https://cp.teamrelay.ru";
 
 /**
+ * The instances we ship. Neither may be deleted: DEFAULT_RELAY_ONPREM_SETTINGS
+ * is only applied to a fresh install, so a removed one never comes back - the
+ * user would silently lose the way into that instance with no way to restore it
+ * short of editing data.json by hand.
+ *
+ * A server the user added themselves is NOT in this list and stays deletable;
+ * protecting those would turn the plugin into a trap for anyone running their
+ * own relay.
+ */
+export const WELL_KNOWN_SERVER_IDS: readonly string[] = [EVC_SERVER_ID, TR_RU_SERVER_ID];
+
+export function isWellKnownServer(id: string): boolean {
+	return WELL_KNOWN_SERVER_IDS.includes(id);
+}
+
+/**
  * Generate a unique server ID from URL
  */
 export function generateServerId(controlPlaneUrl: string): string {
