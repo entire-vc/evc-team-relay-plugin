@@ -1,6 +1,28 @@
 # CI — Team Relay Obsidian Plugin
 # Based on F3 ci-ts-plugin template (bob/docs/ci-templates/ci-ts-plugin.yml)
 #
+# ## What this workflow is FOR, since development moved to GitLab (2026-08-23)
+#
+# Merges happen on the canon (git.entire.host/entire-vc/evc-team-relay-plugin)
+# and are gated by `.gitlab-ci.yml`. This file runs somewhere else entirely: on
+# the public GitHub showcase, over the PUBLISHED SNAPSHOT of the tree — which is
+# a different artifact from the canon working tree, not a copy of it. The
+# snapshot is produced by an export that honours `.gitignore`, so a file can be
+# tracked on the canon and absent from what a stranger clones.
+#
+# That difference is the whole point of keeping these jobs. It is not a
+# duplicate pipeline; it is an EXPORT-INTEGRITY check, and it has already earned
+# its keep: on 2026-09-03 every Jest suite on the showcase failed to parse
+# because the snapshot shipped without `jest.config.js` (it fell under the
+# `*.js` rule in `.gitignore`, which had no exception for it until 25dcf64,
+# fourteen minutes after that snapshot was cut). Canon was green throughout —
+# only the showcase run could see it. Anyone who clones the published repo and
+# runs `npm test` gets what this job gets.
+#
+# So: a red run here says "the tree we published is broken", never "the code is
+# broken". Do not diagnose it against the canon checkout on your disk — clone
+# the showcase and reproduce there, or you will conclude it is a phantom.
+#
 # ENFORCE mode is live: all jobs use continue-on-error: false (blocking).
 # CI_MODE=ENFORCE is set in repo Settings → Variables → Actions.
 # To revert to burn-in: set continue-on-error: true on each job and set
@@ -77,6 +99,39 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # THE BUILD NEEDS TAGS. `esbuild.config.mjs` derives the version from
+          # `git describe --tags` and, by design, THROWS when no tag is reachable
+          # rather than substituting a bare sha — read the comment above that call
+          # before touching anything here. `actions/checkout` defaults to
+          # `fetch-depth: 1` with `--no-tags`, so the checkout it hands the build
+          # is a git repository with no tag in it, and the guard correctly refuses:
+          #
+          #   Error: Command failed: git describe --tags
+          #
+          # That is the guard working. The broken thing is the INPUT, and this is
+          # where it gets fixed. The reason to spell this out: the natural way to
+          # make this job green again is to put `--always` back in esbuild.config
+          # or wrap the call in `|| true`, and that silently reinstates the exact
+          # defect the guard exists to prevent — a published manifest whose
+          # "version" is a commit hash (it shipped once: 1.1.43-237-g1833d8a).
+          # Turning a red build green by disabling the thing that made it red is
+          # not a fix, and here the two moves look identical from the outside.
+          #
+          # `fetch-depth: 0`, not `fetch-tags: true`: the tag has to be REACHABLE,
+          # not merely present. On the showcase snapshot the release tag sits on
+          # HEAD and depth 1 happens to suffice today; one commit after the next
+          # tag it would not, and this job would go red again for a reason that
+          # looks like the old one but is not. The history here is a single-commit
+          # export — a full fetch costs nothing.
+          #
+          # What this does NOT fix, and must not be made to: the published snapshot
+          # has to CARRY a tag reachable from its own HEAD. The showcase tree is
+          # re-cut as a fresh orphan commit on each publication, so a snapshot
+          # pushed without moving the release tag onto it leaves describe with
+          # nothing to find no matter what depth is fetched. If that happens this
+          # job goes red again and is right to: the publication is the broken part.
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
@@ -185,75 +240,42 @@ jobs:
           fi
           echo "OK: $CUR_VER > $LATEST_VER (monotonically increasing)"
 
-  # ── Legal gate 3: distinguishable verbatim lines from upstream ─────────────
-  # Third of three derivativeness gates for the "remove derivativeness from
-  # upstream" epic (Mesh #f3eb7b30): #1 whole-file similarity
-  # (check-derivativeness.sh), #2 longest verbatim run, #3 here — count of
-  # DISTINGUISHABLE verbatim lines per file (framework/CSS boilerplate doesn't
-  # count; an author's comment or a quoted literal does). Threshold <=15/file
-  # accepted 2026-08-22, Mesh #6b88fc6f — see that task for why distinguishable-
-  # count and not raw-%/run-length (a file can be 81% raw-identical and hold
-  # zero authored lines: Obsidian/Svelte scaffolding two independent
-  # implementations must share).
+  # ── Legal gate 3 lives on the canon, not here ───────────────────────────────
+  # `legal-verbatim-distinct` (distinguishable verbatim lines vs the pinned
+  # upstream fork-point) used to run here and was removed on 2026-09-03. It had
+  # been failing every run on the showcase with:
   #
-  # Upstream is pinned to the same fork-point commit check-derivativeness.sh
-  # uses — read from that script rather than duplicated here, so the two
-  # cannot silently drift apart. Re-pinning to upstream HEAD would let
-  # upstream's own later commits "clean" our files with zero work of ours
-  # (see check-derivativeness.sh's own comment on this).
+  #   UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline
   #
-  # Governed by its OWN mode flag (LEGAL_GATE3_MODE), separate from CI_MODE:
-  # main currently holds 26 files over the threshold (wave-4 rewrite tracked
-  # at Mesh #0ec60ab6), so folding this straight into CI_MODE=ENFORCE today
-  # would immediately block every PR to this repo, including unrelated ones —
-  # not something one task should decide unilaterally. The job itself always
-  # runs and fails loudly on exit 1 (visible red check, real CI run); flip
-  # LEGAL_GATE3_MODE=ENFORCE once #0ec60ab6 lands to make it block merges too.
-  legal-verbatim-distinct:
-    name: "Legal gate 3 — distinguishable verbatim lines (<=15/file)"
-    runs-on: ubuntu-latest
-    continue-on-error: false
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Resolve pinned upstream fork-point
-        id: forkpoint
-        run: |
-          FP=$(grep -oP 'FORK_POINT="\K[^"]+' scripts/check-derivativeness.sh)
-          if [ -z "$FP" ]; then
-            echo "::error::could not read FORK_POINT out of scripts/check-derivativeness.sh"
-            exit 1
-          fi
-          echo "Upstream fork-point: $FP"
-          echo "sha=$FP" >> "$GITHUB_OUTPUT"
-      - name: Clone upstream at pinned fork-point
-        run: |
-          git clone --quiet "${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}" /tmp/relay-upstream
-          git -C /tmp/relay-upstream checkout --quiet "${{ steps.forkpoint.outputs.sha }}"
-      - name: Gate 3 — distinguishable verbatim lines (<=15/file)
-        run: |
-          python3 scripts/check-verbatim-distinct.py \
-            /tmp/relay-upstream/src src --max-distinct 15
+  # which is the job refusing correctly: it needs to clone the upstream we forked
+  # from, and that URL is a CI variable on the canon. It is not absent here by
+  # oversight — a derivativeness baseline has no business being configured into a
+  # PUBLIC repository whose purpose is to stand on its own. The gate is ported and
+  # green on the canon (`.gitlab-ci.yml`, job `legal-verbatim-distinct`; likewise
+  # `legal-naming`, gate 4), so deleting it here removes a permanently-red display,
+  # not a check.
+  #
+  # The tempting alternative was to skip the job when UPSTREAM_REPO_URL is unset.
+  # That is worse than the red: a gate able to not-check and still report success
+  # is indistinguishable from a passing one, and the showcase is precisely where
+  # it would always take the skip branch.
 
   # ── Gate ────────────────────────────────────────────────────────────────────
   ci-gate:
     name: "CI gate"
     runs-on: ubuntu-latest
-    needs: [type-check, unit-coverage, build-smoke, lint, manifest-check, legal-verbatim-distinct]
+    needs: [type-check, unit-coverage, build-smoke, lint, manifest-check]
     if: always()
     steps:
       - name: Check outcomes
         run: |
           MODE="${{ vars.CI_MODE || 'REPORT' }}"
-          LG3_MODE="${{ vars.LEGAL_GATE3_MODE || 'REPORT' }}"
           TC="${{ needs.type-check.result }}"
           UC="${{ needs.unit-coverage.result }}"
           BS="${{ needs.build-smoke.result }}"
           LN="${{ needs.lint.result }}"
           MC="${{ needs.manifest-check.result }}"
-          LG3="${{ needs.legal-verbatim-distinct.result }}"
           echo "Mode=$MODE  type-check=$TC  unit-coverage=$UC  build-smoke=$BS  lint=$LN  manifest-check=$MC"
-          echo "LEGAL_GATE3_MODE=$LG3_MODE  legal-verbatim-distinct=$LG3"
           if [ "$MC" != "success" ]; then
             echo "::error::manifest-check always enforced (version drift prevention)."
             exit 1
@@ -266,10 +288,4 @@ jobs:
             fi
           else
             echo "REPORT mode — failures are informational. Flip CI_MODE=ENFORCE after 3-day green burn-in."
-          fi
-          if [ "$LG3_MODE" = "ENFORCE" ] && [ "$LG3" != "success" ]; then
-            echo "::error::legal gate 3 (verbatim-distinct) failed in ENFORCE mode."
-            exit 1
-          elif [ "$LG3" != "success" ]; then
-            echo "legal gate 3 (verbatim-distinct) is currently failing — informational until LEGAL_GATE3_MODE=ENFORCE (tracked by wave-4 rewrite, Mesh #0ec60ab6)."
           fi

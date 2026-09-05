@@ -19,13 +19,12 @@ import {
 /** Icon shown after a link that points outside the current shared folder. */
 class ExternalLinkWarningWidget extends WidgetType {
 	toDOM() {
-		const span = activeDocument.createElement("span");
-		span.addClass("evc-inline-flex");
-		span.addClass("evc-invalid-link");
+		const span = createSpan({
+			cls: ["evc-inline-flex", "evc-invalid-link"],
+			title: "This link points outside the shared folder and may not be accessible to other users.",
+		});
 		// Obsidian's setIcon API renders the SVG safely — no innerHTML involved.
 		setIcon(span, "file-warning");
-		span.title =
-			"This link points outside the shared folder and may not be accessible to other users.";
 		return span;
 	}
 }
@@ -128,7 +127,7 @@ export class ExternalLinkPluginValue {
 		if (!this.hasSyncedContext()) {
 			return;
 		}
-		const sourcePath = this.viewBinding!.boundDocument!.entryPath;
+		const sourcePath = this.viewBinding!.boundDocument.entryPath;
 
 		const next = new Map<number, TrackedLink>();
 		const references: ReferenceCache[] = [...(cache?.links ?? []), ...(cache?.embeds ?? [])];
@@ -181,7 +180,7 @@ export class ExternalLinkPluginValue {
 		if (!this.hasSyncedContext()) {
 			return;
 		}
-		const sourcePath = this.viewBinding!.boundDocument!.entryPath;
+		const sourcePath = this.viewBinding!.boundDocument.entryPath;
 
 		// The metadata cache is slower to update than the shared doc, so we use
 		// it only to resolve *where a link points*; its positions may already

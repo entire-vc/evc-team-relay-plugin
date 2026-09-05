@@ -1,12 +1,12 @@
 import { App, Modal } from "obsidian";
-import type { ComponentProps, ComponentType, SvelteComponentTyped } from "svelte";
+import type { ComponentProps, ComponentType, SvelteComponent } from "svelte";
 
 /**
  * The suggest component must accept `focusOnMount` and `onChoose` on top of
  * whatever else it declares -- those two are supplied by this modal, not by
  * the caller (see `mountProps` below).
  */
-type SuggestComponent<T> = SvelteComponentTyped<{
+type SuggestComponent<T> = SvelteComponent<{
 	focusOnMount?: boolean;
 	onChoose?: (item: T) => void;
 }>;

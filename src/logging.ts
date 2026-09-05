@@ -187,7 +187,7 @@ function emitToConsole(level: LogLevel, entry: LogEntry): void {
 	}
 
 	// warn/error without stack traces: dim, styled one-liner instead of a raw trace.
-	console.debug(`%c${text}`, CONSOLE_STYLES[level as "warn" | "error"]);
+	console.debug(`%c${text}`, CONSOLE_STYLES[level]);
 }
 
 function captureCallerInfo(): string {

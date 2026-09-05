@@ -843,7 +843,21 @@ export class TransferQueue extends Loggable {
 						`overwrite for ${doc.entryPath}`,
 				);
 			}
-			doc.vaultShare.writeContents(doc, remoteText);
+			// MUST be awaited, not fire-and-forgotten: CrdtBackgroundSyncPoller
+			// (this method's only caller) tracks in-flight calls to this method
+			// in its own `pulling` set precisely so the SAME doc's guid can't be
+			// re-queued for another pullIfUnchanged() pass while one is still
+			// running (see that file's own doc comment) -- but it only clears
+			// `pulling` in a `.finally()` on the promise THIS method returns.
+			// Returning before the disk write actually lands would release that
+			// guid early, opening a window for a concurrent write to the same
+			// vault file (e.g. the next 10s poll tick, or this doc going back
+			// online and picking up a live-editor flush) to race this one --
+			// exactly the shape of bug already fixed once in this file for a
+			// conflict-copy write (TR-01, #814d6d9b) and again for reconcile
+			// fast-paths (#3f81b101). The log line below also asserts the flush
+			// already happened, which would be a lie without the await.
+			await doc.vaultShare.writeContents(doc, remoteText);
 			this.log(`[pullIfUnchanged] flushed remote update to disk for ${doc.entryPath}`);
 		}
 
@@ -1299,17 +1313,29 @@ export class TransferQueue extends Loggable {
 	 * replaces. Returns whether it flushed, so a caller that wants to gate
 	 * the write (fetchDocument's empty-content retry, #3b1e0c93) can tell
 	 * "synced but held back" apart from "synced and wrote".
+	 *
+	 * `flush` MUST be awaited here, not fired-and-forgotten: this method's
+	 * caller (fetchCanvas()/fetchDocument()) is itself what `drainLane()`
+	 * awaits via `lane.run(item)` before it clears `lane.inFlight` and
+	 * resolves any `enqueueFetch()` waiter (TransferQueue.ts's queue-lane
+	 * bookkeeping, above) -- a caller of `enqueueFetch()` is entitled to
+	 * assume the file is actually on disk once its await returns. Letting
+	 * `flush()` race past that would repeat the exact class of bug this file
+	 * has already shipped fixes for (relay-linked doc reconciliation
+	 * silently overwriting/dropping edits, #51/#52; buffered-write-vs-
+	 * disconnect races, #74) -- just moved from the happy path into this
+	 * shared HTTP-download-failed fallback tail.
 	 */
 	private async fallbackToWebsocketSync(
 		doc: Document | CanvasDocument,
 		label: string,
-		flush: () => void,
+		flush: () => Promise<void>,
 		shouldFlush: () => boolean = () => true,
 	): Promise<boolean> {
 		try {
 			const synced = await this.uploadDocumentViaSocket(doc);
 			if (synced && doc.vaultShare.folderIndex.tracks(doc.entryPath) && shouldFlush()) {
-				flush();
+				await flush();
 				this.log(`[${label}] WS sync fallback successful, flushed to disk`);
 				return true;
 			}

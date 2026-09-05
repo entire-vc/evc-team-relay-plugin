@@ -8,6 +8,7 @@
 import { App, Modal, Notice, Platform } from "obsidian";
 import type { AuthSession } from "../AuthSession";
 import type { RelayOnPremShareClient, OAuthProvider } from "../RelayOnPremShareClient";
+import { uiText } from "../wording/uiText";
 
 export class RelayOnPremLoginModal extends Modal {
 	private emailInput!: HTMLInputElement;
@@ -25,7 +26,7 @@ export class RelayOnPremLoginModal extends Modal {
 		private shareClient?: RelayOnPremShareClient,
 	) {
 		super(app);
-		this.setTitle("Relay on-premise login");
+		this.setTitle(uiText("connect.login.title"));
 	}
 
 	onOpen() {
@@ -52,11 +53,11 @@ export class RelayOnPremLoginModal extends Modal {
 		// Email field
 		const emailGroup = form.createDiv({ cls: "setting-item" });
 		emailGroup.createDiv({ cls: "setting-item-info" })
-			.createEl("div", { text: "Email", cls: "setting-item-name" });
+			.createEl("div", { text: uiText("connect.login.emailLabel"), cls: "setting-item-name" });
 		const emailControl = emailGroup.createDiv({ cls: "setting-item-control" });
 		this.emailInput = emailControl.createEl("input", {
 			type: "email",
-			placeholder: "user@example.com",
+			placeholder: uiText("shared.emailPlaceholder"),
 			cls: "relay-onprem-input",
 		});
 		this.emailInput.addClass("evc-w-full");
@@ -64,11 +65,11 @@ export class RelayOnPremLoginModal extends Modal {
 		// Password field
 		const passwordGroup = form.createDiv({ cls: "setting-item" });
 		passwordGroup.createDiv({ cls: "setting-item-info" })
-			.createEl("div", { text: "Password", cls: "setting-item-name" });
+			.createEl("div", { text: uiText("shared.passwordLabel"), cls: "setting-item-name" });
 		const passwordControl = passwordGroup.createDiv({ cls: "setting-item-control" });
 		this.passwordInput = passwordControl.createEl("input", {
 			type: "password",
-			placeholder: "Enter your password",
+			placeholder: uiText("connect.login.passwordPlaceholder"),
 			cls: "relay-onprem-input",
 		});
 		this.passwordInput.addClass("evc-w-full");
@@ -85,7 +86,7 @@ export class RelayOnPremLoginModal extends Modal {
 
 		// Cancel button
 		const cancelButton = buttonGroup.createEl("button", {
-			text: "Cancel",
+			text: uiText("shared.cancelButton"),
 			cls: "mod-cancel",
 		});
 		cancelButton.addEventListener("click", (e) => {
@@ -95,7 +96,7 @@ export class RelayOnPremLoginModal extends Modal {
 
 		// Login button
 		this.loginButton = buttonGroup.createEl("button", {
-			text: "Login",
+			text: uiText("connect.login.loginButton"),
 			cls: "mod-cta",
 		});
 		this.loginButton.addEventListener("click", (e) => {
@@ -124,7 +125,7 @@ export class RelayOnPremLoginModal extends Modal {
 			// raw error after already trying.
 			if (Platform.isDesktopApp) {
 				oauthSection.createDiv({
-					text: "Or sign in with:",
+					text: uiText("connect.login.orSignInWith"),
 					cls: "setting-item-name evc-oauth-label",
 				});
 
@@ -146,7 +147,7 @@ export class RelayOnPremLoginModal extends Modal {
 				}
 			} else {
 				oauthSection.createDiv({
-					text: "SSO sign-in isn't available on mobile yet — use the desktop app, or sign in with email and password if your account has one.",
+					text: uiText("connect.login.ssoUnavailableMobile"),
 					cls: "evc-text-muted evc-text-sm",
 				});
 			}
@@ -162,24 +163,24 @@ export class RelayOnPremLoginModal extends Modal {
 
 		// Validation
 		if (!email) {
-			this.showError("Please enter your email");
+			this.showError(uiText("connect.login.emailRequired"));
 			return;
 		}
 
 		if (!password) {
-			this.showError("Please enter your password");
+			this.showError(uiText("connect.login.passwordRequired"));
 			return;
 		}
 
 		// Basic email validation
 		if (!email.includes("@")) {
-			this.showError("Please enter a valid email address");
+			this.showError(uiText("connect.login.invalidEmail"));
 			return;
 		}
 
 		// Password length validation (control plane requires min 8 characters)
 		if (password.length < 8) {
-			this.showError("Password must be at least 8 characters");
+			this.showError(uiText("connect.login.passwordTooShort"));
 			return;
 		}
 
@@ -194,19 +195,19 @@ export class RelayOnPremLoginModal extends Modal {
 			} else {
 				await this.loginManager.loginWithEmailAndPassword(email, password);
 			}
-			new Notice("Successfully logged in to relay-onprem!");
+			new Notice(uiText("connect.login.successNotice"));
 			this.close();
 			this.onSuccess();
 		} catch (error: unknown) {
-			const errorMessage = error instanceof Error ? error.message : "Login failed";
+			const errorMessage = error instanceof Error ? error.message : uiText("connect.login.loginFailedFallback");
 			// Clean up error message for better UX
 			let displayMessage = errorMessage;
 			if (errorMessage.includes("401") || errorMessage.includes("Incorrect email or password")) {
-				displayMessage = "Incorrect email or password";
+				displayMessage = uiText("connect.login.incorrectCredentials");
 			} else if (errorMessage.includes("400") || errorMessage.includes("Invalid data format")) {
-				displayMessage = "Invalid login data. Please check your email and password.";
+				displayMessage = uiText("connect.login.invalidLoginData");
 			} else if (errorMessage.includes("Network request failed") || errorMessage.includes("Failed to fetch")) {
-				displayMessage = "Network error. Please check your connection and control plane URL.";
+				displayMessage = uiText("connect.login.networkError");
 			}
 			this.showError(displayMessage);
 			this.setLoading(false);
@@ -218,7 +219,7 @@ export class RelayOnPremLoginModal extends Modal {
 		this.loginButton.disabled = loading;
 		this.emailInput.disabled = loading;
 		this.passwordInput.disabled = loading;
-		this.loginButton.setText(loading ? "Logging in..." : "Login");
+		this.loginButton.setText(loading ? uiText("connect.login.loggingIn") : uiText("connect.login.loginButton"));
 	}
 
 	private showError(message: string) {
@@ -240,19 +241,19 @@ export class RelayOnPremLoginModal extends Modal {
 			// #e7bca9fb — otherwise main.ts's post-login hook never runs.
 			await this.loginManager.loginWithOAuth2(provider, this.serverId);
 
-			new Notice(`Successfully logged in with ${provider}!`);
+			new Notice(uiText("connect.login.oauthSuccessNotice", { provider }));
 			this.close();
 			this.onSuccess();
 		} catch (error: unknown) {
-			const errorMessage = error instanceof Error ? error.message : "OAuth login failed";
+			const errorMessage = error instanceof Error ? error.message : uiText("connect.login.oauthFailedFallback");
 			let displayMessage = errorMessage;
 
 			if (errorMessage.includes("timeout")) {
-				displayMessage = "Login timeout. Please try again.";
+				displayMessage = uiText("connect.login.oauthTimeout");
 			} else if (errorMessage.includes("Network request failed") || errorMessage.includes("Failed to fetch")) {
-				displayMessage = "Network error. Please check your connection and control plane URL.";
+				displayMessage = uiText("connect.login.networkError");
 			} else if (errorMessage.includes("Cannot open browser")) {
-				displayMessage = "Unable to open browser. Please try manual login.";
+				displayMessage = uiText("connect.login.oauthCannotOpenBrowser");
 			}
 
 			this.showError(displayMessage);

@@ -10,7 +10,7 @@ import { ensureVisibleRowText } from "./lineSpanUtils";
  * __tests__/buildDiffLine.test.ts.
  */
 export function buildDiffLine(line1: string, line2: string, charClass: string) {
-	const fragment = activeDocument.createElement("div");
+	const fragment = createDiv();
 
 	if (line1 != undefined && line1.length === 0) {
 		fragment.textContent = ensureVisibleRowText(line1);
@@ -37,19 +37,16 @@ export function buildDiffLine(line1: string, line2: string, charClass: string) {
 				continue;
 			}
 
-			const span = activeDocument.createElement("span");
 			// Necessary to give the line a height when it's empty.
-			span.textContent = ensureVisibleRowText(difference.value);
-			if (difference.added) {
-				span.classList.add(charClass);
-			}
+			const span = createSpan({
+				text: ensureVisibleRowText(difference.value),
+				cls: difference.added ? charClass : undefined,
+			});
 			fragment.appendChild(span);
 		}
 	} else if (line1 != undefined && line2 == undefined) {
-		const span = activeDocument.createElement("span");
 		// Necessary to give the line a height when it's empty.
-		span.textContent = ensureVisibleRowText(line1);
-		span.classList.add(charClass);
+		const span = createSpan({ text: ensureVisibleRowText(line1), cls: charClass });
 		fragment.appendChild(span);
 	} else {
 		fragment.textContent = ensureVisibleRowText(line1);

@@ -11,6 +11,10 @@ on:
       version:
         description: 'version tag to (re)build, attest and release (bare semver, e.g. 1.2.5)'
         required: true
+      allow_overwrite:
+        description: 'republish over an EXISTING release of this version (say why in the run notes)'
+        type: boolean
+        default: false
 permissions:
   contents: write
   id-token: write
@@ -46,14 +50,37 @@ jobs:
           subject-path: |
             main.js
             styles.css
-      - name: Create / update release with assets
+      - name: Create release with assets (refuses to overwrite an existing one)
+        # A published release is the artifact users install. Silently replacing its
+        # assets makes "version X" mean two different builds, and nothing downstream
+        # can tell which one it got -- the attestation above is per-run, so the old
+        # one keeps attesting bytes that are gone. So: publishing is create-only.
+        #
+        # Re-running a failed release is still possible and is meant to be visible:
+        # dispatch with allow_overwrite=true and say why. The override exists, and
+        # it is loud.
+        #
+        # Scope: this closes the workflow's own re-publish path. It does NOT stop
+        # someone with `contents: write` from running `gh release create` by hand.
+        # Closing that needs tag protection, or write removed for everyone except
+        # the release job -- a repository-admin change, not a workflow change.
         env:
           GH_TOKEN: ${{ github.token }}
+          ALLOW_OVERWRITE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_overwrite || 'false' }}
         run: |
+          set -eu
           TAG="${{ steps.v.outputs.tag }}"
           ASSETS="main.js manifest.json"
           [ -f styles.css ] && ASSETS="$ASSETS styles.css"
           if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ "$ALLOW_OVERWRITE" != "true" ]; then
+              echo "::error::release $TAG already exists. Publishing is create-only:"
+              echo "::error::a released version must not silently change bytes."
+              echo "::error::To ship a fix, tag a NEW version. To deliberately republish"
+              echo "::error::this one, dispatch this workflow with allow_overwrite=true."
+              exit 1
+            fi
+            echo "::warning::overwriting assets of existing release $TAG (allow_overwrite=true)"
             gh release upload "$TAG" $ASSETS --clobber
           else
             gh release create "$TAG" $ASSETS --title "$TAG" --notes "Release $TAG"

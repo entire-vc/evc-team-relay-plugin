@@ -100,6 +100,31 @@ export class RelayOnPremAuthStore {
 	}
 
 	/**
+	 * Move stored auth data from one serverId to another (server-rename migration).
+	 * Verbatim: the payload is not parsed or shape-validated, so a partially written
+	 * or corrupt blob is relocated rather than silently dropped -- unlike load(),
+	 * which validates shape and would drop anything incomplete.
+	 * No-op returning false if `fromServerId` holds nothing, or if `toServerId`
+	 * already holds data -- an existing login is never overwritten.
+	 */
+	renameServer(fromServerId: string, toServerId: string): boolean {
+		const fromKey = this.getStorageKey(fromServerId);
+		const toKey = this.getStorageKey(toServerId);
+
+		const fromData = this._readStorage(fromKey);
+		if (fromData === undefined) {
+			return false;
+		}
+		if (this._readStorage(toKey) !== undefined) {
+			return false;
+		}
+
+		this._writeStorage(toKey, fromData);
+		this._deleteStorage(fromKey);
+		return true;
+	}
+
+	/**
 	 * Clear all authentication data for all servers
 	 */
 	clearAll(): void {
@@ -230,7 +255,13 @@ export class RelayOnPremAuthStore {
 
 		if (hasLocalStorage) {
 			try {
-				// store in local storage
+				// Deliberately `window.localStorage`, not Obsidian's plugin-data
+				// API (`saveData()` / `data.json`): this store persists the auth
+				// token, and `data.json` is a plugin SETTINGS file that users
+				// routinely copy into vault-share/backup destinations along with
+				// the rest of the vault -- a token living there would travel
+				// with it. `localStorage` is scoped to the local browser/Electron
+				// profile only, so it never gets swept up in that.
 				const normalizedVal: string =
 					typeof value === "string" ? value : JSON.stringify(value);
 				window.localStorage.setItem(key, normalizedVal);

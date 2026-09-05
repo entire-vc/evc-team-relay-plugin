@@ -138,11 +138,14 @@ function insertHeaderButton(containerEl: HTMLElement, spec: HeaderButtonSpec): v
 
 	removeHeaderButton(containerEl, spec.className);
 
-	const button = activeDocument.createElement("button");
-	button.className = `view-header-left ${spec.className}`;
-	button.textContent = spec.text;
-	button.setAttribute("aria-label", spec.ariaLabel);
-	button.setAttribute("tabindex", "0");
+	const button = createEl("button", {
+		cls: `view-header-left ${spec.className}`,
+		text: spec.text,
+		attr: {
+			"aria-label": spec.ariaLabel,
+			tabindex: "0",
+		},
+	});
 	button.addEventListener("click", spec.onClick);
 
 	headerLeftEl.insertAdjacentElement("afterend", button);

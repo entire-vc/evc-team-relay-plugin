@@ -410,7 +410,7 @@ export class ShareManagementModal extends Modal {
 					setting.addButton((button) => {
 						button
 							.setButtonText("Remove")
-							.setWarning()
+							.setDestructive()
 							.onClick(() => this.removeMember(member.user_id));
 					});
 				} else {
@@ -500,7 +500,7 @@ export class ShareManagementModal extends Modal {
 				.addButton((button) => {
 					button
 						.setButtonText("Disconnect")
-						.setWarning()
+						.setDestructive()
 						.onClick(async () => {
 							const ok = await confirmDialog(
 								this.app,
@@ -527,31 +527,54 @@ export class ShareManagementModal extends Modal {
 								"Choose local folder for this share...",
 								new Set(),
 								this.plugin.shareRegistry,
-								async (folderPath: string) => {
-									try {
-										const vaultShare = this.plugin.shareRegistry.new(
-											folderPath,
-											this.selectedShare!.id,
-											"relay-onprem",
-											true
-										);
-										if (vaultShare) {
-											await vaultShare.setOnpremServerId(this.selectedShare!.serverId);
-											// onpremServerId is set AFTER construction — the constructor's
-											// own gate never saw it, so trigger the connect explicitly.
-											void vaultShare.bringOnline();
-										}
-										this.plugin.explorerDecorations?.refreshExistingRows();
-										new Notice("Folder connected! Syncing...");
-										this.renderContent();
-									} catch (e: unknown) {
-										new Notice(`Failed to connect folder: ${e instanceof Error ? e.message : "Unknown error"}`);
-									}
+								// FolderPathPickerModal's onSelect is typed `(folderPath: string) => void` --
+								// SuggestPickerModal.onChoose() (src/ui/SuggestPickerModal.ts) invokes it and
+								// then immediately calls this.close()/$destroy() without awaiting, so there is
+								// no way for this callback's async work to hold up or be sequenced against the
+								// picker modal's own lifecycle either way. Safe to fire-and-forget PROVIDED
+								// (a) nothing here depends on the picker modal still being mounted, and (b) no
+								// exception can escape uncaught -- both hold: the async work below only touches
+								// `this` (ShareManagementModal, not the picker) and its own try/catch already
+								// converts every failure into a Notice rather than a rejected promise. House
+								// style for this shape (sync handler required, async work wanted) is a void-called
+								// named method, matching e.g. the .onClick(() => { void this.showCreateShareForm(); })
+								// pattern elsewhere in this file.
+								(folderPath: string) => {
+									void this.connectLocalFolder(folderPath);
 								},
 							);
 							modal.open();
 						});
 				});
+		}
+	}
+
+	/**
+	 * Creates a VaultShare for `folderPath` against the currently-selected
+	 * share and brings it online. Split out of renderLocalFolderSection() so
+	 * the FolderPathPickerModal callback (typed sync, `() => void`) can stay
+	 * sync and hand off to this via `void` -- see the comment at that call
+	 * site for why fire-and-forget is safe here.
+	 */
+	private async connectLocalFolder(folderPath: string): Promise<void> {
+		try {
+			const vaultShare = this.plugin.shareRegistry.new(
+				folderPath,
+				this.selectedShare!.id,
+				"relay-onprem",
+				true
+			);
+			if (vaultShare) {
+				await vaultShare.setOnpremServerId(this.selectedShare!.serverId);
+				// onpremServerId is set AFTER construction — the constructor's
+				// own gate never saw it, so trigger the connect explicitly.
+				void vaultShare.bringOnline();
+			}
+			this.plugin.explorerDecorations?.refreshExistingRows();
+			new Notice("Folder connected! Syncing...");
+			this.renderContent();
+		} catch (e: unknown) {
+			new Notice(`Failed to connect folder: ${e instanceof Error ? e.message : "Unknown error"}`);
 		}
 	}
 
@@ -587,7 +610,7 @@ export class ShareManagementModal extends Modal {
 			.addButton((button) => {
 				button
 					.setButtonText("Delete")
-					.setWarning()
+					.setDestructive()
 					.onClick(() => this.deleteShare());
 			});
 	}
@@ -1257,7 +1280,7 @@ export class ShareManagementModal extends Modal {
 					.addButton((button) => {
 						button
 							.setButtonText("Revoke")
-							.setWarning()
+							.setDestructive()
 							.onClick(() => { void this.revokeInvite(invite.id); });
 					});
 
@@ -1312,7 +1335,7 @@ export class ShareManagementModal extends Modal {
 					.addButton((button) => {
 						button
 							.setButtonText("Revoke")
-							.setWarning()
+							.setDestructive()
 							.onClick(() => void this.revokeShareAgentKey(key.id));
 					});
 			});

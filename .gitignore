@@ -14,6 +14,14 @@ node_modules
 # jest.config.js predates the *.js rule and is tracked; its live-harness
 # sibling needs an explicit exception or it would silently never be committed.
 !jest.live.config.js
+# jest.config.js falls under *.js and stays in the index only by inertia: it was
+# added before that rule existed. Without an explicit exception, any fresh slice
+# taken over non-ignored paths loses it silently -- measured at 307 files against
+# 308, and that is exactly what shipped: the 2026-09-03 showcase snapshot went out
+# without this file, so all 72 Jest suites on the published repository failed to
+# parse (no ts-jest transform, "Unexpected token, expected from") while the canon
+# was green. A tracked file is not a published file.
+!jest.config.js
 
 # Exclude sourcemaps
 *.map

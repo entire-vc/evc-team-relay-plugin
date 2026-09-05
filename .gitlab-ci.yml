@@ -259,8 +259,8 @@ manifest-check:
   cache: {}          # reads four JSON files; npm deps are not involved
   script:
     # ⚠️ This job must never share a workspace with `build`. `npm run build`
-    # rewrites manifest.json's version in place with `git describe --tags
-    # --always` (esbuild.config.mjs `updateManifest`), so a check that ran
+    # rewrites manifest.json's version in place with `git describe --tags`
+    # (esbuild.config.mjs `updateManifest`), so a check that ran
     # after a build in the same directory would compare package.json against
     # a git-describe string and fail on every green build. Separate jobs get
     # separate clones, which is what keeps this correct — do not "optimise"
@@ -387,7 +387,7 @@ build:
   timeout: 20m
   before_script:
     # git is NOT optional here and its absence does not look like a missing
-    # package: esbuild.config.mjs shells out to `git describe --tags --always`
+    # package: esbuild.config.mjs shells out to `git describe --tags`
     # at module scope, so without git the build dies before writing a byte,
     # with a node stack trace rather than "git: not found".
     - apk add --no-cache git

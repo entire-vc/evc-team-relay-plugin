@@ -335,7 +335,7 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 		return this._obsidianFile;
 	}
 
-	static matchesTrackedExtension(vpath: string): boolean {
+	static matchesTrackedExtension(this: void, vpath: string): boolean {
 		return vpath.endsWith(".canvas");
 	}
 
