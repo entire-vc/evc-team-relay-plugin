@@ -5,6 +5,7 @@
 	import type { RelayOnPremServer } from "../RelayOnPremConfig";
 	import {
 		EVC_SERVER_ID,
+		isWellKnownServer,
 		generateServerId,
 		validateServerConfig,
 		findDuplicateServer,
@@ -458,7 +459,7 @@
 				<button class="relay-server-btn" on:click={() => startEditServer(server)}>
 					Edit
 				</button>
-				{#if server.id !== EVC_SERVER_ID}
+				{#if !isWellKnownServer(server.id)}
 					<button class="relay-server-btn mod-warning" on:click={() => removeServer(server.id)}>
 						Remove
 					</button>
