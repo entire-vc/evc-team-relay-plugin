@@ -11,6 +11,7 @@
 	import { confirmDialog, promptDialog, choiceDialog } from "../ui/dialogs";
 	import { withOutboundSyncGuard } from "../WebSyncManager";
 	import { sha256Hex } from "../contentDigest";
+	import { uiText } from "../wording/uiText";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -96,7 +97,7 @@
 			invites = invitesResult;
 			editingSlug = currentShare.web_slug || "";
 		} catch (e: unknown) {
-			new Notice(`Failed to load share details: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shareDetail.loadFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		} finally {
 			loading = false;
 		}
@@ -143,13 +144,13 @@
 
 	function copyId() {
 		navigator.clipboard.writeText(currentShare.id);
-		new Notice("Share ID copied");
+		new Notice(uiText("shareDetail.idCopiedNotice"));
 	}
 
 	// Members
 	async function addMember() {
 		if (!newMemberEmail.trim()) {
-			new Notice("Please enter a user email");
+			new Notice(uiText("shareDetail.members.emailRequiredNotice"));
 			return;
 		}
 		try {
@@ -161,19 +162,18 @@
 				user = await live.shareClient.searchUserByEmail(newMemberEmail.trim());
 				await live.shareClient.addMember(share.id, { user_id: user.id, role: newMemberRole });
 			}
-			new Notice("Member added");
+			new Notice(uiText("shareDetail.members.addedNotice"));
 			newMemberEmail = "";
 			members = await loadMembers();
 		} catch (e: unknown) {
 			if (e instanceof LimitExceededApiError) {
 				const info = e.limitInfo;
 				new Notice(
-					`Member limit reached (${info.current}/${info.max} on ${info.plan} plan). ` +
-					`Upgrade your plan to add more members.`,
+					uiText("shareDetail.members.limitReachedNotice", { current: info.current, max: info.max, plan: info.plan }),
 					8000,
 				);
 			} else {
-				new Notice(e instanceof Error ? e.message : "Failed to add member");
+				new Notice(e instanceof Error ? e.message : uiText("shareDetail.members.addFailedFallback"));
 			}
 		}
 	}
@@ -192,10 +192,10 @@
 			} else if (live.shareClient) {
 				await live.shareClient.updateMemberRole(share.id, userId, role);
 			}
-			new Notice(`Role changed to ${role}`);
+			new Notice(uiText("shareDetail.members.roleChangedNotice", { role }));
 			members = await loadMembers();
 		} catch (e: unknown) {
-			new Notice(`Failed to change role: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shareDetail.members.roleChangeFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		}
 	}
 
@@ -206,10 +206,10 @@
 			} else if (live.shareClient) {
 				await live.shareClient.removeMember(share.id, userId);
 			}
-			new Notice("Member removed");
+			new Notice(uiText("shareDetail.members.removedNotice"));
 			members = await loadMembers();
 		} catch (e: unknown) {
-			new Notice(`Failed to remove member: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shareDetail.members.removeFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		}
 	}
 
@@ -218,14 +218,18 @@
 		const isExpired = !!(invite.expires_at && new Date(invite.expires_at) < new Date());
 		const isMaxed = invite.max_uses !== null && invite.use_count >= invite.max_uses;
 		const parts: string[] = [];
-		if (isExpired) parts.push("EXPIRED");
-		else if (isMaxed) parts.push("MAX USES REACHED");
+		if (isExpired) parts.push(uiText("shareDetail.invites.expiredTag"));
+		else if (isMaxed) parts.push(uiText("shareDetail.invites.maxUsesReachedTag"));
 		if (invite.expires_at) {
-			parts.push(`Expires: ${new Date(invite.expires_at).toLocaleDateString()}`);
+			parts.push(uiText("shareDetail.invites.expiresLabel", { date: new Date(invite.expires_at).toLocaleDateString() }));
 		} else {
-			parts.push("No expiration");
+			parts.push(uiText("shared.noExpiration"));
 		}
-		parts.push(invite.max_uses !== null ? `Uses: ${invite.use_count}/${invite.max_uses}` : `Uses: ${invite.use_count}`);
+		parts.push(
+			invite.max_uses !== null
+				? uiText("shareDetail.invites.usesWithMax", { used: invite.use_count, max: invite.max_uses })
+				: uiText("shareDetail.invites.usesNoMax", { used: invite.use_count })
+		);
 		return parts.join(" \u2022 ");
 	}
 
@@ -239,21 +243,21 @@
 		const normalizedUrl = server.controlPlaneUrl.replace(/\/+$/, "");
 		const link = `${normalizedUrl}/invite/${invite.token}/page`;
 		navigator.clipboard.writeText(link);
-		new Notice("Invite link copied!");
+		new Notice(uiText("shareDetail.invites.linkCopiedNotice"));
 	}
 
 	async function revokeInvite(inviteId: string) {
-		if (!(await confirmDialog(live.app, "Revoke this invite link?"))) return;
+		if (!(await confirmDialog(live.app, uiText("shareDetail.invites.revokeConfirm")))) return;
 		try {
 			if (live.shareClientManager) {
 				await live.shareClientManager.revokeInvite(share.serverId, share.id, inviteId);
 			} else if (live.shareClient) {
 				await live.shareClient.revokeInvite(share.id, inviteId);
 			}
-			new Notice("Invite revoked");
+			new Notice(uiText("shareDetail.invites.revokedNotice"));
 			invites = await loadInvites();
 		} catch (e: unknown) {
-			new Notice(`Failed to revoke invite: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shareDetail.invites.revokeFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		}
 	}
 
@@ -261,15 +265,15 @@
 	async function updateVisibility(newVisibility: string) {
 		let password: string | undefined;
 		if (newVisibility === "protected") {
-			const input = await promptDialog(live.app, "Enter password for protected share:");
+			const input = await promptDialog(live.app, uiText("shareDetail.actions.passwordPrompt"));
 			if (!input) {
-				new Notice("Password is required for protected shares");
+				new Notice(uiText("shared.passwordRequiredNotice"));
 				currentShare = { ...currentShare }; // trigger re-render to reset
 				return;
 			}
 			password = input;
 		}
-		if (!(await confirmDialog(live.app, `Change visibility to ${newVisibility}?`))) {
+		if (!(await confirmDialog(live.app, uiText("shareDetail.actions.visibilityConfirm", { visibility: newVisibility })))) {
 			currentShare = { ...currentShare };
 			return;
 		}
@@ -283,16 +287,16 @@
 				updated = await live.shareClient.updateShare(share.id, payload);
 			}
 			if (updated) currentShare = { ...currentShare, ...updated };
-			new Notice(`Visibility changed to ${newVisibility}`);
+			new Notice(uiText("shareDetail.actions.visibilityChangedNotice", { visibility: newVisibility }));
 		} catch (e: unknown) {
-			new Notice(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shared.failedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 			currentShare = { ...currentShare };
 		}
 	}
 
 	// Delete
 	async function deleteShare() {
-		if (!(await confirmDialog(live.app, `Delete "${currentShare.path}"? This cannot be undone.`))) return;
+		if (!(await confirmDialog(live.app, uiText("shareDetail.actions.deleteConfirm", { path: currentShare.path })))) return;
 		try {
 			if (live.shareClientManager) {
 				await live.shareClientManager.deleteShare(share.serverId, share.id);
@@ -305,10 +309,10 @@
 				live.shareRegistry.delete(localFolder);
 				live.explorerDecorations?.refreshExistingRows();
 			}
-			new Notice("Share deleted");
+			new Notice(uiText("shareDetail.actions.deletedNotice"));
 			dispatch("deleted");
 		} catch (e: unknown) {
-			new Notice(`Failed to delete: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shareDetail.actions.deleteFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		}
 	}
 
@@ -318,10 +322,10 @@
 			// Private shares need visibility change before web publishing
 			const newVisibility = await choiceDialog(
 				live.app,
-				'This share is private. Web publishing requires "public" or "protected" visibility. Choose how you want to publish:',
+				uiText("shareDetail.webPublish.privatePublishPrompt"),
 				[
-					{ label: "Make public (open access)", value: "public" },
-					{ label: "Make protected (password)", value: "protected" },
+					{ label: uiText("shareDetail.webPublish.makePublicChoice"), value: "public" },
+					{ label: uiText("shareDetail.webPublish.makeProtectedChoice"), value: "protected" },
 				]
 			);
 			if (!newVisibility) {
@@ -341,13 +345,12 @@
 				if (e instanceof VisibilityNotAllowedApiError) {
 					const info = e.visibilityInfo;
 					new Notice(
-						`'${info.visibility}' visibility requires a higher plan. ` +
-						`Your plan allows: ${info.allowed.join(", ")}. Upgrade to unlock.`,
+						uiText("shareDetail.webPublish.visibilityNotAllowedNotice", { visibility: info.visibility, allowed: info.allowed.join(", ") }),
 						8000,
 					);
 				} else {
 					console.error("Failed to change visibility:", e);
-					new Notice("Failed to change visibility");
+					new Notice(uiText("shareDetail.webPublish.visibilityChangeFailedNotice"));
 				}
 				syncPublishCheckbox();
 				return;
@@ -379,24 +382,22 @@
 				currentShare = { ...currentShare, ...updated };
 				editingSlug = currentShare.web_slug || "";
 			}
-			new Notice(enabled ? "Published to web!" : "Unpublished from web");
+			new Notice(enabled ? uiText("shareDetail.webPublish.publishedNotice") : uiText("shareDetail.webPublish.unpublishedNotice"));
 		} catch (e: unknown) {
 			if (e instanceof LimitExceededApiError) {
 				const info = e.limitInfo;
 				new Notice(
-					`Web publish limit reached (${info.current}/${info.max} on ${info.plan} plan). ` +
-					`Upgrade your plan to publish more.`,
+					uiText("shareDetail.webPublish.limitReachedNotice", { current: info.current, max: info.max, plan: info.plan }),
 					8000,
 				);
 			} else if (e instanceof VisibilityNotAllowedApiError) {
 				const info = e.visibilityInfo;
 				new Notice(
-					`'${info.visibility}' visibility requires a higher plan. ` +
-					`Your plan allows: ${info.allowed.join(", ")}. Upgrade to unlock.`,
+					uiText("shareDetail.webPublish.visibilityNotAllowedNotice", { visibility: info.visibility, allowed: info.allowed.join(", ") }),
 					8000,
 				);
 			} else {
-				new Notice(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+				new Notice(uiText("shared.failedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 			}
 			syncPublishCheckbox();
 		}
@@ -409,7 +410,7 @@
 		if (currentShare.kind === "doc") {
 			try {
 				const content = await getDocumentContent(currentShare.path);
-				if (!content) { new Notice("Could not read document"); return; }
+				if (!content) { new Notice(uiText("shareDetail.webPublish.couldNotReadDocumentNotice")); return; }
 				let updated;
 				if (live.shareClientManager) {
 					updated = await withOutboundSyncGuard(live.webSyncManager, () =>
@@ -421,14 +422,14 @@
 					);
 				}
 				if (updated) currentShare = { ...currentShare, ...updated };
-				new Notice("Content synced!");
+				new Notice(uiText("shareDetail.webPublish.contentSyncedNotice"));
 			} catch (e: unknown) {
-				new Notice(`Failed to sync: ${e instanceof Error ? e.message : "Unknown error"}`);
+				new Notice(uiText("shareDetail.webPublish.syncFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 			}
 		} else if (currentShare.kind === "folder") {
 			try {
 				const items = await getFolderItems(currentShare.path);
-				if (items.length === 0) { new Notice("Folder empty"); return; }
+				if (items.length === 0) { new Notice(uiText("shareDetail.webPublish.folderEmptyNotice")); return; }
 				let updated;
 				if (live.shareClientManager) {
 					updated = await withOutboundSyncGuard(live.webSyncManager, () =>
@@ -466,12 +467,12 @@
 							} catch { /* skip individual file errors */ }
 						}
 					}
-					new Notice(`Synced ${synced} files`);
+					new Notice(uiText("shareDetail.webPublish.syncedFilesNotice", { count: synced }));
 				} else {
-					new Notice(`Folder synced: ${items.length} items`);
+					new Notice(uiText("shareDetail.webPublish.folderSyncedNotice", { count: items.length }));
 				}
 			} catch (e: unknown) {
-				new Notice(`Failed to sync: ${e instanceof Error ? e.message : "Unknown error"}`);
+				new Notice(uiText("shareDetail.webPublish.syncFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 			}
 		}
 	}
@@ -485,9 +486,9 @@
 				updated = await live.shareClient.updateShare(share.id, { web_noindex: noindex });
 			}
 			if (updated) currentShare = { ...currentShare, ...updated };
-			new Notice(noindex ? "Indexing disabled" : "Indexing enabled");
+			new Notice(noindex ? uiText("shareDetail.webPublish.indexingDisabledNotice") : uiText("shareDetail.webPublish.indexingEnabledNotice"));
 		} catch (e: unknown) {
-			new Notice(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shared.failedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		}
 	}
 
@@ -511,16 +512,16 @@
 						currentShare.path, currentShare.id, currentShare.serverId,
 						currentShare.kind, currentShare.web_slug ?? undefined,
 					);
-					new Notice("Auto-sync enabled");
+					new Notice(uiText("shareDetail.webPublish.autoSyncEnabledNotice"));
 				} else {
 					live.webSyncManager.unregisterAutoSyncShare(currentShare.path);
-					new Notice("Auto-sync disabled");
+					new Notice(uiText("shareDetail.webPublish.autoSyncDisabledNotice"));
 				}
 			} else {
-				new Notice(`Sync mode: ${mode}`);
+				new Notice(uiText("shareDetail.webPublish.syncModeNotice", { mode }));
 			}
 		} catch (e: unknown) {
-			new Notice(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shared.failedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		}
 	}
 
@@ -538,9 +539,9 @@
 				currentShare = { ...currentShare, ...updated };
 				editingSlug = currentShare.web_slug || "";
 			}
-			new Notice(`Slug updated: ${newSlug}`);
+			new Notice(uiText("shareDetail.webPublish.slugUpdatedNotice", { slug: newSlug }));
 		} catch (e: unknown) {
-			new Notice(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("shared.failedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		}
 	}
 
@@ -548,7 +549,7 @@
 	async function getDocumentContent(path: string): Promise<string | null> {
 		try {
 			const file = live.app.vault.getAbstractFileByPath(path);
-			if (file && "extension" in file) return await live.app.vault.read(file as any);
+			if (file && "extension" in file) return await live.app.vault.read(file as TFile);
 			return null;
 		} catch { return null; }
 	}
@@ -642,7 +643,7 @@
 	function connectToFolder() {
 		const modal = new FolderPathPickerModal(
 			live.app,
-			"Choose local folder for this share...",
+			uiText("shareDetail.localFolder.pickerTitle"),
 			new Set(),
 			live.shareRegistry,
 			async (folderPath: string) => {
@@ -656,10 +657,10 @@
 						void vaultShare.bringOnline();
 					}
 					live.explorerDecorations?.refreshExistingRows();
-					new Notice("Folder connected! Syncing...");
+					new Notice(uiText("shareDetail.localFolder.connectedNotice"));
 					checkLocalConnection();
 				} catch (e: unknown) {
-					new Notice(`Failed to connect folder: ${e instanceof Error ? e.message : "Unknown error"}`);
+					new Notice(uiText("shareDetail.localFolder.connectFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 				}
 			},
 		);
@@ -667,12 +668,12 @@
 	}
 
 	async function disconnectFolder() {
-		if (!(await confirmDialog(live.app, `Disconnect local folder "${localFolderPath}" from this share? Local files will not be deleted.`))) return;
+		if (!(await confirmDialog(live.app, uiText("shareDetail.localFolder.disconnectConfirm", { path: localFolderPath })))) return;
 		const localFolder = live.shareRegistry.locate((sf) => sf.entityGuid === share.id);
 		if (localFolder) {
 			live.shareRegistry.delete(localFolder);
 			live.explorerDecorations?.refreshExistingRows();
-			new Notice("Folder disconnected");
+			new Notice(uiText("shareDetail.localFolder.disconnectedNotice"));
 			checkLocalConnection();
 		}
 	}
@@ -680,7 +681,7 @@
 
 <div class="evc-share-detail">
 	{#if loading}
-		<div class="evc-loading">Loading share details...</div>
+		<div class="evc-loading">{uiText("shareDetail.loading")}</div>
 	{:else}
 		<!-- Share Info -->
 		<div class="evc-detail-header">
@@ -689,28 +690,28 @@
 				<span class="evc-badge">{currentShare.kind}</span>
 				<span class="evc-badge evc-badge-{currentShare.visibility}">{currentShare.visibility}</span>
 				<span class="evc-detail-date">{new Date(currentShare.created_at).toLocaleDateString()}</span>
-				<button class="evc-link-btn" on:click={copyId}>Copy ID</button>
+				<button class="evc-link-btn" on:click={copyId}>{uiText("shareDetail.copyIdButton")}</button>
 			</div>
 		</div>
 
 		<!-- Local Folder Connection (folder shares only) -->
 		{#if currentShare.kind === "folder"}
 			<div class="evc-section">
-				<div class="evc-section-title">Local Folder</div>
+				<div class="evc-section-title">{uiText("shareDetail.localFolder.heading")}</div>
 				{#if isConnectedLocally}
 					<div class="evc-connection-row">
 						<div class="evc-connection-info">
 							<span class="evc-connection-path">{localFolderPath}</span>
-							<span class="evc-connection-status">Connected and syncing</span>
+							<span class="evc-connection-status">{uiText("shareDetail.localFolder.connectedStatus")}</span>
 						</div>
-						<button class="evc-btn-danger evc-small-btn" on:click={disconnectFolder}>Disconnect</button>
+						<button class="evc-btn-danger evc-small-btn" on:click={disconnectFolder}>{uiText("shareDetail.localFolder.disconnectButton")}</button>
 					</div>
 				{:else}
 					<div class="evc-connection-row">
 						<div class="evc-connection-info">
-							<span class="evc-connection-status">Not connected to a local folder</span>
+							<span class="evc-connection-status">{uiText("shareDetail.localFolder.notConnectedStatus")}</span>
 						</div>
-						<button class="mod-cta" on:click={connectToFolder}>Connect to local folder</button>
+						<button class="mod-cta" on:click={connectToFolder}>{uiText("shareDetail.localFolder.connectButton")}</button>
 					</div>
 				{/if}
 			</div>
@@ -718,9 +719,9 @@
 
 		<!-- Members -->
 		<div class="evc-section">
-			<div class="evc-section-title">Members</div>
+			<div class="evc-section-title">{uiText("shareDetail.members.heading")}</div>
 			{#if members.length === 0}
-				<div class="evc-empty-inline">No members yet.</div>
+				<div class="evc-empty-inline">{uiText("shareDetail.members.empty")}</div>
 			{:else}
 				<div class="evc-member-list">
 					{#each members as member (member.id)}
@@ -738,10 +739,10 @@
 										value={member.role}
 										on:change={(e) => handleMemberRoleChange(member.user_id, e.currentTarget.value)}
 									>
-										<option value="viewer">Viewer</option>
-										<option value="editor">Editor</option>
+										<option value="viewer">{uiText("shared.viewerOption")}</option>
+										<option value="editor">{uiText("shared.editorOption")}</option>
 									</select>
-									<button class="evc-btn-danger" on:click={() => removeMember(member.user_id)}>Remove</button>
+									<button class="evc-btn-danger" on:click={() => removeMember(member.user_id)}>{uiText("shareDetail.members.removeButton")}</button>
 								</div>
 							{/if}
 						</div>
@@ -753,15 +754,15 @@
 				<div class="evc-add-member">
 					<input
 						type="text"
-						placeholder="user@example.com"
+						placeholder={uiText("shared.emailPlaceholder")}
 						bind:value={newMemberEmail}
 						on:keypress={(e) => { if (e.key === 'Enter') addMember(); }}
 					/>
 					<select class="dropdown evc-role-select" bind:value={newMemberRole}>
-						<option value="viewer">Viewer</option>
-						<option value="editor">Editor</option>
+						<option value="viewer">{uiText("shared.viewerOption")}</option>
+						<option value="editor">{uiText("shared.editorOption")}</option>
 					</select>
-					<button class="mod-cta" on:click={addMember}>Add</button>
+					<button class="mod-cta" on:click={addMember}>{uiText("shareDetail.members.addButton")}</button>
 				</div>
 			{/if}
 		</div>
@@ -770,22 +771,22 @@
 		{#if isOwner}
 			<div class="evc-section">
 				<div class="evc-section-header">
-					<div class="evc-section-title">Invite Links</div>
-					<button class="evc-small-btn" on:click={() => dispatch('createInvite')}>Create Invite</button>
+					<div class="evc-section-title">{uiText("shareDetail.invites.heading")}</div>
+					<button class="evc-small-btn" on:click={() => dispatch('createInvite')}>{uiText("shareDetail.invites.createButton")}</button>
 				</div>
 				{#if activeInvites.length === 0}
-					<div class="evc-empty-inline">No active invite links.</div>
+					<div class="evc-empty-inline">{uiText("shareDetail.invites.empty")}</div>
 				{:else}
 					<div class="evc-invite-list">
 						{#each activeInvites as invite (invite.id)}
 							<div class="evc-invite-item" class:evc-invite-invalid={!isInviteValid(invite)}>
 								<div class="evc-invite-info">
-									<span class="evc-invite-role">{invite.role} invite</span>
+									<span class="evc-invite-role">{uiText("shareDetail.invites.roleSuffix", { role: invite.role })}</span>
 									<span class="evc-invite-desc">{getInviteDescription(invite)}</span>
 								</div>
 								<div class="evc-invite-actions">
-									<button class="evc-small-btn" on:click={() => copyInviteLink(invite)}>Copy Link</button>
-									<button class="evc-btn-danger evc-small-btn" on:click={() => revokeInvite(invite.id)}>Revoke</button>
+									<button class="evc-small-btn" on:click={() => copyInviteLink(invite)}>{uiText("shareDetail.invites.copyLinkButton")}</button>
+									<button class="evc-btn-danger evc-small-btn" on:click={() => revokeInvite(invite.id)}>{uiText("shareDetail.invites.revokeButton")}</button>
 								</div>
 							</div>
 						{/each}
@@ -798,11 +799,11 @@
 		{#if isOwner}
 		<div class="evc-section">
 			<div class="evc-section-header">
-				<div class="evc-section-title">Agent Keys</div>
-				<button class="evc-small-btn" on:click={() => dispatch('agentKeys')}>Manage</button>
+				<div class="evc-section-title">{uiText("shell.breadcrumb.agentKeys")}</div>
+				<button class="evc-small-btn" on:click={() => dispatch('agentKeys')}>{uiText("shareDetail.agentKeys.manageButton")}</button>
 			</div>
 			<div class="evc-setting-desc">
-				API keys for automated agents to access this share without your login credentials.
+				{uiText("shareDetail.agentKeys.desc")}
 			</div>
 		</div>
 		{/if}
@@ -810,11 +811,11 @@
 		<!-- Web Publishing (owner + server supports it) -->
 		{#if isOwner && webPublishEnabled}
 			<div class="evc-section">
-				<div class="evc-section-title">Web Publishing</div>
+				<div class="evc-section-title">{uiText("shareDetail.webPublish.heading")}</div>
 
 				<div class="evc-setting-row">
 					<div class="evc-setting-info">
-						<span>Publish to Web</span>
+						<span>{uiText("shareDetail.webPublish.publishLabel")}</span>
 					</div>
 					<label class="checkbox-container" class:is-enabled={isPublished}>
 						<input type="checkbox" checked={isPublished} bind:this={publishCheckboxEl} on:change={(e) => toggleWebPublishing(e.currentTarget.checked)} />
@@ -825,26 +826,26 @@
 					{#if currentShare.web_url}
 						<div class="evc-setting-row">
 							<div class="evc-setting-info">
-								<span>Web URL</span>
+								<span>{uiText("shareDetail.webPublish.webUrlLabel")}</span>
 								<span class="evc-setting-desc">{currentShare.web_url}</span>
 							</div>
 							<div class="evc-setting-actions">
-								<button class="evc-small-btn" on:click={() => { navigator.clipboard.writeText(currentShare.web_url || ''); new Notice('URL copied!'); }}>Copy</button>
-								<button class="evc-small-btn" on:click={() => window.open(currentShare.web_url || '', '_blank')}>Open</button>
+								<button class="evc-small-btn" on:click={() => { navigator.clipboard.writeText(currentShare.web_url || ''); new Notice(uiText("shareDetail.webPublish.urlCopiedNotice")); }}>{uiText("shareDetail.webPublish.copyButton")}</button>
+								<button class="evc-small-btn" on:click={() => window.open(currentShare.web_url || '', '_blank')}>{uiText("shareDetail.webPublish.openButton")}</button>
 							</div>
 						</div>
 					{/if}
 
 					<div class="evc-setting-row">
 						<div class="evc-setting-info">
-							<span>Sync Content</span>
+							<span>{uiText("shareDetail.webPublish.syncContentLabel")}</span>
 						</div>
-						<button class="mod-cta evc-small-btn" on:click={syncWebContent}>Sync Now</button>
+						<button class="mod-cta evc-small-btn" on:click={syncWebContent}>{uiText("shareDetail.webPublish.syncNowButton")}</button>
 					</div>
 
 					<div class="evc-setting-row">
 						<div class="evc-setting-info">
-							<span>Allow search engines</span>
+							<span>{uiText("shareDetail.webPublish.allowSearchEnginesLabel")}</span>
 						</div>
 						<label class="checkbox-container" class:is-enabled={!noindex}>
 							<input type="checkbox" checked={!noindex} on:change={(e) => updateWebNoindex(!e.currentTarget.checked)} />
@@ -853,22 +854,22 @@
 
 					<div class="evc-setting-row">
 						<div class="evc-setting-info">
-							<span>Sync Mode</span>
+							<span>{uiText("shareDetail.webPublish.syncModeLabel")}</span>
 						</div>
 						<select class="dropdown" value={syncMode} on:change={(e) => handleSyncModeChange(e.currentTarget.value)}>
-							<option value="manual">Manual</option>
-							<option value="auto">Auto</option>
+							<option value="manual">{uiText("shareDetail.webPublish.manualOption")}</option>
+							<option value="auto">{uiText("shareDetail.webPublish.autoOption")}</option>
 						</select>
 					</div>
 
 					{#if currentShare.web_slug}
 						<div class="evc-setting-row">
 							<div class="evc-setting-info">
-								<span>Web Slug</span>
+								<span>{uiText("shareDetail.webPublish.webSlugLabel")}</span>
 							</div>
 							<div class="evc-slug-edit">
-								<input type="text" bind:value={editingSlug} placeholder="my-document" />
-								<button class="evc-small-btn" on:click={saveWebSlug}>Save</button>
+								<input type="text" bind:value={editingSlug} placeholder={uiText("shareDetail.webPublish.webSlugPlaceholder")} />
+								<button class="evc-small-btn" on:click={saveWebSlug}>{uiText("shareDetail.webPublish.saveButton")}</button>
 							</div>
 						</div>
 					{/if}
@@ -879,30 +880,30 @@
 		<!-- Actions (owner only) -->
 		{#if isOwner}
 			<div class="evc-section">
-				<div class="evc-section-title">Actions</div>
+				<div class="evc-section-title">{uiText("shareDetail.actions.heading")}</div>
 
 				<div class="evc-setting-row">
 					<div class="evc-setting-info">
-						<span>Change Visibility</span>
-						<span class="evc-setting-desc">Control who can access this share</span>
+						<span>{uiText("shareDetail.actions.changeVisibilityLabel")}</span>
+						<span class="evc-setting-desc">{uiText("shareDetail.actions.changeVisibilityDesc")}</span>
 					</div>
 					<select
 						class="dropdown"
 						value={currentShare.visibility}
 						on:change={(e) => updateVisibility(e.currentTarget.value)}
 					>
-						<option value="private">Private</option>
-						<option value="public">Public</option>
-						<option value="protected">Protected</option>
+						<option value="private">{uiText("shareDetail.actions.privateOption")}</option>
+						<option value="public">{uiText("shareDetail.actions.publicOption")}</option>
+						<option value="protected">{uiText("shareDetail.actions.protectedOption")}</option>
 					</select>
 				</div>
 
 				<div class="evc-setting-row">
 					<div class="evc-setting-info">
-						<span>Delete Share</span>
-						<span class="evc-setting-desc">Permanently delete this share</span>
+						<span>{uiText("shareDetail.actions.deleteShareLabel")}</span>
+						<span class="evc-setting-desc">{uiText("shareDetail.actions.deleteShareDesc")}</span>
 					</div>
-					<button class="evc-btn-danger" on:click={deleteShare}>Delete</button>
+					<button class="evc-btn-danger" on:click={deleteShare}>{uiText("shareDetail.actions.deleteButton")}</button>
 				</div>
 			</div>
 		{/if}

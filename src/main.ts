@@ -113,6 +113,7 @@ import {
 	getDefaultServer,
 } from "./RelayOnPremConfig";
 import { RelayOnPremTokenProvider } from "./auth/RelayOnPremTokenProvider";
+import { getAuthStore } from "./auth/RelayOnPremAuthStore";
 import {
 	snapshotRelayOnPremServers,
 	diffRelayOnPremServers,
@@ -532,17 +533,8 @@ export default class TeamRelayPlugin extends Plugin {
 		// and update all shared folder settings that reference the old server ID
 		if (migration.renamedServerId) {
 			const oldId = migration.renamedServerId;
-			// Must match RelayOnPremAuthStore.getStorageKey()'s format, which is
-			// keyed by appId (stable across vault renames), not vault display name.
-			const prefix = "evc-team-relay_onprem_auth_";
-			const oldKey = `${prefix}${this.instanceAppId}_${oldId}`;
-			const newKey = `${prefix}${this.instanceAppId}_${EVC_SERVER_ID}`;
 			try {
-				const oldData = window.localStorage.getItem(oldKey);
-				if (oldData && !window.localStorage.getItem(newKey)) {
-					window.localStorage.setItem(newKey, oldData);
-					window.localStorage.removeItem(oldKey);
-				}
+				getAuthStore(this.instanceAppId).renameServer(oldId, EVC_SERVER_ID);
 			} catch {
 				// localStorage may not be available during startup
 			}

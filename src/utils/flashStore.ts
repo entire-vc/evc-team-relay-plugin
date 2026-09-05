@@ -81,7 +81,7 @@ interface ServerErrorLike {
 }
 
 function asServerErrorLike(error: unknown): ServerErrorLike {
-	return typeof error === "object" && error !== null ? (error as ServerErrorLike) : {};
+	return typeof error === "object" && error !== null ? error : {};
 }
 
 /**

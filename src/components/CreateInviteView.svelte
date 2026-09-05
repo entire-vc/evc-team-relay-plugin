@@ -4,6 +4,7 @@
 	import type TeamRelayPlugin from "../main";
 	import type { Invite } from "../RelayOnPremShareClient";
 	import type { ShareWithServer } from "../RelayOnPremShareClientManager";
+	import { uiText } from "../wording/uiText";
 
 	export let live: TeamRelayPlugin;
 	export let share: ShareWithServer;
@@ -21,7 +22,7 @@
 	async function handleCreate() {
 		const maxUsesNum = maxUses.trim() ? parseInt(maxUses.trim(), 10) : null;
 		if (maxUsesNum !== null && (isNaN(maxUsesNum) || maxUsesNum < 1)) {
-			new Notice("Max uses must be a positive number");
+			new Notice(uiText("createInvite.maxUsesInvalidNotice"));
 			return;
 		}
 
@@ -46,13 +47,13 @@
 					max_uses: maxUsesNum,
 				});
 			} else {
-				throw new Error("No share client available");
+				throw new Error(uiText("shared.noShareClientError"));
 			}
 
-			new Notice("Invite link created!");
+			new Notice(uiText("createInvite.createdNotice"));
 			dispatch("created");
 		} catch (e: unknown) {
-			new Notice(`Failed to create invite: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("createInvite.createFailedNotice", { error: e instanceof Error ? e.message : uiText("shared.unknownError") }));
 		} finally {
 			creating = false;
 		}
@@ -60,43 +61,43 @@
 </script>
 
 <div class="evc-create-invite">
-	<div class="evc-section-title">Create Invite Link</div>
-	<div class="evc-section-desc">for {share.path}</div>
+	<div class="evc-section-title">{uiText("createInvite.title")}</div>
+	<div class="evc-section-desc">{uiText("createInvite.forLabel", { path: share.path })}</div>
 
 	<div class="evc-form-field">
-		<label for="evc-invite-role">Role</label>
+		<label for="evc-invite-role">{uiText("createInvite.roleLabel")}</label>
 		<select id="evc-invite-role" class="dropdown" bind:value={role}>
-			<option value="viewer">Viewer</option>
-			<option value="editor">Editor</option>
+			<option value="viewer">{uiText("shared.viewerOption")}</option>
+			<option value="editor">{uiText("shared.editorOption")}</option>
 		</select>
 	</div>
 
 	<div class="evc-form-field">
-		<label for="evc-invite-expiry">Expiration</label>
+		<label for="evc-invite-expiry">{uiText("createInvite.expirationLabel")}</label>
 		<select id="evc-invite-expiry" class="dropdown" bind:value={expiresInDays}>
-			<option value="7">7 days</option>
-			<option value="14">14 days</option>
-			<option value="30">30 days</option>
-			<option value="0">No expiration</option>
+			<option value="7">{uiText("createInvite.expires7Days")}</option>
+			<option value="14">{uiText("createInvite.expires14Days")}</option>
+			<option value="30">{uiText("createInvite.expires30Days")}</option>
+			<option value="0">{uiText("shared.noExpiration")}</option>
 		</select>
 	</div>
 
 	<div class="evc-form-field">
-		<label for="evc-invite-maxuses">Max Uses (optional)</label>
+		<label for="evc-invite-maxuses">{uiText("createInvite.maxUsesLabel")}</label>
 		<input
 			id="evc-invite-maxuses"
 			type="number"
 			min="1"
-			placeholder="Unlimited"
+			placeholder={uiText("createInvite.unlimitedPlaceholder")}
 			bind:value={maxUses}
 		/>
 	</div>
 
 	<div class="evc-form-actions">
 		<button class="mod-cta" on:click={handleCreate} disabled={creating}>
-			{creating ? "Creating..." : "Create Invite Link"}
+			{creating ? uiText("shared.creatingEllipsis") : uiText("createInvite.createButton")}
 		</button>
-		<button on:click={() => dispatch('cancel')}>Cancel</button>
+		<button on:click={() => dispatch('cancel')}>{uiText("shared.cancelButton")}</button>
 	</div>
 </div>
 

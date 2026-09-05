@@ -497,3 +497,16 @@
 	text-align: center;
 	color: var(--text-muted);
 }
+
+/* Full-bleed mount point for the Team Relay settings panel, rendered from a
+   declarative getSettingDefinitions() row (RelaySettingsPage.ts). Strips the
+   default .setting-item row chrome (flex row layout, padding, border,
+   background) so the panel fills the tab edge-to-edge instead of being
+   boxed inside what's normally a single narrow settings row. */
+.evc-relay-settings-tab-row {
+	display: block;
+	padding: 0;
+	margin: 0;
+	border: none;
+	background: transparent;
+}

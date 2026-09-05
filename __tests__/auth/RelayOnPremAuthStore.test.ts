@@ -444,4 +444,50 @@ describe("RelayOnPremAuthStore", () => {
 			expect(loaded?.refreshToken).toBeUndefined();
 		});
 	});
+
+	describe("renameServer()", () => {
+		test("Moves data from the old serverId to the new one", () => {
+			store.persist("old-server", mockAuthData);
+
+			const moved = store.renameServer("old-server", "new-server");
+
+			expect(moved).toBe(true);
+			expect(store.load("old-server")).toBeNull();
+			expect(store.load("new-server")?.user.email).toBe(mockAuthData.user.email);
+		});
+
+		test("No-op when the source server has nothing stored", () => {
+			const moved = store.renameServer("empty-server", "new-server");
+
+			expect(moved).toBe(false);
+			expect(store.load("new-server")).toBeNull();
+		});
+
+		test("Does not overwrite an existing login at the destination", () => {
+			const oldData = { ...mockAuthData, user: { ...mockAuthData.user, email: "old@example.com" } };
+			const existingData = { ...mockAuthData, user: { ...mockAuthData.user, email: "existing@example.com" } };
+			store.persist("old-server", oldData);
+			store.persist("new-server", existingData);
+
+			const moved = store.renameServer("old-server", "new-server");
+
+			expect(moved).toBe(false);
+			// Source is untouched -- an old login isn't dropped just because the
+			// destination is occupied.
+			expect(store.load("old-server")?.user.email).toBe("old@example.com");
+			expect(store.load("new-server")?.user.email).toBe("existing@example.com");
+		});
+
+		test("A non-JSON blob survives the move intact (regression: load()'s shape validation must not run here)", () => {
+			const key = `evc-team-relay_onprem_auth_${APP_ID}_old-server`;
+			mockStorage.set(key, "not valid json auth data");
+
+			const moved = store.renameServer("old-server", "new-server");
+
+			expect(moved).toBe(true);
+			const newKey = `evc-team-relay_onprem_auth_${APP_ID}_new-server`;
+			expect(mockStorage.get(newKey)).toBe("not valid json auth data");
+			expect(mockStorage.has(key)).toBe(false);
+		});
+	});
 });
