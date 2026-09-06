@@ -159,6 +159,7 @@ export const englishPhrasebook = {
 	"shareDetail.webPublish.slugUpdatedNotice": "Slug updated: {slug}",
 	"shareDetail.webPublish.publishedNotice": "Published to web!",
 	"shareDetail.webPublish.unpublishedNotice": "Unpublished from web",
+	"shareDetail.webPublish.publishedWithSkippedNotice": "Published; {count} file(s) skipped: {files}",
 	"shareDetail.webPublish.privatePublishPrompt":
 		'This share is private. Web publishing requires "public" or "protected" visibility. Choose how you want to publish:',
 	"shareDetail.webPublish.makePublicChoice": "Make public (open access)",
