@@ -359,6 +359,7 @@
 
 		try {
 			const updatePayload: any = { web_published: enabled };
+			let skippedFiles: string[] = [];
 			if (enabled) {
 				if (currentShare.kind === "doc") {
 					const content = await getDocumentContent(currentShare.path);
@@ -366,7 +367,7 @@
 				} else if (currentShare.kind === "folder") {
 					const items = await getFolderItems(currentShare.path);
 					if (items.length > 0) {
-						await pushFolderContentToServer(currentShare.path, items);
+						skippedFiles = await pushFolderContentToServer(currentShare.path, items);
 						updatePayload.web_folder_items = items;
 					}
 				}
@@ -382,7 +383,14 @@
 				currentShare = { ...currentShare, ...updated };
 				editingSlug = currentShare.web_slug || "";
 			}
-			new Notice(enabled ? uiText("shareDetail.webPublish.publishedNotice") : uiText("shareDetail.webPublish.unpublishedNotice"));
+			if (enabled && skippedFiles.length > 0) {
+				new Notice(
+					uiText("shareDetail.webPublish.publishedWithSkippedNotice", { count: skippedFiles.length, files: skippedFiles.join(", ") }),
+					8000,
+				);
+			} else {
+				new Notice(enabled ? uiText("shareDetail.webPublish.publishedNotice") : uiText("shareDetail.webPublish.unpublishedNotice"));
+			}
 		} catch (e: unknown) {
 			if (e instanceof LimitExceededApiError) {
 				const info = e.limitInfo;
@@ -590,9 +598,14 @@
 	// how much real local content exists, because the generic
 	// UpdateShareRequest.web_folder_items the toggle sends is structure-only
 	// (path/name/type) by design (#d425920b).
-	async function pushFolderContentToServer(folderPath: string, items: WebFolderEntry[]): Promise<void> {
+	// Returns the paths that could not be written (e.g. #546ce7e3: a name the
+	// server's path validator rejects) so the caller can still publish
+	// everything else and tell the user what was skipped, instead of one bad
+	// file aborting the whole publish -- matching the existing per-file
+	// try/catch idiom in syncFolderFileContent's loop above.
+	async function pushFolderContentToServer(folderPath: string, items: WebFolderEntry[]): Promise<string[]> {
 		const syncable = items.filter((i) => i.type === "doc" || i.type === "canvas");
-		if (syncable.length === 0) return;
+		if (syncable.length === 0) return [];
 
 		let indexed = new Map<string, string>();
 		try {
@@ -605,6 +618,7 @@
 			// nothing yet) -- treat every item as never-before-synced below.
 		}
 
+		const skipped: string[] = [];
 		for (const item of syncable) {
 			const content = await getDocumentContent(`${folderPath}/${item.path}`);
 			if (content === null) continue; // file vanished between listing and read -- skip, not fatal
@@ -614,12 +628,18 @@
 
 			const precondition = remoteSha ? { ifMatchSha256: remoteSha } : ({ create: true } as const);
 			const mime = item.type === "canvas" ? "application/json" : "text/markdown; charset=utf-8";
-			if (live.shareClientManager) {
-				await live.shareClientManager.syncWriteFile(share.serverId, share.id, item.path, content, precondition, mime);
-			} else if (live.shareClient) {
-				await live.shareClient.syncWriteFile(share.id, item.path, content, precondition, mime);
+			try {
+				if (live.shareClientManager) {
+					await live.shareClientManager.syncWriteFile(share.serverId, share.id, item.path, content, precondition, mime);
+				} else if (live.shareClient) {
+					await live.shareClient.syncWriteFile(share.id, item.path, content, precondition, mime);
+				}
+			} catch (e: unknown) {
+				console.error(`Failed to publish "${item.path}":`, e);
+				skipped.push(item.path);
 			}
 		}
+		return skipped;
 	}
 
 	$: activeInvites = invites.filter(i => !i.revoked_at);
