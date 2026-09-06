@@ -10,7 +10,7 @@
 	import { FolderPathPickerModal } from "../ui/FolderPathPickerModal";
 	import { confirmDialog, promptDialog, choiceDialog } from "../ui/dialogs";
 	import { withOutboundSyncGuard } from "../WebSyncManager";
-	import { sha256Hex } from "../contentDigest";
+	import { pushFolderContentToServer as pushFolderContentToServerCore } from "../webPublish/pushFolderContentToServer";
 	import { uiText } from "../wording/uiText";
 
 	export let live: TeamRelayPlugin;
@@ -587,59 +587,25 @@
 		} catch { return []; }
 	}
 
-	// The server only counts a folder share as publishable once at least one
-	// item's `content`/`storage_key` is populated (share_service.
-	// _share_has_publishable_content) -- and the ONLY endpoint that populates
-	// either is the per-file conditional sync-write protocol, keyed by
-	// share id so it works before the share has ever been published (unlike
-	// syncFolderFileContent below, which needs an existing web_slug and so
-	// can only ever run AFTER a first successful publish). Without this,
-	// toggling "Publish to Web" on a folder share 400s forever regardless of
-	// how much real local content exists, because the generic
-	// UpdateShareRequest.web_folder_items the toggle sends is structure-only
-	// (path/name/type) by design (#d425920b).
-	// Returns the paths that could not be written (e.g. #546ce7e3: a name the
-	// server's path validator rejects) so the caller can still publish
-	// everything else and tell the user what was skipped, instead of one bad
-	// file aborting the whole publish -- matching the existing per-file
-	// try/catch idiom in syncFolderFileContent's loop above.
+	// Real logic + tests live in ../webPublish/pushFolderContentToServer.ts
+	// (this component can't be unit-tested directly -- no .svelte jest
+	// transform in this repo). This wrapper just adapts `live`/`share`/
+	// `getDocumentContent` into the extracted function's deps.
 	async function pushFolderContentToServer(folderPath: string, items: WebFolderEntry[]): Promise<string[]> {
-		const syncable = items.filter((i) => i.type === "doc" || i.type === "canvas");
-		if (syncable.length === 0) return [];
-
-		let indexed = new Map<string, string>();
-		try {
-			const index = live.shareClientManager
-				? await live.shareClientManager.getFilesIndex(share.serverId, share.id)
-				: await live.shareClient!.getFilesIndex(share.id);
-			indexed = new Map(index.map((i) => [i.path, i.sha256]));
-		} catch {
-			// No prior index (fresh share, or the endpoint genuinely has
-			// nothing yet) -- treat every item as never-before-synced below.
-		}
-
-		const skipped: string[] = [];
-		for (const item of syncable) {
-			const content = await getDocumentContent(`${folderPath}/${item.path}`);
-			if (content === null) continue; // file vanished between listing and read -- skip, not fatal
-			const localSha = await sha256Hex(new TextEncoder().encode(content).buffer as ArrayBuffer);
-			const remoteSha = indexed.get(item.path);
-			if (remoteSha === localSha) continue; // already in sync, don't churn a needless write
-
-			const precondition = remoteSha ? { ifMatchSha256: remoteSha } : ({ create: true } as const);
-			const mime = item.type === "canvas" ? "application/json" : "text/markdown; charset=utf-8";
-			try {
+		return pushFolderContentToServerCore(folderPath, items, {
+			getFilesIndex: () =>
+				live.shareClientManager
+					? live.shareClientManager.getFilesIndex(share.serverId, share.id)
+					: live.shareClient!.getFilesIndex(share.id),
+			syncWriteFile: async (path, content, precondition, mime) => {
 				if (live.shareClientManager) {
-					await live.shareClientManager.syncWriteFile(share.serverId, share.id, item.path, content, precondition, mime);
+					await live.shareClientManager.syncWriteFile(share.serverId, share.id, path, content, precondition, mime);
 				} else if (live.shareClient) {
-					await live.shareClient.syncWriteFile(share.id, item.path, content, precondition, mime);
+					await live.shareClient.syncWriteFile(share.id, path, content, precondition, mime);
 				}
-			} catch (e: unknown) {
-				console.error(`Failed to publish "${item.path}":`, e);
-				skipped.push(item.path);
-			}
-		}
-		return skipped;
+			},
+			getDocumentContent,
+		});
 	}
 
 	$: activeInvites = invites.filter(i => !i.revoked_at);
