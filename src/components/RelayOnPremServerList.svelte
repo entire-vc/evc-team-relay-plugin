@@ -15,6 +15,7 @@
 	import { RelayOnPremLoginModal } from "../ui/RelayOnPremLoginModal";
 	import { platformFetch } from "../platformFetch";
 	import { confirmDialog } from "../ui/dialogs";
+	import evcLogo from "../assets/evc-logo.png";
 
 	export let live: TeamRelayPlugin;
 
@@ -49,6 +50,16 @@
 	// Track which servers support billing (enterprise + billing_enabled)
 	let serverBillingSupport: Record<string, boolean> = {};
 
+	// Per-server branding logo: the server's own logo_url, and whether it failed to load
+	// (a server with no branding, or an unreachable image, falls back to evcLogo below).
+	let serverLogoUrl: Record<string, string | undefined> = {};
+	let serverLogoFailed: Record<string, boolean> = {};
+
+	function handleServerLogoError(serverId: string) {
+		serverLogoFailed[serverId] = true;
+		serverLogoFailed = serverLogoFailed; // trigger reactivity
+	}
+
 	// Refresh key to force auth status recalculation
 	let authRefreshKey = 0;
 
@@ -76,6 +87,8 @@
 			if (info) {
 				serverBillingSupport[s.id] = info.edition === "enterprise" && info.features?.billing_enabled === true;
 				serverBillingSupport = serverBillingSupport; // trigger reactivity
+				serverLogoUrl[s.id] = info.branding?.logo_url;
+				serverLogoUrl = serverLogoUrl; // trigger reactivity
 			}
 		}
 	}
@@ -118,6 +131,12 @@
 		billing_enabled?: boolean;
 	}
 
+	interface ServerBranding {
+		name?: string;
+		logo_url?: string;
+		favicon_url?: string;
+	}
+
 	interface ServerInfo {
 		id: string;
 		name: string;
@@ -125,6 +144,7 @@
 		relay_url: string;
 		edition?: string;
 		features: ServerFeatures;
+		branding?: ServerBranding;
 	}
 
 	async function fetchServerInfo(url: string): Promise<ServerInfo | null> {
@@ -413,6 +433,12 @@
 	{#each servers as server (server.id)}
 		{@const authStatus = getAuthStatus(server.id, authRefreshKey)}
 		<div class="relay-server-item" class:is-default={server.id === defaultServerId}>
+			<img
+				src={serverLogoUrl[server.id] && !serverLogoFailed[server.id] ? serverLogoUrl[server.id] : evcLogo}
+				alt=""
+				class="relay-server-logo"
+				on:error={() => handleServerLogoError(server.id)}
+			/>
 			<div class="relay-server-info">
 				<div class="relay-server-name">
 					<span class="relay-status-dot" class:is-connected={authStatus.isLoggedIn}></span>
@@ -559,6 +585,15 @@
 
 	.relay-server-item.is-default {
 		border-color: var(--interactive-accent);
+	}
+
+	.relay-server-logo {
+		width: 2em;
+		height: 2em;
+		object-fit: contain;
+		border-radius: 4px;
+		background: var(--background-primary);
+		flex-shrink: 0;
 	}
 
 	.relay-server-info {
