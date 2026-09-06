@@ -181,6 +181,24 @@ jobs:
             echo "::error::manifest.json version ($MFT_VER) != package.json version ($PKG_VER). Run 'npm version <ver>' or manually fix manifest.json."
             exit 1
           fi
+
+          # package-lock.json carries its own copy of the version at two JSON
+          # paths (root "version" and packages[""].version) that `npm version`
+          # does NOT touch -- it edits package.json only. This repo forked
+          # from an upstream on version line 1.1.x and shipped four releases
+          # (0.0.1..0.0.4) with the lock still reading "1.1.43" the whole
+          # time, on the showcase side too (Mesh #4c85478c) -- ported from
+          # the canon-side fix (Mesh #038e3320), which only ever guarded the
+          # GitLab pipeline. Without this check here too, the next
+          # 'npm version' bump on the showcase side silently reopens the gap.
+          LOCK_ROOT_VER=$(node -p "require('./package-lock.json').version")
+          LOCK_PKG_VER=$(node -p "require('./package-lock.json').packages[''].version")
+          echo "package-lock.json: $LOCK_ROOT_VER / $LOCK_PKG_VER  (root / packages[\"\"])"
+          if [ "$LOCK_ROOT_VER" != "$PKG_VER" ] || [ "$LOCK_PKG_VER" != "$PKG_VER" ]; then
+            echo "::error::package-lock.json version(s) ($LOCK_ROOT_VER / $LOCK_PKG_VER) != package.json version ($PKG_VER). Run 'npm install --package-lock-only' after bumping package.json."
+            exit 1
+          fi
+
           if ! grep -q "\"$MFT_VER\"" versions.json; then
             echo "::error::versions.json is missing entry for $MFT_VER. Add it via 'npm version <ver>'."
             exit 1
