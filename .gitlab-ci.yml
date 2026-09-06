@@ -276,6 +276,23 @@ manifest-check:
         echo "REFUSING: manifest.json version ($MFT_VER) != package.json version ($PKG_VER)."
         exit 1
       fi
+      # package-lock.json carries its own copy of the version at two JSON
+      # paths (root "version" and packages[""].version) that `npm version`
+      # does NOT touch -- it edits package.json only. Nothing else in this
+      # pipeline reads either path, so a lockfile frozen at fork time drifts
+      # silently forever: this repo forked from an upstream on version line
+      # 1.1.x and shipped four releases (0.0.1..0.0.4) with the lock still
+      # reading "1.1.43" the whole time (Mesh #038e3320). Fixed once with
+      # `npm install --package-lock-only`; this check is what keeps the next
+      # `npm version` bump from re-opening the same gap.
+      LOCK_ROOT_VER=$(node -p "require('./package-lock.json').version")
+      LOCK_PKG_VER=$(node -p "require('./package-lock.json').packages[''].version")
+      echo "package-lock.json:   $LOCK_ROOT_VER / $LOCK_PKG_VER  (root / packages[\"\"])"
+      if [ "$LOCK_ROOT_VER" != "$PKG_VER" ] || [ "$LOCK_PKG_VER" != "$PKG_VER" ]; then
+        echo "REFUSING: package-lock.json version(s) ($LOCK_ROOT_VER / $LOCK_PKG_VER) != package.json version ($PKG_VER)."
+        echo "  Run 'npm install --package-lock-only' after bumping package.json."
+        exit 1
+      fi
       # Форма версии, а не только согласованность файлов. Равенство выше ловит
       # расхождение, но пропускает СОГЛАСОВАННЫЙ мусор: одна и та же кривая строка
       # в обоих файлах плюс запись в versions.json проходит все прежние барьеры.
