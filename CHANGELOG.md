@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.6
+- Local document storage and the realtime connection layer are now our own implementations, replacing two third-party modules that were vendored into the source tree. Behaviour is unchanged; the plugin ships less code it does not own.
+- The last share and login calls still using the server's deprecated unversioned routes now use the current `/v1` API, like every other call already did. No server-side change is needed: `/v1` has been served since the first release.
+
 ## 0.0.5
 - Sync-conflict toast no longer piles up forever: it now dedups per (local hash, server hash), auto-dismisses after 8s, and re-fires only when the conflict actually changes.
 - New command "Team Relay: Show sync conflicts" lists unresolved conflicts and lets you resolve each one — take the server version or keep local.
