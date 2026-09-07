@@ -408,6 +408,30 @@ build:
     # at module scope, so without git the build dies before writing a byte,
     # with a node stack trace rather than "git: not found".
     - apk add --no-cache git
+    # MR pipelines (source == merge_request_event) check out a shallow clone
+    # scoped to refs/merge-requests/N/head with NO tags fetched at all --
+    # confirmed from a live job trace ("Fetching changes with git depth set to
+    # 20 ... Checking out ... (ref is refs/merge-requests/33/head)"). Reachable
+    # tags depend on how far the MR branch diverged from main, so
+    # `git describe --tags` fails with "fatal: No names found" before esbuild
+    # writes a byte -- reproduced locally with the exact runner flags
+    # (--depth 20 --no-tags on the same ref) before writing this fix. Push
+    # pipelines on `main` are unaffected only because that ref happens to sit
+    # close enough to the latest tag for the same depth-20 window to include
+    # it -- not because they behave differently.
+    #
+    # Fix it here, once, for whichever ref this job already checked out --
+    # not by setting a global GIT_DEPTH/ci_default_git_depth, which would
+    # slow the checkout of every job in every pipeline (`check`/`gate` never
+    # call `git describe` and don't need this). `--unshallow` is a no-op cost
+    # on this repository (53 commits total) and correctly fails loudly if
+    # `origin` is ever unreachable -- it does not swallow that error.
+    - |
+      if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+        git fetch --unshallow --tags --quiet origin
+      else
+        git fetch --tags --quiet origin
+      fi
     - npm ci
   script:
     - npm run build
