@@ -2,14 +2,10 @@
  * The plugin's own copy, one language at a time.
  *
  * `englishPhrasebook` is the single source of truth for every user-visible
- * string this MR moved out of a call site -- each value here was copied
- * BYTE FOR BYTE from wherever it used to live (see
- * `scripts/check-i18n-string-parity.py` for the automated proof). This MR
- * (i18n mechanism, Mesh #bac8b7dd, MR1 of 2) does not add a second language:
- * `phrasebooksByLanguage` only ever holds `en` here. A `ru` phrasebook is a
- * separate follow-up MR gated on Pavel approving the wording list first
- * (CLAUDE-workflow §1r.A) -- when it lands, it's a second entry in
- * `phrasebooksByLanguage` below, nothing else about this module changes.
+ * string MR1 moved out of a call site -- each value here was copied BYTE FOR
+ * BYTE from wherever it used to live (see `scripts/check-i18n-string-parity.py`
+ * for the automated proof; MR1 does not apply to this file -- see `ruPhrasebook`
+ * below).
  *
  * Placeholders use `{name}` (not printf `%s`, not ICU `{name, plural, ...}`)
  * -- see `uiText.ts` for the substitution rule. Keys are flat, dot-namespaced
@@ -41,20 +37,24 @@ export const englishPhrasebook = {
 	"connect.login.loginButton": "Login",
 	"connect.login.loggingIn": "Logging in...",
 	"connect.login.orSignInWith": "Or sign in with:",
-	"connect.login.ssoUnavailableMobile": "SSO sign-in isn't available on mobile yet — use the desktop app, or sign in with email and password if your account has one.",
+	"connect.login.ssoUnavailableMobile":
+		"SSO sign-in isn't available on mobile yet — use the desktop app, or sign in with email and password if your account has one.",
 	"connect.login.successNotice": "Successfully logged in to relay-onprem!",
 	"connect.login.oauthSuccessNotice": "Successfully logged in with {provider}!",
 	"connect.login.loginFailedFallback": "Login failed",
 	"connect.login.incorrectCredentials": "Incorrect email or password",
-	"connect.login.invalidLoginData": "Invalid login data. Please check your email and password.",
-	"connect.login.networkError": "Network error. Please check your connection and control plane URL.",
+	"connect.login.invalidLoginData":
+		"Invalid login data. Please check your email and password.",
+	"connect.login.networkError":
+		"Network error. Please check your connection and control plane URL.",
 	"connect.login.emailRequired": "Please enter your email",
 	"connect.login.passwordRequired": "Please enter your password",
 	"connect.login.invalidEmail": "Please enter a valid email address",
 	"connect.login.passwordTooShort": "Password must be at least 8 characters",
 	"connect.login.oauthFailedFallback": "OAuth login failed",
 	"connect.login.oauthTimeout": "Login timeout. Please try again.",
-	"connect.login.oauthCannotOpenBrowser": "Unable to open browser. Please try manual login.",
+	"connect.login.oauthCannotOpenBrowser":
+		"Unable to open browser. Please try manual login.",
 
 	// Plugin shell -- src/components/RelayOnPremSettings.svelte
 	"shell.header.title": "Team Relay",
@@ -67,7 +67,8 @@ export const englishPhrasebook = {
 	"shell.header.mcpCta": "MCP server",
 	"shell.header.meshCta": "Mesh",
 	"shell.servers.heading": "Relay Servers",
-	"shell.servers.desc": 'Configure your relay-onprem servers. Click "Shares" to manage shares.',
+	"shell.servers.desc":
+		'Configure your relay-onprem servers. Click "Shares" to manage shares.',
 	"shell.breadcrumb.planUsage": "Plan & Usage",
 	"shell.breadcrumb.createInvite": "Create Invite",
 	"shell.breadcrumb.agentKeys": "Agent Keys",
@@ -87,12 +88,15 @@ export const englishPhrasebook = {
 
 	"shareDetail.localFolder.heading": "Local Folder",
 	"shareDetail.localFolder.connectedStatus": "Connected and syncing",
-	"shareDetail.localFolder.notConnectedStatus": "Not connected to a local folder",
+	"shareDetail.localFolder.notConnectedStatus":
+		"Not connected to a local folder",
 	"shareDetail.localFolder.disconnectButton": "Disconnect",
 	"shareDetail.localFolder.connectButton": "Connect to local folder",
-	"shareDetail.localFolder.pickerTitle": "Choose local folder for this share...",
+	"shareDetail.localFolder.pickerTitle":
+		"Choose local folder for this share...",
 	"shareDetail.localFolder.connectedNotice": "Folder connected! Syncing...",
-	"shareDetail.localFolder.connectFailedNotice": "Failed to connect folder: {error}",
+	"shareDetail.localFolder.connectFailedNotice":
+		"Failed to connect folder: {error}",
 	"shareDetail.localFolder.disconnectConfirm":
 		'Disconnect local folder "{path}" from this share? Local files will not be deleted.',
 	"shareDetail.localFolder.disconnectedNotice": "Folder disconnected",
@@ -107,7 +111,8 @@ export const englishPhrasebook = {
 		"Member limit reached ({current}/{max} on {plan} plan). Upgrade your plan to add more members.",
 	"shareDetail.members.addFailedFallback": "Failed to add member",
 	"shareDetail.members.roleChangedNotice": "Role changed to {role}",
-	"shareDetail.members.roleChangeFailedNotice": "Failed to change role: {error}",
+	"shareDetail.members.roleChangeFailedNotice":
+		"Failed to change role: {error}",
 	"shareDetail.members.removedNotice": "Member removed",
 	"shareDetail.members.removeFailedNotice": "Failed to remove member: {error}",
 
@@ -128,7 +133,8 @@ export const englishPhrasebook = {
 	"shareDetail.invites.usesNoMax": "Uses: {used}",
 
 	"shareDetail.agentKeys.manageButton": "Manage",
-	"shareDetail.agentKeys.desc": "API keys for automated agents to access this share without your login credentials.",
+	"shareDetail.agentKeys.desc":
+		"API keys for automated agents to access this share without your login credentials.",
 
 	"shareDetail.webPublish.heading": "Web Publishing",
 	"shareDetail.webPublish.publishLabel": "Publish to Web",
@@ -148,7 +154,8 @@ export const englishPhrasebook = {
 	"shareDetail.webPublish.contentSyncedNotice": "Content synced!",
 	"shareDetail.webPublish.syncedFilesNotice": "Synced {count} files",
 	"shareDetail.webPublish.folderSyncedNotice": "Folder synced: {count} items",
-	"shareDetail.webPublish.couldNotReadDocumentNotice": "Could not read document",
+	"shareDetail.webPublish.couldNotReadDocumentNotice":
+		"Could not read document",
 	"shareDetail.webPublish.folderEmptyNotice": "Folder empty",
 	"shareDetail.webPublish.syncFailedNotice": "Failed to sync: {error}",
 	"shareDetail.webPublish.indexingDisabledNotice": "Indexing disabled",
@@ -164,7 +171,8 @@ export const englishPhrasebook = {
 		'This share is private. Web publishing requires "public" or "protected" visibility. Choose how you want to publish:',
 	"shareDetail.webPublish.makePublicChoice": "Make public (open access)",
 	"shareDetail.webPublish.makeProtectedChoice": "Make protected (password)",
-	"shareDetail.webPublish.visibilityChangeFailedNotice": "Failed to change visibility",
+	"shareDetail.webPublish.visibilityChangeFailedNotice":
+		"Failed to change visibility",
 	"shareDetail.webPublish.limitReachedNotice":
 		"Web publish limit reached ({current}/{max} on {plan} plan). Upgrade your plan to publish more.",
 	"shareDetail.webPublish.visibilityNotAllowedNotice":
@@ -172,7 +180,8 @@ export const englishPhrasebook = {
 
 	"shareDetail.actions.heading": "Actions",
 	"shareDetail.actions.changeVisibilityLabel": "Change Visibility",
-	"shareDetail.actions.changeVisibilityDesc": "Control who can access this share",
+	"shareDetail.actions.changeVisibilityDesc":
+		"Control who can access this share",
 	"shareDetail.actions.privateOption": "Private",
 	"shareDetail.actions.publicOption": "Public",
 	"shareDetail.actions.protectedOption": "Protected",
@@ -181,8 +190,10 @@ export const englishPhrasebook = {
 	"shareDetail.actions.deleteButton": "Delete",
 	"shareDetail.actions.passwordPrompt": "Enter password for protected share:",
 	"shareDetail.actions.visibilityConfirm": "Change visibility to {visibility}?",
-	"shareDetail.actions.visibilityChangedNotice": "Visibility changed to {visibility}",
-	"shareDetail.actions.deleteConfirm": 'Delete "{path}"? This cannot be undone.',
+	"shareDetail.actions.visibilityChangedNotice":
+		"Visibility changed to {visibility}",
+	"shareDetail.actions.deleteConfirm":
+		'Delete "{path}"? This cannot be undone.',
 	"shareDetail.actions.deletedNotice": "Share deleted",
 	"shareDetail.actions.deleteFailedNotice": "Failed to delete: {error}",
 
@@ -233,11 +244,267 @@ export type PhraseKey = keyof typeof englishPhrasebook;
 export type Phrasebook = Partial<Record<PhraseKey, string>>;
 
 /**
+ * Russian phrasebook (Mesh #bac8b7dd, MR2 of 2) -- covers every key MR1
+ * extracted (Phase 1: connect screen, plugin shell, share list, share
+ * detail card incl. members/invites/web-publish/actions, create share,
+ * create invite). {name}-style placeholders are preserved verbatim, never
+ * translated or reordered -- uiText.ts substitutes by name, not position.
+ *
+ * NOT SHIPPED to any real Russian-speaking user yet: this is the "one list,
+ * one review" wording deliverable CLAUDE-workflow.md §1r.A requires BEFORE
+ * new visible product text goes out -- Daedalus carries it to Pavel as a
+ * single reviewable list before this MR merges past a hold/draft state.
+ * Terminology anchored to the existing teamrelay.ru site copy (not invented
+ * fresh here) where the site already established a term:
+ *   - vault -> хранилище, member -> участник, editor/viewer role ->
+ *     редактор/читатель (site: design/spec-site-teamrelay-ru.md:536 -- "Team
+ *     Relay" and "Obsidian" stay untranslated everywhere, "хранилище" not
+ *     "волт", "участник" not "юзер"/"мембер").
+ * One judgment call with NO site precedent to anchor to, flagged explicitly
+ * for review: "a Share" (the plugin's core noun, could be a doc or a
+ * folder) is rendered as "общий доступ" throughout, plural "общие доступы"
+ * -- grammatically a little unusual (matches Russian access-review/DLP
+ * jargon "открытые доступы" more than everyday speech) but ties to the
+ * site's own already-approved "дать общий доступ" phrasing rather than
+ * inventing an unrelated noun. This is the single term most worth
+ * double-checking before approval; everything else follows from it.
+ */
+export const ruPhrasebook = {
+	"shared.cancelButton": "Отмена",
+	"shared.viewerOption": "Читатель",
+	"shared.editorOption": "Редактор",
+	"shared.createShareButton": "Создать общий доступ",
+	"shared.creatingEllipsis": "Создание...",
+	"shared.passwordLabel": "Пароль",
+	"shared.passwordRequiredNotice":
+		"Для защищённых общих доступов требуется пароль",
+	"shared.unknownError": "Неизвестная ошибка",
+	"shared.failedNotice": "Ошибка: {error}",
+	"shared.emailPlaceholder": "user@example.com",
+	"shared.noExpiration": "Без срока действия",
+	"shared.noShareClientError": "Служба общих доступов недоступна",
+
+	"connect.login.title": "Вход в Relay on-premise",
+	"connect.login.emailLabel": "Email",
+	"connect.login.passwordPlaceholder": "Введите пароль",
+	"connect.login.loginButton": "Войти",
+	"connect.login.loggingIn": "Выполняется вход...",
+	"connect.login.orSignInWith": "Или войдите через:",
+	"connect.login.ssoUnavailableMobile":
+		"Вход через SSO пока недоступен на мобильных устройствах — используйте настольное приложение или войдите с email и паролем, если они привязаны к вашей учётной записи.",
+	"connect.login.successNotice": "Вход в relay-onprem выполнен успешно!",
+	"connect.login.oauthSuccessNotice": "Вход через {provider} выполнен успешно!",
+	"connect.login.loginFailedFallback": "Не удалось войти",
+	"connect.login.incorrectCredentials": "Неверный email или пароль",
+	"connect.login.invalidLoginData":
+		"Некорректные данные для входа. Проверьте email и пароль.",
+	"connect.login.networkError":
+		"Ошибка сети. Проверьте подключение и адрес control plane.",
+	"connect.login.emailRequired": "Введите email",
+	"connect.login.passwordRequired": "Введите пароль",
+	"connect.login.invalidEmail": "Введите корректный email",
+	"connect.login.passwordTooShort":
+		"Пароль должен содержать не менее 8 символов",
+	"connect.login.oauthFailedFallback": "Не удалось выполнить вход через OAuth",
+	"connect.login.oauthTimeout":
+		"Время ожидания входа истекло. Попробуйте снова.",
+	"connect.login.oauthCannotOpenBrowser":
+		"Не удалось открыть браузер. Попробуйте войти вручную.",
+
+	"shell.header.title": "Team Relay",
+	"shell.header.desc": "Свой сервер для совместной работы в реальном времени",
+	"shell.header.githubTooltip": "GitHub",
+	"shell.header.bugReportTooltip": "Сообщить об ошибке",
+	"shell.header.featureRequestTooltip": "Предложить функцию",
+	"shell.header.webPublishTooltip": "Проблема с веб-публикацией",
+	"shell.header.docsCta": "Документация",
+	"shell.header.mcpCta": "MCP-сервер",
+	"shell.header.meshCta": "Mesh",
+	"shell.servers.heading": "Серверы Relay",
+	"shell.servers.desc":
+		"Настройте свои серверы relay-onprem. Нажмите «Общие доступы», чтобы управлять ими.",
+	"shell.breadcrumb.planUsage": "Тариф и использование",
+	"shell.breadcrumb.createInvite": "Создать приглашение",
+	"shell.breadcrumb.agentKeys": "Ключи агента",
+
+	"shareList.title": "Общие доступы на {serverName}",
+	"shareList.loading": "Загрузка общих доступов...",
+	"shareList.empty": "Общих доступов пока нет. Создайте первый, чтобы начать!",
+	"shareList.noServerError": "Сначала добавьте сервер и войдите в систему.",
+	"shareList.loadFailedFallback": "Не удалось загрузить общие доступы",
+
+	"shareDetail.loading": "Загрузка сведений об общем доступе...",
+	"shareDetail.loadFailedNotice": "Не удалось загрузить сведения: {error}",
+	"shareDetail.copyIdButton": "Скопировать ID",
+	"shareDetail.idCopiedNotice": "ID общего доступа скопирован",
+
+	"shareDetail.localFolder.heading": "Локальная папка",
+	"shareDetail.localFolder.connectedStatus": "Подключено и синхронизируется",
+	"shareDetail.localFolder.notConnectedStatus":
+		"Не подключено к локальной папке",
+	"shareDetail.localFolder.disconnectButton": "Отключить",
+	"shareDetail.localFolder.connectButton": "Подключить локальную папку",
+	"shareDetail.localFolder.pickerTitle":
+		"Выберите локальную папку для этого общего доступа...",
+	"shareDetail.localFolder.connectedNotice":
+		"Папка подключена! Синхронизация...",
+	"shareDetail.localFolder.connectFailedNotice":
+		"Не удалось подключить папку: {error}",
+	"shareDetail.localFolder.disconnectConfirm":
+		"Отключить локальную папку «{path}» от этого общего доступа? Локальные файлы удалены не будут.",
+	"shareDetail.localFolder.disconnectedNotice": "Папка отключена",
+
+	"shareDetail.members.heading": "Участники",
+	"shareDetail.members.empty": "Участников пока нет.",
+	"shareDetail.members.addButton": "Добавить",
+	"shareDetail.members.removeButton": "Удалить",
+	"shareDetail.members.emailRequiredNotice": "Введите email пользователя",
+	"shareDetail.members.addedNotice": "Участник добавлен",
+	"shareDetail.members.limitReachedNotice":
+		"Достигнут лимит участников ({current}/{max} на тарифе {plan}). Обновите тариф, чтобы добавить больше участников.",
+	"shareDetail.members.addFailedFallback": "Не удалось добавить участника",
+	"shareDetail.members.roleChangedNotice": "Роль изменена на «{role}»",
+	"shareDetail.members.roleChangeFailedNotice":
+		"Не удалось изменить роль: {error}",
+	"shareDetail.members.removedNotice": "Участник удалён",
+	"shareDetail.members.removeFailedNotice":
+		"Не удалось удалить участника: {error}",
+
+	"shareDetail.invites.heading": "Ссылки-приглашения",
+	"shareDetail.invites.createButton": "Создать приглашение",
+	"shareDetail.invites.empty": "Активных ссылок-приглашений нет.",
+	"shareDetail.invites.roleSuffix": "Приглашение: {role}",
+	"shareDetail.invites.copyLinkButton": "Скопировать ссылку",
+	"shareDetail.invites.linkCopiedNotice": "Ссылка-приглашение скопирована!",
+	"shareDetail.invites.revokeButton": "Отозвать",
+	"shareDetail.invites.revokeConfirm": "Отозвать эту ссылку-приглашение?",
+	"shareDetail.invites.revokedNotice": "Приглашение отозвано",
+	"shareDetail.invites.revokeFailedNotice":
+		"Не удалось отозвать приглашение: {error}",
+	"shareDetail.invites.expiredTag": "ИСТЕКЛА",
+	"shareDetail.invites.maxUsesReachedTag": "ЛИМИТ ИСЧЕРПАН",
+	"shareDetail.invites.expiresLabel": "Истекает: {date}",
+	"shareDetail.invites.usesWithMax": "Использований: {used}/{max}",
+	"shareDetail.invites.usesNoMax": "Использований: {used}",
+
+	"shareDetail.agentKeys.manageButton": "Управление",
+	"shareDetail.agentKeys.desc":
+		"API-ключи, дающие автоматическим агентам доступ к этому ресурсу без ваших учётных данных.",
+
+	"shareDetail.webPublish.heading": "Веб-публикация",
+	"shareDetail.webPublish.publishLabel": "Опубликовать в вебе",
+	"shareDetail.webPublish.webUrlLabel": "Веб-адрес",
+	"shareDetail.webPublish.copyButton": "Скопировать",
+	"shareDetail.webPublish.openButton": "Открыть",
+	"shareDetail.webPublish.urlCopiedNotice": "Адрес скопирован!",
+	"shareDetail.webPublish.syncContentLabel": "Синхронизировать содержимое",
+	"shareDetail.webPublish.syncNowButton": "Синхронизировать сейчас",
+	"shareDetail.webPublish.allowSearchEnginesLabel":
+		"Разрешить индексацию поисковиками",
+	"shareDetail.webPublish.syncModeLabel": "Режим синхронизации",
+	"shareDetail.webPublish.manualOption": "Вручную",
+	"shareDetail.webPublish.autoOption": "Автоматически",
+	"shareDetail.webPublish.webSlugLabel": "Веб-адрес (slug)",
+	"shareDetail.webPublish.webSlugPlaceholder": "my-document",
+	"shareDetail.webPublish.saveButton": "Сохранить",
+	"shareDetail.webPublish.contentSyncedNotice": "Содержимое синхронизировано!",
+	"shareDetail.webPublish.syncedFilesNotice":
+		"Синхронизировано файлов: {count}",
+	"shareDetail.webPublish.folderSyncedNotice":
+		"Папка синхронизирована: {count} объектов",
+	"shareDetail.webPublish.couldNotReadDocumentNotice":
+		"Не удалось прочитать документ",
+	"shareDetail.webPublish.folderEmptyNotice": "Папка пуста",
+	"shareDetail.webPublish.syncFailedNotice":
+		"Не удалось синхронизировать: {error}",
+	"shareDetail.webPublish.indexingDisabledNotice": "Индексация отключена",
+	"shareDetail.webPublish.indexingEnabledNotice": "Индексация включена",
+	"shareDetail.webPublish.autoSyncEnabledNotice": "Автосинхронизация включена",
+	"shareDetail.webPublish.autoSyncDisabledNotice":
+		"Автосинхронизация отключена",
+	"shareDetail.webPublish.syncModeNotice": "Режим синхронизации: {mode}",
+	"shareDetail.webPublish.slugUpdatedNotice": "Slug обновлён: {slug}",
+	"shareDetail.webPublish.publishedNotice": "Опубликовано в вебе!",
+	"shareDetail.webPublish.unpublishedNotice": "Публикация в вебе отменена",
+	"shareDetail.webPublish.privatePublishPrompt":
+		"Этот общий доступ приватный. Для веб-публикации нужна видимость «публичный» или «защищённый». Выберите, как опубликовать:",
+	"shareDetail.webPublish.makePublicChoice":
+		"Сделать публичным (открытый доступ)",
+	"shareDetail.webPublish.makeProtectedChoice":
+		"Сделать защищённым (по паролю)",
+	"shareDetail.webPublish.visibilityChangeFailedNotice":
+		"Не удалось изменить видимость",
+	"shareDetail.webPublish.limitReachedNotice":
+		"Достигнут лимит веб-публикаций ({current}/{max} на тарифе {plan}). Обновите тариф, чтобы публиковать больше.",
+	"shareDetail.webPublish.visibilityNotAllowedNotice":
+		"Видимость «{visibility}» требует более высокого тарифа. На вашем тарифе доступно: {allowed}. Обновите тариф, чтобы снять ограничение.",
+
+	"shareDetail.actions.heading": "Действия",
+	"shareDetail.actions.changeVisibilityLabel": "Изменить видимость",
+	"shareDetail.actions.changeVisibilityDesc":
+		"Определяет, кто может видеть этот общий доступ",
+	"shareDetail.actions.privateOption": "Приватный",
+	"shareDetail.actions.publicOption": "Публичный",
+	"shareDetail.actions.protectedOption": "Защищённый",
+	"shareDetail.actions.deleteShareLabel": "Удалить общий доступ",
+	"shareDetail.actions.deleteShareDesc":
+		"Безвозвратно удалить этот общий доступ",
+	"shareDetail.actions.deleteButton": "Удалить",
+	"shareDetail.actions.passwordPrompt":
+		"Введите пароль для защищённого общего доступа:",
+	"shareDetail.actions.visibilityConfirm":
+		"Изменить видимость на «{visibility}»?",
+	"shareDetail.actions.visibilityChangedNotice":
+		"Видимость изменена на «{visibility}»",
+	"shareDetail.actions.deleteConfirm":
+		"Удалить «{path}»? Это действие необратимо.",
+	"shareDetail.actions.deletedNotice": "Общий доступ удалён",
+	"shareDetail.actions.deleteFailedNotice": "Не удалось удалить: {error}",
+
+	"createShare.pickerTitle": "Выберите папку для общего доступа...",
+	"createShare.pathRequiredNotice": "Выберите путь к папке",
+	"createShare.createdNotice": "Общий доступ «{path}» создан!",
+	"createShare.limitReachedNotice":
+		"Достигнут лимит общих доступов ({current}/{max} на тарифе {plan}). Обновите тариф, чтобы создавать больше.",
+	"createShare.createFailedNotice": "Не удалось создать общий доступ: {error}",
+	"createShare.title": "Создать общий доступ",
+	"createShare.pathLabel": "Путь",
+	"createShare.choosePlaceholder": "Выберите папку...",
+	"createShare.typeLabel": "Тип",
+	"createShare.docOption": "Документ",
+	"createShare.folderOption": "Папка",
+	"createShare.visibilityLabel": "Видимость",
+	"createShare.privateVisibilityOption": "Приватный — только участники",
+	"createShare.publicVisibilityOption": "Публичный — доступен по ссылке",
+	"createShare.protectedVisibilityOption": "Защищённый — требуется пароль",
+	"createShare.passwordPlaceholder":
+		"Введите пароль для защищённого общего доступа",
+
+	"createInvite.maxUsesInvalidNotice":
+		"Максимальное число использований должно быть положительным числом",
+	"createInvite.createdNotice": "Ссылка-приглашение создана!",
+	"createInvite.createFailedNotice": "Не удалось создать приглашение: {error}",
+	"createInvite.title": "Создать ссылку-приглашение",
+	"createInvite.forLabel": "для {path}",
+	"createInvite.roleLabel": "Роль",
+	"createInvite.expirationLabel": "Срок действия",
+	"createInvite.expires7Days": "7 дней",
+	"createInvite.expires14Days": "14 дней",
+	"createInvite.expires30Days": "30 дней",
+	"createInvite.maxUsesLabel": "Максимум использований (необязательно)",
+	"createInvite.unlimitedPlaceholder": "Без ограничений",
+	"createInvite.createButton": "Создать ссылку-приглашение",
+} satisfies Phrasebook;
+
+/**
  * Every phrasebook this build ships, keyed by the ISO code
  * `resolveInterfaceLanguage()` returns. `en` is required and complete (it's
  * the type `englishPhrasebook` itself was declared with); everything else is
- * optional. Only `en` exists as of this MR -- see the module doc comment.
+ * optional -- `ru` covers every Phase-1 key (see `ruPhrasebook` above); a
+ * language with no entry here (e.g. German) falls back to English per-key,
+ * not per-phrasebook, via `uiText.ts`.
  */
 export const phrasebooksByLanguage: Record<string, Phrasebook> = {
 	en: englishPhrasebook,
+	ru: ruPhrasebook,
 };
