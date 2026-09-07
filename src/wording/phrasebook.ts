@@ -299,7 +299,7 @@ export const ruPhrasebook = {
 	"connect.login.invalidLoginData":
 		"Некорректные данные для входа. Проверьте email и пароль.",
 	"connect.login.networkError":
-		"Ошибка сети. Проверьте подключение и адрес control plane.",
+		"Ошибка сети. Проверьте подключение и адрес сервера.",
 	"connect.login.emailRequired": "Введите email",
 	"connect.login.passwordRequired": "Введите пароль",
 	"connect.login.invalidEmail": "Введите корректный email",
