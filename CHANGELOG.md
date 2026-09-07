@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.5
+- Sync-conflict toast no longer piles up forever: it now dedups per (local hash, server hash), auto-dismisses after 8s, and re-fires only when the conflict actually changes.
+- New command "Team Relay: Show sync conflicts" lists unresolved conflicts and lets you resolve each one — take the server version or keep local.
+- The "file deleted but its web share is still published" toast got the same non-eternal treatment, plus an inline Unpublish action.
+
 ## 0.0.4
 - Interface translation extended to the rest of the plugin: server list, its buttons and toasts, publish/share flows, and error messages — Russian and English, with English as the fallback for unsupported system languages.
 - Cross-server 401 errors in the login modal now explain the cause instead of a generic auth failure.
