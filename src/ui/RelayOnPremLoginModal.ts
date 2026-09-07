@@ -24,9 +24,21 @@ export class RelayOnPremLoginModal extends Modal {
 		private onSuccess: () => void,
 		private serverId?: string,
 		private shareClient?: RelayOnPremShareClient,
+		private serverName?: string,
+		/**
+		 * Set only when this server and its sibling shipped instance are both
+		 * present in settings (see crossServerAccountNote() in
+		 * RelayOnPremConfig.ts) -- undefined for a user-added server or an
+		 * install where the second instance hasn't landed yet.
+		 */
+		private crossServerNote?: { thisServer: string; otherServer: string },
 	) {
 		super(app);
-		this.setTitle(uiText("connect.login.title"));
+		this.setTitle(
+			this.serverName
+				? uiText("connect.login.title", { server: this.serverName })
+				: uiText("connect.login.titleFallback"),
+		);
 	}
 
 	onOpen() {
@@ -45,6 +57,18 @@ export class RelayOnPremLoginModal extends Modal {
 				// OAuth providers not available, continue with password-only login
 				console.debug("OAuth providers not available:", error);
 			}
+		}
+
+		// Cross-server note, above the form -- the reason before the fields,
+		// same order the title/note pair reads in.
+		if (this.crossServerNote) {
+			contentEl.createDiv({
+				text: uiText("connect.login.separateAccountsNote", {
+					otherServer: this.crossServerNote.otherServer,
+					thisServer: this.crossServerNote.thisServer,
+				}),
+				cls: "evc-text-muted evc-text-sm evc-mb-3",
+			});
 		}
 
 		// Create form
@@ -203,7 +227,11 @@ export class RelayOnPremLoginModal extends Modal {
 			// Clean up error message for better UX
 			let displayMessage = errorMessage;
 			if (errorMessage.includes("401") || errorMessage.includes("Incorrect email or password")) {
-				displayMessage = uiText("connect.login.incorrectCredentials");
+				displayMessage = this.crossServerNote
+					? uiText("connect.login.incorrectCredentialsCrossServer", {
+							otherServer: this.crossServerNote.otherServer,
+						})
+					: uiText("connect.login.incorrectCredentials");
 			} else if (errorMessage.includes("400") || errorMessage.includes("Invalid data format")) {
 				displayMessage = uiText("connect.login.invalidLoginData");
 			} else if (errorMessage.includes("Network request failed") || errorMessage.includes("Failed to fetch")) {

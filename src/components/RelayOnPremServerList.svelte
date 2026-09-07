@@ -11,6 +11,7 @@
 		findDuplicateServer,
 		isServerVersionSupported,
 		serverCompatMessage,
+		crossServerAccountNote,
 	} from "../RelayOnPremConfig";
 	import { RelayOnPremLoginModal } from "../ui/RelayOnPremLoginModal";
 	import { platformFetch } from "../platformFetch";
@@ -384,7 +385,10 @@
 				new Notice(`Logged in to ${server.name}`);
 				refreshAuthStatus();
 			},
-			server.id
+			server.id,
+			undefined,
+			server.name,
+			crossServerAccountNote(servers, server.id)
 		);
 		modal.open();
 	}

@@ -31,7 +31,18 @@ export const englishPhrasebook = {
 	"shared.noShareClientError": "No share client available",
 
 	// Connect screen -- src/ui/RelayOnPremLoginModal.ts
-	"connect.login.title": "Relay on-premise login",
+	"connect.login.title": "Sign in to {server}",
+	// Fallback title when the server's name doesn't resolve (e.g. malformed
+	// stored settings) -- the modal must never fall back to an EMPTY "Sign
+	// in to " title, so this is a distinct key, not a missing-param artifact
+	// of the one above (#a1fef59b).
+	"connect.login.titleFallback": "Relay on-premise login",
+	// Shown under the title only when this server AND its sibling shipped
+	// instance are both present (see crossServerAccountNote() in
+	// RelayOnPremConfig.ts) -- explains a cross-server 401 before the user
+	// hits it, not just after (#a1fef59b).
+	"connect.login.separateAccountsNote":
+		"Accounts aren't shared between servers. A login from {otherServer} won't work here — you need an invite to {thisServer}.",
 	"connect.login.emailLabel": "Email",
 	"connect.login.passwordPlaceholder": "Enter your password",
 	"connect.login.loginButton": "Login",
@@ -43,6 +54,12 @@ export const englishPhrasebook = {
 	"connect.login.oauthSuccessNotice": "Successfully logged in with {provider}!",
 	"connect.login.loginFailedFallback": "Login failed",
 	"connect.login.incorrectCredentials": "Incorrect email or password",
+	// Same 401, but shown instead of the plain one above when
+	// crossServerAccountNote() applies -- the most attentive moment to
+	// deliver the explanation is the instant the user draws the wrong
+	// conclusion (#a1fef59b).
+	"connect.login.incorrectCredentialsCrossServer":
+		"Incorrect email or password. Accounts aren't shared between servers — if that login is from {otherServer}, it won't work here.",
 	"connect.login.invalidLoginData":
 		"Invalid login data. Please check your email and password.",
 	"connect.login.networkError":
@@ -284,7 +301,10 @@ export const ruPhrasebook = {
 	"shared.noExpiration": "Без срока действия",
 	"shared.noShareClientError": "Служба общих доступов недоступна",
 
-	"connect.login.title": "Вход в Relay on-premise",
+	"connect.login.title": "Вход в {server}",
+	"connect.login.titleFallback": "Вход в Relay on-premise",
+	"connect.login.separateAccountsNote":
+		"Учётные записи не общие для разных серверов. Логин с {otherServer} здесь не сработает — нужен инвайт на {thisServer}.",
 	"connect.login.emailLabel": "Email",
 	"connect.login.passwordPlaceholder": "Введите пароль",
 	"connect.login.loginButton": "Войти",
@@ -296,6 +316,8 @@ export const ruPhrasebook = {
 	"connect.login.oauthSuccessNotice": "Вход через {provider} выполнен успешно!",
 	"connect.login.loginFailedFallback": "Не удалось войти",
 	"connect.login.incorrectCredentials": "Неверный email или пароль",
+	"connect.login.incorrectCredentialsCrossServer":
+		"Неверный email или пароль. Учётные записи не общие для разных серверов — если это логин с {otherServer}, здесь он не сработает.",
 	"connect.login.invalidLoginData":
 		"Некорректные данные для входа. Проверьте email и пароль.",
 	"connect.login.networkError":

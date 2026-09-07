@@ -116,6 +116,37 @@ describe("uiText", () => {
 	});
 });
 
+describe("connect.login cross-server strings (#a1fef59b)", () => {
+	afterEach(() => {
+		mockGetLanguage.mockReturnValue("en");
+	});
+
+	it("connect.login.title substitutes the server name", () => {
+		expect(uiText("connect.login.title", { server: "Team Relay RU" })).toBe("Sign in to Team Relay RU");
+	});
+
+	it("connect.login.titleFallback carries the old generic text, for when no server name resolves", () => {
+		expect(uiText("connect.login.titleFallback")).toBe("Relay on-premise login");
+	});
+
+	it("connect.login.separateAccountsNote substitutes both server names", () => {
+		expect(
+			uiText("connect.login.separateAccountsNote", {
+				otherServer: "EVC Team Relay",
+				thisServer: "Team Relay RU",
+			})
+		).toBe(
+			"Accounts aren't shared between servers. A login from EVC Team Relay won't work here — you need an invite to Team Relay RU."
+		);
+	});
+
+	it("connect.login.incorrectCredentialsCrossServer substitutes the other server's name", () => {
+		expect(uiText("connect.login.incorrectCredentialsCrossServer", { otherServer: "Team Relay RU" })).toBe(
+			"Incorrect email or password. Accounts aren't shared between servers — if that login is from Team Relay RU, it won't work here."
+		);
+	});
+});
+
 describe("englishPhrasebook", () => {
 	it("has no empty-string values (every key resolves to real, non-blank text)", () => {
 		const emptyKeys = Object.entries(englishPhrasebook)
