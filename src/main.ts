@@ -776,6 +776,17 @@ export default class TeamRelayPlugin extends Plugin {
 				this.webSyncManager,
 				hashManifestStore,
 			);
+
+			this.addCommand({
+				id: "show-sync-conflicts",
+				name: "Show sync conflicts",
+				callback: () => {
+					void (async () => {
+						const { SyncConflictsModal } = await import("./ui/SyncConflictsModal");
+						new SyncConflictsModal(this.app, this).open();
+					})();
+				},
+			});
 		}
 
 		// Initialize InboundSyncPoller (v1.9)

@@ -14,6 +14,18 @@ import type { WebSyncManager } from "./WebSyncManager";
 
 const log = namedLogger("[InboundFileDownloader]");
 
+/** A file the downloader refused to overwrite because the local content diverged
+ * from what we last wrote (user edit, or unknown provenance). Surfaced by
+ * `getConflicts()` for the "Team Relay: Show sync conflicts" command. */
+export interface SyncConflict {
+	shareId: string;
+	relativePath: string;
+	vaultPath: string;
+	localHash: string;
+	serverHash: string;
+	detectedAt: number;
+}
+
 export class InboundFileDownloader {
 	private vault: Vault;
 	private clientManager: RelayOnPremShareClientManager;
@@ -28,6 +40,14 @@ export class InboundFileDownloader {
 	private lastWrittenHash: Map<string, Record<string, string>>;
 	// Vault paths currently being written — echo-loop guard for vault "modify" events
 	private writingPaths: Set<string> = new Set();
+
+	// Unresolved user-edit/unknown-provenance conflicts, keyed by `${shareId}:${relativePath}`.
+	// Deliberately in-memory only (not persisted like lastWrittenHash): a conflict still
+	// live after a plugin reload SHOULD surface once more on the next sync pass, that's
+	// not a bug. Cleared on resolution (either resolve method below) and on a successful
+	// download for the same key (belt-and-braces, in case the file started matching again
+	// without going through either resolve path).
+	private conflicts: Map<string, SyncConflict> = new Map();
 
 	constructor(
 		vault: Vault,
@@ -166,6 +186,28 @@ export class InboundFileDownloader {
 			}
 			const expectedHash = lastHash ?? serverSha256;
 			if (localHash !== expectedHash) {
+				const conflictKey = `${shareId}:${relativePath}`;
+				const existing = this.conflicts.get(conflictKey);
+				// Dedup: don't re-notify on every sync cycle while neither side of the
+				// conflict has moved — that's the "toast stack grows forever" bug. Do
+				// re-notify if the local edit changed again, or the server moved (a
+				// genuinely new conflict state), so dedup can't silently swallow one.
+				const isSameConflictAsLastNotified =
+					existing !== undefined &&
+					existing.localHash === localHash &&
+					existing.serverHash === serverSha256;
+				this.conflicts.set(conflictKey, {
+					shareId,
+					relativePath,
+					vaultPath,
+					localHash,
+					serverHash: serverSha256,
+					detectedAt: existing?.detectedAt ?? Date.now(),
+				});
+				if (isSameConflictAsLastNotified) {
+					log("Sync conflict still unresolved, not re-notifying", { vaultPath });
+					return;
+				}
 				log("Skipping user-edited (or unknown-provenance) file", {
 					vaultPath,
 					localHash,
@@ -174,13 +216,19 @@ export class InboundFileDownloader {
 				});
 				new Notice(
 					`Team Relay: skipped syncing "${relativePath}" — local changes ` +
-						`would have been overwritten by the relay version. Resolve ` +
-						`manually, then it will sync normally.`,
-					0,
+						`would have been overwritten by the relay version. Run ` +
+						`"Team Relay: Show sync conflicts" to resolve.`,
+					8000,
 				);
 				return;
 			}
 		}
+		// Reaching here means we're about to download: either the local file is
+		// gone (deleted manually, or via resolveTakeServer()) or its content now
+		// matches what we expected. Either way any previously-tracked conflict
+		// for this path is stale — drop it so getConflicts() doesn't list a file
+		// that's no longer actually in conflict.
+		this.conflicts.delete(`${shareId}:${relativePath}`);
 
 		// Download
 		let content: ArrayBuffer;
@@ -218,6 +266,46 @@ export class InboundFileDownloader {
 		} finally {
 			this.writingPaths.delete(vaultPath);
 		}
+	}
+
+	/** All currently-unresolved sync conflicts, for the "Show sync conflicts" command. */
+	getConflicts(): SyncConflict[] {
+		return Array.from(this.conflicts.values());
+	}
+
+	/**
+	 * Resolve a conflict by taking the server version: delete the local file so the
+	 * next `downloadShare()` pass finds no local content to guard and writes the
+	 * server copy fresh. Mirrors the manual recipe this bug's report used to fix
+	 * the one already-live conflict by hand.
+	 */
+	async resolveTakeServer(shareId: string, relativePath: string): Promise<void> {
+		const key = `${shareId}:${relativePath}`;
+		const conflict = this.conflicts.get(key);
+		if (!conflict) return;
+		const abstractFile = this.vault.getAbstractFileByPath(conflict.vaultPath);
+		if (abstractFile instanceof TFile) {
+			await this.vault.delete(abstractFile);
+		}
+		this.conflicts.delete(key);
+	}
+
+	/**
+	 * Resolve a conflict by keeping the local version: record the server's hash as
+	 * if we'd already written it, WITHOUT touching the local file. The guard above
+	 * short-circuits on `lastHash === serverSha256` before it ever reads the file
+	 * again, so this stops the nagging without overwriting anything — and because
+	 * it only acknowledges today's server hash, a later server-side change is a
+	 * new mismatch and correctly re-surfaces as a fresh conflict.
+	 */
+	resolveKeepLocal(shareId: string, relativePath: string): void {
+		const key = `${shareId}:${relativePath}`;
+		const conflict = this.conflicts.get(key);
+		if (!conflict) return;
+		const shareManifest = this.lastWrittenHash.get(shareId) ?? {};
+		shareManifest[relativePath] = conflict.serverHash;
+		this.lastWrittenHash.set(shareId, shareManifest);
+		this.conflicts.delete(key);
 	}
 
 	destroy(): void {

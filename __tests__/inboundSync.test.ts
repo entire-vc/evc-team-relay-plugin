@@ -75,11 +75,26 @@ function makeMockVault() {
 		mkdir: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 		writeBinary: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 	};
+	// Declared as their own consts (rather than inline in the returned object
+	// literal) so `typeof` below can carry the real jest.fn<...> generic
+	// through — annotating the return type as the bare `jest.Mock` widened
+	// every call's argument type to `never`, which is what produced the
+	// `.mockReturnValue(x)`/`.mockResolvedValue(x)` "Expected 0 arguments"
+	// class of tsc errors at every call site across this file.
+	const getAbstractFileByPath = jest.fn<(path: string) => TFile | null>().mockReturnValue(null);
+	const readBinary = jest.fn<() => Promise<ArrayBuffer>>().mockResolvedValue(new ArrayBuffer(4));
+	const del = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
 	return {
-		getAbstractFileByPath: jest.fn<(path: string) => TFile | null>().mockReturnValue(null),
-		readBinary: jest.fn<() => Promise<ArrayBuffer>>().mockResolvedValue(new ArrayBuffer(4)),
+		getAbstractFileByPath,
+		readBinary,
+		delete: del,
 		adapter,
-	} as unknown as Vault & { adapter: typeof adapter; getAbstractFileByPath: jest.Mock; readBinary: jest.Mock };
+	} as unknown as Vault & {
+		adapter: typeof adapter;
+		getAbstractFileByPath: typeof getAbstractFileByPath;
+		readBinary: typeof readBinary;
+		delete: typeof del;
+	};
 }
 
 // ─── InboundSyncPoller ────────────────────────────────────────────────────────
@@ -264,7 +279,7 @@ describe("InboundFileDownloader", () => {
 			{ path: "note.md", sha256: "sha-001", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 		]);
 		(clientManager.downloadFile as jest.Mock).mockResolvedValue(content);
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+		vault.getAbstractFileByPath.mockReturnValue(null);
 
 		await downloader.downloadShare(SHARE_ID, SERVER_ID);
 
@@ -282,7 +297,7 @@ describe("InboundFileDownloader", () => {
 			{ path: "note.md", sha256: "sha-001", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 		]);
 		(clientManager.downloadFile as jest.Mock).mockResolvedValue(content);
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+		vault.getAbstractFileByPath.mockReturnValue(null);
 
 		// First download — writes the file
 		await downloader.downloadShare(SHARE_ID, SERVER_ID);
@@ -303,7 +318,7 @@ describe("InboundFileDownloader", () => {
 
 	test("downloads and writes when sha256 changes (updated item)", async () => {
 		(clientManager.getShare as jest.Mock).mockResolvedValue(makeShare());
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+		vault.getAbstractFileByPath.mockReturnValue(null);
 
 		// First: sha-001
 		(clientManager.getFilesIndex as jest.Mock).mockResolvedValue([
@@ -323,7 +338,7 @@ describe("InboundFileDownloader", () => {
 		(clientManager.downloadFile as jest.Mock).mockResolvedValue(newContent);
 		// File now exists in vault
 		const existingFile = new TFile(`${SHARE_PATH}/note.md`);
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(existingFile);
+		vault.getAbstractFileByPath.mockReturnValue(existingFile);
 		// Local hash matches what we last wrote (sha-001), so not user-edited
 		mockGenerateHash.mockResolvedValue("sha-001");
 
@@ -335,7 +350,7 @@ describe("InboundFileDownloader", () => {
 
 	test("skips user-edited files (local hash differs from last-written hash)", async () => {
 		(clientManager.getShare as jest.Mock).mockResolvedValue(makeShare());
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+		vault.getAbstractFileByPath.mockReturnValue(null);
 
 		// First download establishes last written hash = sha-001
 		(clientManager.getFilesIndex as jest.Mock).mockResolvedValue([
@@ -352,7 +367,7 @@ describe("InboundFileDownloader", () => {
 			{ path: "note.md", sha256: "sha-002", size: 12, updated_at: "2026-01-02T00:00:00Z", type: "sync-artifact" },
 		]);
 		const existingFile = new TFile(`${SHARE_PATH}/note.md`);
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(existingFile);
+		vault.getAbstractFileByPath.mockReturnValue(existingFile);
 		// Account edited the file — local hash differs from what we last wrote
 		mockGenerateHash.mockResolvedValue("user-edited-hash");
 
@@ -370,7 +385,7 @@ describe("InboundFileDownloader", () => {
 			{ path: "no-type.md", sha256: "sha-none", size: 4, updated_at: "2026-01-01T00:00:00Z" }, // no type = treated as sync-artifact
 		]);
 		(clientManager.downloadFile as jest.Mock).mockResolvedValue(new ArrayBuffer(4));
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+		vault.getAbstractFileByPath.mockReturnValue(null);
 
 		await downloader.downloadShare(SHARE_ID, SERVER_ID);
 
@@ -411,7 +426,7 @@ describe("InboundFileDownloader", () => {
 			{ path: "fail.md", sha256: "sha-fail", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			{ path: "ok.md", sha256: "sha-ok", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 		]);
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+		vault.getAbstractFileByPath.mockReturnValue(null);
 		(clientManager.downloadFile as jest.Mock)
 			.mockRejectedValueOnce(new Error("Download failed"))
 			.mockResolvedValueOnce(new ArrayBuffer(4));
@@ -431,7 +446,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "note.md", sha256: "sha-001", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
 			(clientManager.downloadFile as jest.Mock).mockResolvedValue(new ArrayBuffer(4));
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 
 			vault.adapter.writeBinary = jest.fn().mockImplementation(async (path: string) => {
 				writingDuringWrite = downloader.isInboundWriting(path);
@@ -455,7 +470,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "error.md", sha256: "sha-err", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
 			(clientManager.downloadFile as jest.Mock).mockResolvedValue(new ArrayBuffer(4));
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 			vault.adapter.writeBinary = jest.fn().mockRejectedValue(new Error("Disk full")) as any;
 
 			await downloader.downloadShare(SHARE_ID, SERVER_ID);
@@ -467,7 +482,7 @@ describe("InboundFileDownloader", () => {
 
 	test("skips file when readBinary throws (avoid data loss)", async () => {
 		(clientManager.getShare as jest.Mock).mockResolvedValue(makeShare());
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+		vault.getAbstractFileByPath.mockReturnValue(null);
 
 		// First download: write file, establishing lastHash = "sha-001"
 		(clientManager.getFilesIndex as jest.Mock).mockResolvedValue([
@@ -484,8 +499,8 @@ describe("InboundFileDownloader", () => {
 			{ path: "note.md", sha256: "sha-002", size: 8, updated_at: "2026-01-02T00:00:00Z", type: "sync-artifact" },
 		]);
 		const existingFile = new TFile(`${SHARE_PATH}/note.md`);
-		(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(existingFile);
-		(vault.readBinary as jest.Mock).mockRejectedValue(new Error("IO error"));
+		vault.getAbstractFileByPath.mockReturnValue(existingFile);
+		vault.readBinary.mockRejectedValue(new Error("IO error"));
 
 		await downloader.downloadShare(SHARE_ID, SERVER_ID);
 
@@ -506,7 +521,7 @@ describe("InboundFileDownloader", () => {
 			(clientManager.getFilesIndex as jest.Mock).mockResolvedValue([
 				{ path: "../../etc/passwd", sha256: "sha-evil", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 
 			await downloader.downloadShare(SHARE_ID, SERVER_ID);
 
@@ -519,7 +534,7 @@ describe("InboundFileDownloader", () => {
 			(clientManager.getFilesIndex as jest.Mock).mockResolvedValue([
 				{ path: "../../.obsidian/plugins/evil.js", sha256: "sha-evil2", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 
 			await downloader.downloadShare(SHARE_ID, SERVER_ID);
 
@@ -534,7 +549,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "subdir/note.md", sha256: "sha-ok", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
 			(clientManager.downloadFile as jest.Mock).mockResolvedValue(content);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 
 			await downloader.downloadShare(SHARE_ID, SERVER_ID);
 
@@ -552,7 +567,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "safe.md", sha256: "sha-safe", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
 			(clientManager.downloadFile as jest.Mock).mockResolvedValue(content);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 
 			await downloader.downloadShare(SHARE_ID, SERVER_ID);
 
@@ -567,7 +582,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "../../etc/passwd", sha256: "sha-evil", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 				{ path: "note.md", sha256: "sha-ok", size: 4, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 
 			await downloader.downloadShare(SHARE_ID, SERVER_ID);
 
@@ -596,7 +611,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "note.md", sha256: "sha-001", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
 			(clientManager.downloadFile as jest.Mock).mockResolvedValue(new ArrayBuffer(4));
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 			await firstSession.downloadShare(SHARE_ID, SERVER_ID);
 			expect(persistedStore.get(SHARE_ID)).toEqual({ "note.md": "sha-001" });
 
@@ -617,7 +632,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "note.md", sha256: "sha-002", size: 12, updated_at: "2026-01-02T00:00:00Z", type: "sync-artifact" },
 			]);
 			const existingFile = new TFile(`${SHARE_PATH}/note.md`);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(existingFile);
+			vault.getAbstractFileByPath.mockReturnValue(existingFile);
 			// The user edited the file locally while Obsidian was closed.
 			mockGenerateHash.mockResolvedValue("user-edited-hash");
 
@@ -639,7 +654,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "note.md", sha256: "sha-002", size: 12, updated_at: "2026-01-02T00:00:00Z", type: "sync-artifact" },
 			]);
 			const existingFile = new TFile(`${SHARE_PATH}/note.md`);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(existingFile);
+			vault.getAbstractFileByPath.mockReturnValue(existingFile);
 			mockGenerateHash.mockResolvedValue("some-other-hash");
 
 			await downloader.downloadShare(SHARE_ID, SERVER_ID);
@@ -660,7 +675,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "preexisting.md", sha256: "sha-server", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
 			const existingFile = new TFile(`${SHARE_PATH}/preexisting.md`);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(existingFile);
+			vault.getAbstractFileByPath.mockReturnValue(existingFile);
 			mockGenerateHash.mockResolvedValue("hash-of-unrelated-local-content");
 
 			await downloader.downloadShare(SHARE_ID, SERVER_ID);
@@ -677,7 +692,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "preexisting.md", sha256: "sha-server", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
 			const existingFile = new TFile(`${SHARE_PATH}/preexisting.md`);
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(existingFile);
+			vault.getAbstractFileByPath.mockReturnValue(existingFile);
 			(clientManager.downloadFile as jest.Mock).mockResolvedValue(content);
 			// Local content happens to already match what the server has.
 			mockGenerateHash.mockResolvedValue("sha-server");
@@ -700,7 +715,7 @@ describe("InboundFileDownloader", () => {
 				{ path: "note.md", sha256: "sha-001", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
 			]);
 			(clientManager.downloadFile as jest.Mock).mockResolvedValue(new ArrayBuffer(4));
-			(vault.getAbstractFileByPath as jest.Mock).mockReturnValue(null);
+			vault.getAbstractFileByPath.mockReturnValue(null);
 			await persistentDownloader.downloadShare(SHARE_ID, SERVER_ID);
 			expect(persistedStore.size).toBe(1);
 
@@ -710,6 +725,165 @@ describe("InboundFileDownloader", () => {
 			// unload/reload does not wipe it — only in-memory-only state does.
 			expect(persistedStore.size).toBe(1);
 			expect(persistedStore.get(SHARE_ID)).toEqual({ "note.md": "sha-001" });
+		});
+	});
+
+	// ─── Sync conflict dedup + resolution (#3644e4a8) ──────────────────────────
+	//
+	// Bug: the skip-and-notify branch above fired a Notice(..., 0) — an
+	// eternal toast — on EVERY sync cycle for the same unresolved conflict,
+	// with no way to act on it. Fixed: dedup by (localHash, serverHash) pair
+	// so an unchanged conflict re-notifies at most once, a finite timeout
+	// instead of 0, and getConflicts()/resolveTakeServer()/resolveKeepLocal()
+	// for the "Show sync conflicts" command to act on it.
+	describe("sync conflict dedup + resolution (#3644e4a8)", () => {
+		function conflictSetup() {
+			clientManager.getShare.mockResolvedValue(makeShare());
+			clientManager.getFilesIndex.mockResolvedValue([
+				{ path: "note.md", sha256: "server-hash-1", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
+			]);
+			const existingFile = new TFile(`${SHARE_PATH}/note.md`);
+			vault.getAbstractFileByPath.mockReturnValue(existingFile);
+			mockGenerateHash.mockResolvedValue("local-edit-hash");
+		}
+
+		test("REGRESSION: does not re-notify on repeated cycles while the conflict is unchanged", async () => {
+			conflictSetup();
+
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+
+			// Pre-fix: this was 3 (one per cycle, stack grows forever).
+			expect(noticeMock).toHaveBeenCalledTimes(1);
+			expect(vault.adapter.writeBinary).not.toHaveBeenCalled();
+		});
+
+		test("uses the common bundle timeout (8000ms), not an eternal Notice(0)", async () => {
+			conflictSetup();
+
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+
+			expect(noticeMock.mock.calls[0][1]).toBe(8000);
+		});
+
+		test("dedup is not silent: a server-side change re-notifies", async () => {
+			conflictSetup();
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+			expect(noticeMock).toHaveBeenCalledTimes(1);
+
+			clientManager.getFilesIndex.mockResolvedValue([
+				{ path: "note.md", sha256: "server-hash-2", size: 8, updated_at: "2026-01-02T00:00:00Z", type: "sync-artifact" },
+			]);
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+
+			expect(noticeMock).toHaveBeenCalledTimes(2);
+		});
+
+		test("getConflicts() lists the unresolved conflict", async () => {
+			conflictSetup();
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+
+			const conflicts = downloader.getConflicts();
+			expect(conflicts).toHaveLength(1);
+			expect(conflicts[0]).toMatchObject({
+				shareId: SHARE_ID,
+				relativePath: "note.md",
+				vaultPath: `${SHARE_PATH}/note.md`,
+				localHash: "local-edit-hash",
+				serverHash: "server-hash-1",
+			});
+		});
+
+		test("resolveTakeServer() deletes the local file and clears the conflict", async () => {
+			conflictSetup();
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+			expect(downloader.getConflicts()).toHaveLength(1);
+
+			await downloader.resolveTakeServer(SHARE_ID, "note.md");
+
+			expect(vault.delete).toHaveBeenCalledTimes(1);
+			expect(downloader.getConflicts()).toHaveLength(0);
+		});
+
+		test("resolveTakeServer() then the next sync cycle downloads the server version", async () => {
+			conflictSetup();
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+			await downloader.resolveTakeServer(SHARE_ID, "note.md");
+
+			// File is gone now — next cycle sees no local file at all.
+			vault.getAbstractFileByPath.mockReturnValue(null);
+			const content = new ArrayBuffer(4);
+			clientManager.downloadFile.mockResolvedValue(content);
+
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+
+			expect(clientManager.downloadFile).toHaveBeenCalledWith(SERVER_ID, SHARE_ID, "note.md");
+			expect(vault.adapter.writeBinary).toHaveBeenCalledWith(`${SHARE_PATH}/note.md`, content);
+		});
+
+		test("resolveKeepLocal() does NOT touch the local file and clears the conflict", async () => {
+			conflictSetup();
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+
+			downloader.resolveKeepLocal(SHARE_ID, "note.md");
+
+			expect(vault.delete).not.toHaveBeenCalled();
+			expect(vault.adapter.writeBinary).not.toHaveBeenCalled();
+			expect(downloader.getConflicts()).toHaveLength(0);
+		});
+
+		test("resolveKeepLocal() then an unchanged server hash does not re-conflict or re-download", async () => {
+			conflictSetup();
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+			downloader.resolveKeepLocal(SHARE_ID, "note.md");
+			jest.clearAllMocks();
+
+			// Same server hash as before — downloadShare's own `lastHash ===
+			// serverSha256` short-circuit should now fire immediately.
+			clientManager.getShare.mockResolvedValue(makeShare());
+			clientManager.getFilesIndex.mockResolvedValue([
+				{ path: "note.md", sha256: "server-hash-1", size: 8, updated_at: "2026-01-01T00:00:00Z", type: "sync-artifact" },
+			]);
+
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+
+			expect(noticeMock).not.toHaveBeenCalled();
+			expect(clientManager.downloadFile).not.toHaveBeenCalled();
+			expect(vault.adapter.writeBinary).not.toHaveBeenCalled();
+			expect(downloader.getConflicts()).toHaveLength(0);
+		});
+
+		test("resolveKeepLocal() then a genuinely NEW server change re-surfaces as a fresh conflict", async () => {
+			conflictSetup();
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+			downloader.resolveKeepLocal(SHARE_ID, "note.md");
+			jest.clearAllMocks();
+
+			// Server moved again since the acknowledged hash — local content
+			// (still the same edit) is now a fresh mismatch.
+			clientManager.getShare.mockResolvedValue(makeShare());
+			clientManager.getFilesIndex.mockResolvedValue([
+				{ path: "note.md", sha256: "server-hash-2", size: 8, updated_at: "2026-01-02T00:00:00Z", type: "sync-artifact" },
+			]);
+			const existingFile = new TFile(`${SHARE_PATH}/note.md`);
+			vault.getAbstractFileByPath.mockReturnValue(existingFile);
+			mockGenerateHash.mockResolvedValue("local-edit-hash");
+
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+
+			expect(noticeMock).toHaveBeenCalledTimes(1);
+			expect(downloader.getConflicts()).toHaveLength(1);
+		});
+
+		test("resolving a conflict that doesn't exist is a no-op (no throw)", async () => {
+			await expect(downloader.resolveTakeServer("no-such-share", "nope.md")).resolves.toBeUndefined();
+			expect(() => downloader.resolveKeepLocal("no-such-share", "nope.md")).not.toThrow();
+			expect(vault.delete).not.toHaveBeenCalled();
+		});
+
+		test("getConflicts() is empty when there are no conflicts", () => {
+			expect(downloader.getConflicts()).toEqual([]);
 		});
 	});
 });

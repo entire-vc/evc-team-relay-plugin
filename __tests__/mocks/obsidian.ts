@@ -142,15 +142,22 @@ export class ItemView {
 }
 
 /** Records every Notice construction so tests can assert on it. Reset with noticeMock.mockClear(). */
-export const noticeMock = jest.fn<(message: string, timeout?: number) => void>();
+export const noticeMock = jest.fn<(message: string | DocumentFragment, timeout?: number) => void>();
+
+/** Records every Notice#hide() call so tests can assert a notice was dismissed. */
+export const noticeHideMock = jest.fn();
 
 export class Notice {
-	message: string;
+	message: string | DocumentFragment;
 	timeout?: number;
 
-	constructor(message: string, timeout?: number) {
+	constructor(message: string | DocumentFragment, timeout?: number) {
 		this.message = message;
 		this.timeout = timeout;
 		noticeMock(message, timeout);
+	}
+
+	hide(): void {
+		noticeHideMock();
 	}
 }
