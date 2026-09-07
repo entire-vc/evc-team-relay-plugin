@@ -16,7 +16,7 @@ import {
 import { dirname, join, sep } from "path-browserify";
 
 // Sync primitives / CRDT plumbing
-import { IndexeddbPersistence } from "./storage/y-indexeddb";
+import { LocalDocumentStore } from "./storage/local-document-store";
 import { ProviderBacked, type ConnectionIntent } from "./ProviderBacked";
 import { SingleFlight, LazyValue, warnIfSlow } from "./asyncCache";
 import { FolderAddress, ResourceAddress, RemoteFolderAddress } from "./ResourceAddress";
@@ -188,7 +188,7 @@ export class VaultShare extends ProviderBacked {
 	private readyValue: LazyValue<VaultShare> | null = null;
 	private syncedValue: LazyValue<void> | null = null;
 	private localDbLoaded: boolean = false;
-	private _localDb: IndexeddbPersistence;
+	private _localDb: LocalDocumentStore;
 
 	// -- Collaborators --
 	private fileOps: FileManager;
@@ -335,9 +335,9 @@ export class VaultShare extends ProviderBacked {
 		});
 	}
 
-	private _openPersistence(): IndexeddbPersistence {
+	private _openPersistence(): LocalDocumentStore {
 		try {
-			return new IndexeddbPersistence(this.entityGuid, this.crdtDoc);
+			return new LocalDocumentStore(this.entityGuid, this.crdtDoc);
 		} catch (e: unknown) {
 			this.warn("IndexedDB persistence layer failed to open:", this.entityGuid);
 			console.error(e);
@@ -1019,22 +1019,22 @@ export class VaultShare extends ProviderBacked {
 		if (!this.localDbLoaded) {
 			return false;
 		}
-		return this.isAuthority || this._localDb.hasServerSync || this.isSynced;
+		return this.isAuthority || this._localDb.serverSyncKnown || this.isSynced;
 	}
 
 	/** Tell the local persistence layer the server has this folder's state. */
 	async noteSynced(): Promise<void> {
-		await this._localDb.markServerSynced();
+		await this._localDb.rememberServerSync();
 	}
 
 	/** Has the server ever acknowledged sync for this folder? */
 	async readServerSynced(): Promise<boolean> {
-		return this._localDb.getServerSynced();
+		return this._localDb.loadServerSyncFlag();
 	}
 
 	/** Does the on-disk IndexedDB persistence already hold user data? */
 	private hasLocalDb(): boolean {
-		return this._localDb.hasUserData();
+		return this._localDb.holdsContent();
 	}
 
 	async hasPendingUpdates(): Promise<boolean> {

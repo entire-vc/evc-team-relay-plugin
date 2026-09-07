@@ -6,7 +6,7 @@ import { CanvasAddress, FolderAddress, ResourceAddress, RemoteCanvasAddress } fr
 import * as Y from "yjs";
 import type { VaultShare } from "./VaultShare";
 import { mimeTypeForPath } from "./mimeLookup";
-import { IndexeddbPersistence } from "./storage/y-indexeddb";
+import { LocalDocumentStore } from "./storage/local-document-store";
 import { LazyValue } from "./asyncCache";
 import type { Unsubscriber } from "./notifiers/Notifier";
 import type {
@@ -55,7 +55,7 @@ function diffEntities<T extends { id: string }>(
 
 export class CanvasDocument extends ProviderBacked implements SyncableEntry, MimeTyped {
 	private _parent: VaultShare;
-	private _indexeddbPersistence: IndexeddbPersistence;
+	private _indexeddbPersistence: LocalDocumentStore;
 	firstSyncPromise: LazyValue<void> | null = null;
 	isLocallyPersisted: boolean = false;
 	syncedPromise?: LazyValue<CanvasDocument>;
@@ -116,10 +116,10 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 		return this._parent.config.onpremServerId;
 	}
 
-	private openPersistence(): IndexeddbPersistence {
+	private openPersistence(): LocalDocumentStore {
 		try {
 			const key = `${this.vaultShare.hostAppId}-relay-canvas-${this.entityGuid}`;
-			return new IndexeddbPersistence(key, this.crdtDoc);
+			return new LocalDocumentStore(key, this.crdtDoc);
 		} catch (e: unknown) {
 			this.warn("Unable to open persistence.", this.entityGuid);
 			console.error(e);
@@ -215,11 +215,11 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 	}
 
 	async markServerAcked(): Promise<void> {
-		await this._indexeddbPersistence.markServerSynced();
+		await this._indexeddbPersistence.rememberServerSync();
 	}
 
 	async getServerAcked(): Promise<boolean> {
-		return this._indexeddbPersistence.getServerSynced();
+		return this._indexeddbPersistence.loadServerSyncFlag();
 	}
 
 	async bringOnline(): Promise<boolean> {
@@ -246,11 +246,11 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 
 
 	public get synced(): boolean {
-		return this._indexeddbPersistence.isReady(super.isSynced);
+		return this._indexeddbPersistence.canRender(super.isSynced);
 	}
 
 	hasLocalPersistence(): boolean {
-		return this._indexeddbPersistence.hasServerSync || this._indexeddbPersistence.hasUserData();
+		return this._indexeddbPersistence.serverSyncKnown || this._indexeddbPersistence.holdsContent();
 	}
 
 	async hasPendingCrdtUpdate(): Promise<boolean> {
@@ -340,11 +340,11 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 	}
 
 	async markSyncOrigin(origin: "local" | "remote"): Promise<void> {
-		await this._indexeddbPersistence.setOrigin(origin);
+		await this._indexeddbPersistence.rememberOrigin(origin);
 	}
 
 	async getSyncOrigin(): Promise<"local" | "remote" | undefined> {
-		return this._indexeddbPersistence.getOrigin();
+		return this._indexeddbPersistence.loadOrigin();
 	}
 
 	applyJsonPayload(json: string) {

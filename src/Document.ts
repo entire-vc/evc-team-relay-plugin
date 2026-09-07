@@ -1,5 +1,5 @@
 "use strict";
-import { IndexeddbPersistence } from "./storage/y-indexeddb";
+import { LocalDocumentStore } from "./storage/local-document-store";
 import * as Y from "yjs";
 import { ProviderBacked } from "./ProviderBacked";
 import { AuthSession } from "./AuthSession";
@@ -34,7 +34,7 @@ function extAndBase(name: string): ExtAndBase {
 
 export class Document extends ProviderBacked implements SyncableEntry, MimeTyped {
 	private _parent: VaultShare;
-	private _indexeddbPersistence: IndexeddbPersistence;
+	private _indexeddbPersistence: LocalDocumentStore;
 	firstSyncPromise: LazyValue<void> | null = null;
 	isLocallyPersisted: boolean = false;
 	_hasPendingCrdtUpdate?: boolean;
@@ -96,10 +96,10 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 		return this._parent.config.onpremServerId;
 	}
 
-	private openPersistence(): IndexeddbPersistence {
+	private openPersistence(): LocalDocumentStore {
 		try {
 			const key = `${this.vaultShare.hostAppId}-relay-doc-${this.entityGuid}`;
-			return new IndexeddbPersistence(key, this.crdtDoc);
+			return new LocalDocumentStore(key, this.crdtDoc);
 		} catch (e: unknown) {
 			this.warn("Unable to open persistence.", this.entityGuid);
 			console.error(e);
@@ -352,11 +352,11 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 	}
 
 	public get synced(): boolean {
-		return this._indexeddbPersistence.isReady(super.isSynced);
+		return this._indexeddbPersistence.canRender(super.isSynced);
 	}
 
 	hasLocalPersistence(): boolean {
-		return this._indexeddbPersistence.hasServerSync || this._indexeddbPersistence.hasUserData();
+		return this._indexeddbPersistence.serverSyncKnown || this._indexeddbPersistence.holdsContent();
 	}
 
 	async hasPendingCrdtUpdate(): Promise<boolean> {
@@ -430,19 +430,19 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 	scheduleSave = debounce(() => this.syncToVault(), 2000);
 
 	async markSyncOrigin(origin: "local" | "remote"): Promise<void> {
-		await this._indexeddbPersistence.setOrigin(origin);
+		await this._indexeddbPersistence.rememberOrigin(origin);
 	}
 
 	async getSyncOrigin(): Promise<"local" | "remote" | undefined> {
-		return this._indexeddbPersistence.getOrigin();
+		return this._indexeddbPersistence.loadOrigin();
 	}
 
 	async markServerAcked(): Promise<void> {
-		await this._indexeddbPersistence.markServerSynced();
+		await this._indexeddbPersistence.rememberServerSync();
 	}
 
 	async getServerAcked(): Promise<boolean> {
-		return this._indexeddbPersistence.getServerSynced();
+		return this._indexeddbPersistence.loadServerSyncFlag();
 	}
 
 	private static readonly SYNC_BASE_KEY = "syncBase";
@@ -455,7 +455,7 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 	 * (safe to apply directly) apart from "the relay moved too" (needs a
 	 * conflict copy) -- see `TransferQueue.reconcileRelayContent()`, #7fa11325.
 	 *
-	 * Persisted via this Document's own IndexeddbPersistence, same as
+	 * Persisted via this Document's own LocalDocumentStore, same as
 	 * `markServerAcked()`/`markSyncOrigin()` above -- survives this
 	 * short-lived instance being recreated on the next `enqueueUpload` for a
 	 * doc with no live editor binding, unlike an in-memory field would.
