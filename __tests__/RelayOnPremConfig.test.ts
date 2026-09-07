@@ -6,6 +6,9 @@ import {
 	compareSemver,
 	isServerVersionSupported,
 	serverCompatMessage,
+	crossServerAccountNote,
+	EVC_SERVER_ID,
+	TR_RU_SERVER_ID,
 } from "../src/RelayOnPremConfig";
 
 function makeServer(overrides: Partial<RelayOnPremServer> = {}): RelayOnPremServer {
@@ -206,5 +209,42 @@ describe("serverCompatMessage", () => {
 		const msg = serverCompatMessage(undefined);
 		expect(msg.toLowerCase()).toContain("doesn't report a version");
 		expect(msg.toLowerCase()).toContain("update the server");
+	});
+});
+
+describe("crossServerAccountNote", () => {
+	test("returns the pairing when both shipped instances are present", () => {
+		const evc = makeServer({ id: EVC_SERVER_ID, name: "EVC Team Relay" });
+		const ru = makeServer({ id: TR_RU_SERVER_ID, name: "Team Relay RU" });
+
+		expect(crossServerAccountNote([evc, ru], EVC_SERVER_ID)).toEqual({
+			thisServer: "EVC Team Relay",
+			otherServer: "Team Relay RU",
+		});
+		// Symmetric on the other server too.
+		expect(crossServerAccountNote([evc, ru], TR_RU_SERVER_ID)).toEqual({
+			thisServer: "Team Relay RU",
+			otherServer: "EVC Team Relay",
+		});
+	});
+
+	test("negative control: a user-added server never gets the note, even alongside both shipped instances", () => {
+		const evc = makeServer({ id: EVC_SERVER_ID, name: "EVC Team Relay" });
+		const ru = makeServer({ id: TR_RU_SERVER_ID, name: "Team Relay RU" });
+		const own = makeServer({ id: "my-own-relay", name: "My Own Relay" });
+
+		expect(crossServerAccountNote([evc, ru, own], "my-own-relay")).toBeUndefined();
+	});
+
+	test("negative control: only one shipped instance present (pre-#1f3f16eb install) -- no note", () => {
+		const evc = makeServer({ id: EVC_SERVER_ID, name: "EVC Team Relay" });
+
+		expect(crossServerAccountNote([evc], EVC_SERVER_ID)).toBeUndefined();
+	});
+
+	test("negative control: RU present without EVC -- no note either direction", () => {
+		const ru = makeServer({ id: TR_RU_SERVER_ID, name: "Team Relay RU" });
+
+		expect(crossServerAccountNote([ru], TR_RU_SERVER_ID)).toBeUndefined();
 	});
 });

@@ -30,6 +30,32 @@ export function isWellKnownServer(id: string): boolean {
 }
 
 /**
+ * The two shipped instances have separate user databases (#1f3f16eb) — a
+ * login valid on one produces a genuine 401 on the other, which reads as a
+ * bug rather than as "wrong server". Returns the pairing the login modal
+ * needs to explain that, but only when both shipped instances are actually
+ * present: `serverId` isn't well-known (user-added server — not our story
+ * to tell), or the second instance hasn't landed on this install yet
+ * (it's new-install-only, see migrateRelayOnPremSettings' `!oldSettings`
+ * branch) → undefined, no note.
+ */
+export function crossServerAccountNote(
+	servers: RelayOnPremServer[],
+	serverId: string
+): { thisServer: string; otherServer: string } | undefined {
+	if (!isWellKnownServer(serverId)) return undefined;
+	const bothPresent = WELL_KNOWN_SERVER_IDS.every((id) => servers.some((s) => s.id === id));
+	if (!bothPresent) return undefined;
+
+	const thisServer = servers.find((s) => s.id === serverId);
+	const otherId = WELL_KNOWN_SERVER_IDS.find((id) => id !== serverId);
+	const otherServer = servers.find((s) => s.id === otherId);
+	if (!thisServer || !otherServer) return undefined;
+
+	return { thisServer: thisServer.name, otherServer: otherServer.name };
+}
+
+/**
  * Generate a unique server ID from URL
  */
 export function generateServerId(controlPlaneUrl: string): string {
