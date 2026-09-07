@@ -151,8 +151,8 @@
 
 	async function fetchServerInfo(url: string): Promise<ServerInfo | null> {
 		try {
-			console.log("[RelayOnPrem] Fetching server info from:", `${url}/server/info`);
-			const response = await platformFetch(`${url}/server/info`, { method: "GET" });
+			console.log("[RelayOnPrem] Fetching server info from:", `${url}/v1/server/info`);
+			const response = await platformFetch(`${url}/v1/server/info`, { method: "GET" });
 			console.log("[RelayOnPrem] Server info response status:", response.status);
 			if (response.ok) {
 				const data = await response.json();
@@ -173,7 +173,7 @@
 			testingServerId = serverId;
 		}
 		try {
-			const response = await platformFetch(`${url}/health`, { method: "GET" });
+			const response = await platformFetch(`${url}/v1/health`, { method: "GET" });
 			if (response.ok) {
 				new Notice(uiText("serverList.connectionSuccessNotice"));
 				return true;

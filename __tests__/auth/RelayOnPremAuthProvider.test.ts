@@ -119,7 +119,7 @@ describe("RelayOnPremAuthProvider", () => {
 			);
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				`${CONTROL_PLANE_URL}/auth/login`,
+				`${CONTROL_PLANE_URL}/v1/auth/login`,
 				expect.objectContaining({
 					method: "POST",
 					body: JSON.stringify({
@@ -130,7 +130,7 @@ describe("RelayOnPremAuthProvider", () => {
 			);
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				`${CONTROL_PLANE_URL}/auth/me`,
+				`${CONTROL_PLANE_URL}/v1/auth/me`,
 				expect.objectContaining({
 					method: "GET",
 					headers: expect.objectContaining({
@@ -502,7 +502,7 @@ describe("RelayOnPremAuthProvider", () => {
 
 			// Should call /auth/me to verify token
 			expect(mockFetch).toHaveBeenCalledWith(
-				`${CONTROL_PLANE_URL}/auth/me`,
+				`${CONTROL_PLANE_URL}/v1/auth/me`,
 				expect.objectContaining({
 					method: "GET",
 					headers: expect.objectContaining({
@@ -788,7 +788,7 @@ describe("RelayOnPremAuthProvider", () => {
 			await provider.logout();
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				`${CONTROL_PLANE_URL}/auth/logout`,
+				`${CONTROL_PLANE_URL}/v1/auth/logout`,
 				expect.objectContaining({
 					method: "POST",
 					headers: expect.objectContaining({
@@ -893,7 +893,7 @@ describe("RelayOnPremAuthProvider", () => {
 			await providerWithSlash.loginWithPassword("test@example.com", "password");
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				"https://cp.example.com/auth/login",
+				"https://cp.example.com/v1/auth/login",
 				expect.anything(),
 			);
 		});

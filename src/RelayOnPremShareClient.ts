@@ -330,7 +330,7 @@ export class RelayOnPremShareClient {
 		log("Fetching shares list...");
 
 		try {
-			const response = await platformFetch(`${this.normalizedUrl}/shares`, {
+			const response = await platformFetch(`${this.normalizedUrl}/v1/shares`, {
 				method: "GET",
 				headers: await this.getHeaders(),
 			});
@@ -357,7 +357,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}`,
+				`${this.normalizedUrl}/v1/shares/${shareId}`,
 				{
 					method: "GET",
 					headers: await this.getHeaders(),
@@ -386,7 +386,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}/members`,
+				`${this.normalizedUrl}/v1/shares/${shareId}/members`,
 				{
 					method: "GET",
 					headers: await this.getHeaders(),
@@ -414,7 +414,7 @@ export class RelayOnPremShareClient {
 		log(`Creating share: ${request.path}`);
 
 		try {
-			const response = await platformFetch(`${this.normalizedUrl}/shares`, {
+			const response = await platformFetch(`${this.normalizedUrl}/v1/shares`, {
 				method: "POST",
 				headers: await this.getHeaders(),
 				body: JSON.stringify(request),
@@ -451,7 +451,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}`,
+				`${this.normalizedUrl}/v1/shares/${shareId}`,
 				{
 					method: "PATCH",
 					headers: await this.getHeaders(),
@@ -487,7 +487,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}`,
+				`${this.normalizedUrl}/v1/shares/${shareId}`,
 				{
 					method: "DELETE",
 					headers: await this.getHeaders(),
@@ -514,7 +514,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}/members`,
+				`${this.normalizedUrl}/v1/shares/${shareId}/members`,
 				{
 					method: "POST",
 					headers: await this.getHeaders(),
@@ -550,7 +550,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}/members/${userId}`,
+				`${this.normalizedUrl}/v1/shares/${shareId}/members/${userId}`,
 				{
 					method: "DELETE",
 					headers: await this.getHeaders(),
@@ -581,7 +581,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}/members/${userId}`,
+				`${this.normalizedUrl}/v1/shares/${shareId}/members/${userId}`,
 				{
 					method: "PATCH",
 					headers: await this.getHeaders(),
@@ -613,7 +613,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/users/search?email=${encodeURIComponent(email)}`,
+				`${this.normalizedUrl}/v1/users/search?email=${encodeURIComponent(email)}`,
 				{
 					method: "GET",
 					headers: await this.getHeaders(),
@@ -645,7 +645,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}/invites`,
+				`${this.normalizedUrl}/v1/shares/${shareId}/invites`,
 				{
 					method: "POST",
 					headers: await this.getHeaders(),
@@ -675,7 +675,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}/invites`,
+				`${this.normalizedUrl}/v1/shares/${shareId}/invites`,
 				{
 					method: "GET",
 					headers: await this.getHeaders(),
@@ -704,7 +704,7 @@ export class RelayOnPremShareClient {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}/invites/${inviteId}`,
+				`${this.normalizedUrl}/v1/shares/${shareId}/invites/${inviteId}`,
 				{
 					method: "DELETE",
 					headers: await this.getHeaders(),
@@ -761,7 +761,7 @@ export class RelayOnPremShareClient {
 		log("Fetching server info...");
 
 		try {
-			const response = await platformFetch(`${this.normalizedUrl}/server/info`, {
+			const response = await platformFetch(`${this.normalizedUrl}/v1/server/info`, {
 				method: "GET",
 				headers: {
 					"Content-Type": "application/json",
@@ -860,7 +860,7 @@ export class RelayOnPremShareClient {
 		}
 
 		const response = await platformFetch(
-			`${this.normalizedUrl}/shares/${shareId}/sync-write?path=${encodeURIComponent(path)}`,
+			`${this.normalizedUrl}/v1/shares/${shareId}/sync-write?path=${encodeURIComponent(path)}`,
 			{ method: "PUT", headers, body: content },
 		);
 		if (!response.ok) {
@@ -1125,7 +1125,7 @@ export class RelayOnPremShareClient {
 		log(`Fetching files index for share ${shareId}...`);
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${shareId}/files-index`,
+				`${this.normalizedUrl}/v1/shares/${shareId}/files-index`,
 				{
 					method: "GET",
 					headers: await this.getHeaders(),
@@ -1150,7 +1150,7 @@ export class RelayOnPremShareClient {
 	async downloadFile(shareId: string, filePath: string): Promise<ArrayBuffer> {
 		log(`Downloading file from share ${shareId}: ${filePath}`);
 		try {
-			const url = `${this.normalizedUrl}/shares/${shareId}/download?path=${encodeURIComponent(filePath)}`;
+			const url = `${this.normalizedUrl}/v1/shares/${shareId}/download?path=${encodeURIComponent(filePath)}`;
 			const response = await platformFetch(url, {
 				method: "GET",
 				headers: await this.getHeaders(),

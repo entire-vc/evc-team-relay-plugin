@@ -109,7 +109,7 @@ describe("RelayCredentialCache multi-server token routing", () => {
 		await pending;
 
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://server-b.example.com/tokens/relay",
+			"https://server-b.example.com/v1/tokens/relay",
 			expect.anything(),
 		);
 	});
@@ -143,7 +143,7 @@ describe("RelayCredentialCache multi-server token routing", () => {
 		await pending;
 
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://server-a.example.com/tokens/relay",
+			"https://server-a.example.com/v1/tokens/relay",
 			expect.anything(),
 		);
 	});
@@ -179,15 +179,15 @@ describe("RelayCredentialCache multi-server token routing", () => {
 		await Promise.all([pendingA, pendingB]);
 
 		const calledUrls = mockFetch.mock.calls.map((call) => call[0]);
-		expect(calledUrls).toContain("https://server-a.example.com/tokens/relay");
-		expect(calledUrls).toContain("https://server-b.example.com/tokens/relay");
+		expect(calledUrls).toContain("https://server-a.example.com/v1/tokens/relay");
+		expect(calledUrls).toContain("https://server-b.example.com/v1/tokens/relay");
 		// Negative half of the same assertion: neither request doubled up on
 		// the other server's host -- this is the actual bug being fixed.
 		expect(
-			calledUrls.filter((u) => u === "https://server-a.example.com/tokens/relay").length,
+			calledUrls.filter((u) => u === "https://server-a.example.com/v1/tokens/relay").length,
 		).toBe(1);
 		expect(
-			calledUrls.filter((u) => u === "https://server-b.example.com/tokens/relay").length,
+			calledUrls.filter((u) => u === "https://server-b.example.com/v1/tokens/relay").length,
 		).toBe(1);
 	});
 
@@ -212,7 +212,7 @@ describe("RelayCredentialCache multi-server token routing", () => {
 		await pending;
 
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://only-server.example.com/tokens/relay",
+			"https://only-server.example.com/v1/tokens/relay",
 			expect.anything(),
 		);
 	});

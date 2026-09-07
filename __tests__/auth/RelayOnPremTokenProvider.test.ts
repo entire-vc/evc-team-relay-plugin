@@ -84,7 +84,7 @@ describe("RelayOnPremTokenProvider.updateControlPlaneUrl", () => {
 		await jest.advanceTimersByTimeAsync(0);
 		await first;
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://old-server.example.com/tokens/relay",
+			"https://old-server.example.com/v1/tokens/relay",
 			expect.anything(),
 		);
 
@@ -95,7 +95,7 @@ describe("RelayOnPremTokenProvider.updateControlPlaneUrl", () => {
 		await jest.advanceTimersByTimeAsync(2_400);
 		await second;
 		expect(mockFetch).toHaveBeenLastCalledWith(
-			"https://new-server.example.com/tokens/relay",
+			"https://new-server.example.com/v1/tokens/relay",
 			expect.anything(),
 		);
 	});
@@ -114,7 +114,7 @@ describe("RelayOnPremTokenProvider.updateControlPlaneUrl", () => {
 		await jest.advanceTimersByTimeAsync(0);
 		await request;
 		expect(mockFetch).toHaveBeenLastCalledWith(
-			"https://new-server.example.com/tokens/relay",
+			"https://new-server.example.com/v1/tokens/relay",
 			expect.anything(),
 		);
 	});
@@ -263,7 +263,7 @@ describe("RelayOnPremTokenProvider.requestFileToken", () => {
 		await request;
 
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://cp.example.com/shares/folder1/file-token",
+			"https://cp.example.com/v1/shares/folder1/file-token",
 			expect.objectContaining({
 				method: "POST",
 				headers: expect.objectContaining({

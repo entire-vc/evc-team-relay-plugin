@@ -182,7 +182,7 @@ export class RelayOnPremTokenProvider {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/tokens/relay`,
+				`${this.normalizedUrl}/v1/tokens/relay`,
 				{
 					method: "POST",
 					headers: {
@@ -292,7 +292,7 @@ export class RelayOnPremTokenProvider {
 
 		try {
 			const response = await platformFetch(
-				`${this.normalizedUrl}/shares/${folderId}/file-token`,
+				`${this.normalizedUrl}/v1/shares/${folderId}/file-token`,
 				{
 					method: "POST",
 					headers: {
