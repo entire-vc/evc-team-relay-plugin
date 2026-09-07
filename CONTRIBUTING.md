@@ -35,7 +35,20 @@ npm run lint
 them, are produced by the pipeline only.** A manual build is fine for debugging and
 sideloading. Publishing one by hand is not.
 
-To release: tag the commit with a **bare semver** and push the tag.
+To release: bump `manifest.json`'s `version` on `main` (normal PR/merge), then dispatch
+the release workflow with that version — **no tag-push rights needed**:
+
+```bash
+gh workflow run release.yml --repo entire-vc/evc-team-relay-plugin -f version=1.2.3
+```
+
+CI verifies `1.2.3` matches the committed `manifest.json` on `main`, creates+pushes the
+`1.2.3` tag itself (as the CI identity), then builds and releases in the same run. If the
+tag already exists — e.g. re-running attestation, or `-f allow_overwrite=true` to
+deliberately republish — CI builds that existing tag instead of cutting a new one.
+
+Tagging by hand still works the same way it always did (and still triggers the same
+pipeline), it's just no longer the only path:
 
 ```bash
 git tag 1.2.3          # bare — a 'v' prefix will NOT trigger the workflow
