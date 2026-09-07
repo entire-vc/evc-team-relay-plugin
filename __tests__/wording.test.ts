@@ -1,7 +1,18 @@
 import { getLanguage } from "obsidian";
 import { uiText } from "../src/wording/uiText";
 import { resolveInterfaceLanguage } from "../src/wording/interfaceLanguage";
-import { englishPhrasebook, phrasebooksByLanguage, type Phrasebook } from "../src/wording/phrasebook";
+import {
+	englishPhrasebook,
+	ruPhrasebook,
+	phrasebooksByLanguage,
+	type PhraseKey,
+	type Phrasebook,
+} from "../src/wording/phrasebook";
+
+const PLACEHOLDER_RE = /\{([a-zA-Z0-9_]+)\}/g;
+function placeholderNames(template: string): string[] {
+	return [...template.matchAll(PLACEHOLDER_RE)].map((m) => m[1]).sort();
+}
 
 // getLanguage's ambient type (from obsidian.d.ts) is a plain `() => string` --
 // the jest.fn() mock in __tests__/mocks/obsidian.ts is only a mock at
@@ -33,13 +44,21 @@ describe("uiText", () => {
 	});
 
 	it("substitutes a {placeholder} from params", () => {
-		expect(uiText("shareList.title", { serverName: "Acme HQ" })).toBe("Shares on Acme HQ");
+		expect(uiText("shareList.title", { serverName: "Acme HQ" })).toBe(
+			"Shares on Acme HQ",
+		);
 	});
 
 	it("substitutes multiple placeholders in one template", () => {
 		expect(
-			uiText("shareDetail.members.limitReachedNotice", { current: 5, max: 5, plan: "Free" })
-		).toBe("Member limit reached (5/5 on Free plan). Upgrade your plan to add more members.");
+			uiText("shareDetail.members.limitReachedNotice", {
+				current: 5,
+				max: 5,
+				plan: "Free",
+			}),
+		).toBe(
+			"Member limit reached (5/5 on Free plan). Upgrade your plan to add more members.",
+		);
 	});
 
 	it("leaves an unmatched {placeholder} in place rather than throwing", () => {
@@ -54,17 +73,19 @@ describe("uiText", () => {
 	// must render English, not empty strings and not the raw key.
 	it("falls back to English for a language with no phrasebook (e.g. German)", () => {
 		mockGetLanguage.mockReturnValue("de");
-		expect(uiText("shell.header.title")).toBe(englishPhrasebook["shell.header.title"]);
+		expect(uiText("shell.header.title")).toBe(
+			englishPhrasebook["shell.header.title"],
+		);
 		expect(uiText("shell.header.title")).not.toBe("");
 		expect(uiText("shell.header.title")).not.toBe("shell.header.title");
 	});
 
 	// The fallback logic itself -- a phrasebook that exists but is MISSING a
 	// specific key must fall back to English for that key, not surface
-	// `undefined`/the literal key name. Uses a fake stub second-language
-	// dictionary (not `ru`, which is deliberately out of scope for this MR)
-	// so this proves the mechanism works before any real second language
-	// ever ships.
+	// `undefined`/the literal key name. Uses a fake stub dictionary (not
+	// `ru`, which is complete -- see the "ruPhrasebook" describe block below
+	// for real-language coverage) so this proves the mechanism works
+	// independent of any one real phrasebook's completeness.
 	describe("fallback for a real phrasebook with a missing key", () => {
 		const FAKE_LANG = "xx-test-stub";
 		const stub: Phrasebook = {
@@ -101,5 +122,80 @@ describe("englishPhrasebook", () => {
 			.filter(([, value]) => value.length === 0)
 			.map(([key]) => key);
 		expect(emptyKeys).toEqual([]);
+	});
+});
+
+// #bac8b7dd MR2 -- ru phrasebook. Structural checks only: this suite proves
+// the mechanism serves ru correctly and that ru's coverage/placeholders
+// stay in lockstep with en as either evolves. It does NOT and cannot judge
+// translation quality -- that's the human review this MR is gated on
+// (CLAUDE-workflow.md §1r.A), not something a test asserts.
+describe("ruPhrasebook", () => {
+	it("has no empty-string values", () => {
+		const emptyKeys = Object.entries(ruPhrasebook)
+			.filter(([, value]) => value.length === 0)
+			.map(([key]) => key);
+		expect(emptyKeys).toEqual([]);
+	});
+
+	it("covers every key englishPhrasebook defines -- no silent gaps in Phase 1", () => {
+		const enKeys = Object.keys(englishPhrasebook) as PhraseKey[];
+		const missing = enKeys.filter((k) => !(k in ruPhrasebook));
+		expect(missing).toEqual([]);
+	});
+
+	it("defines no key englishPhrasebook doesn't have -- no stray/renamed keys", () => {
+		const enKeys = new Set(Object.keys(englishPhrasebook));
+		const extra = Object.keys(ruPhrasebook).filter((k) => !enKeys.has(k));
+		expect(extra).toEqual([]);
+	});
+
+	it("preserves the exact same {placeholder} set as English, for every key", () => {
+		const mismatches: Array<{ key: string; en: string[]; ru: string[] }> = [];
+		for (const key of Object.keys(englishPhrasebook) as PhraseKey[]) {
+			const enPlaceholders = placeholderNames(englishPhrasebook[key]);
+			const ruValue = ruPhrasebook[key];
+			const ruPlaceholders = ruValue ? placeholderNames(ruValue) : [];
+			if (JSON.stringify(enPlaceholders) !== JSON.stringify(ruPlaceholders)) {
+				mismatches.push({ key, en: enPlaceholders, ru: ruPlaceholders });
+			}
+		}
+		expect(mismatches).toEqual([]);
+	});
+
+	it("is registered under the 'ru' ISO code in phrasebooksByLanguage", () => {
+		expect(phrasebooksByLanguage["ru"]).toBe(ruPhrasebook);
+	});
+});
+
+describe("uiText with the real ru phrasebook (not a stub)", () => {
+	afterEach(() => {
+		mockGetLanguage.mockReturnValue("en");
+	});
+
+	it("returns the Russian phrase when Obsidian reports ru", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("shell.header.title")).toBe("Team Relay");
+		expect(uiText("shareDetail.members.heading")).toBe("Участники");
+	});
+
+	it("substitutes a {placeholder} in a Russian template", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("shareList.title", { serverName: "Acme HQ" })).toBe(
+			"Общие доступы на Acme HQ",
+		);
+	});
+
+	it("substitutes multiple placeholders in a Russian template", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(
+			uiText("shareDetail.members.limitReachedNotice", {
+				current: 5,
+				max: 5,
+				plan: "Free",
+			}),
+		).toBe(
+			"Достигнут лимит участников (5/5 на тарифе Free). Обновите тариф, чтобы добавить больше участников.",
+		);
 	});
 });
