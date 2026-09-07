@@ -299,7 +299,7 @@ export const ruPhrasebook = {
 	"connect.login.invalidLoginData":
 		"Некорректные данные для входа. Проверьте email и пароль.",
 	"connect.login.networkError":
-		"Ошибка сети. Проверьте подключение и адрес control plane.",
+		"Ошибка сети. Проверьте подключение и адрес сервера.",
 	"connect.login.emailRequired": "Введите email",
 	"connect.login.passwordRequired": "Введите пароль",
 	"connect.login.invalidEmail": "Введите корректный email",
@@ -426,6 +426,8 @@ export const ruPhrasebook = {
 	"shareDetail.webPublish.slugUpdatedNotice": "Slug обновлён: {slug}",
 	"shareDetail.webPublish.publishedNotice": "Опубликовано в вебе!",
 	"shareDetail.webPublish.unpublishedNotice": "Публикация в вебе отменена",
+	"shareDetail.webPublish.publishedWithSkippedNotice":
+		"Опубликовано; пропущено файлов: {count} ({files})",
 	"shareDetail.webPublish.privatePublishPrompt":
 		"Этот общий доступ приватный. Для веб-публикации нужна видимость «публичный» или «защищённый». Выберите, как опубликовать:",
 	"shareDetail.webPublish.makePublicChoice":
