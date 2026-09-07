@@ -245,6 +245,13 @@
 		display: flex;
 		align-items: center;
 		gap: 14px;
+		/* At narrow widths (Obsidian mobile settings, ~233px inner row on a
+		   393px viewport) the fixed-size logo (32px) + ghost-icon actions
+		   (126px, flex:none) alone leave ~47px for the title/desc column,
+		   which pushed the wrap down to one word per line. Letting the row
+		   wrap moves the actions onto their own line instead, so the title
+		   column keeps a real floor (see .evc-header-text below). */
+		flex-wrap: wrap;
 	}
 
 	.evc-header-logo {
@@ -255,8 +262,11 @@
 	}
 
 	.evc-header-text {
-		flex: 1;
-		min-width: 0;
+		/* Floor of 160px so the title/desc wrap by word instead of being
+		   squeezed to the width of "self-hosted"'s longest fragment once
+		   .evc-header-actions no longer fits on the same line. */
+		flex: 1 1 160px;
+		min-width: 160px;
 	}
 
 	.evc-header-title {
