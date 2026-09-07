@@ -302,7 +302,29 @@ manifest-check:
         echo "REFUSING: manifest-beta.json ($MFB_VER) != manifest.json ($MFT_VER) — BRAT beta users would not see this release."
         exit 1
       fi
-      echo "OK: package.json, manifest.json, manifest-beta.json, versions.json all agree on $PKG_VER ✓"
+      # A release has shipped with CHANGELOG.md still naming the PREVIOUS
+      # version three times now (TR-59 #37ecb67f; #1d48ad10; and 0.0.2 itself,
+      # published with CHANGELOG.md still reading "## 0.0.1" — Mesh #e86a9ce1).
+      # All three were fixed by appending a line after the fact, which repairs
+      # that one release and leaves the next one free to drift the same way —
+      # nothing upstream of a human remembering stops it. This is the fourth
+      # file in the version-sync set; it belongs in the same job that already
+      # holds the other three so there is exactly one place "did the version
+      # bump land everywhere" is answered.
+      CHG_VER=$(node -e '
+        const fs = require("fs");
+        const txt = fs.readFileSync("CHANGELOG.md", "utf8");
+        const m = txt.match(/^##\s*([^\s#][^\n]*)$/m);
+        if (!m) { process.exit(1); }
+        process.stdout.write(m[1].trim());
+      ') || { echo "REFUSING: CHANGELOG.md has no top-level '## <version>' entry to read."; exit 1; }
+      echo "CHANGELOG.md:        $CHG_VER  (top entry)"
+      if [ "$CHG_VER" != "$MFT_VER" ]; then
+        echo "REFUSING: CHANGELOG.md's top entry ($CHG_VER) != manifest.json version ($MFT_VER)."
+        echo "  Add a \"## $MFT_VER\" entry describing this release before it ships."
+        exit 1
+      fi
+      echo "OK: package.json, manifest.json, manifest-beta.json, versions.json, CHANGELOG.md all agree on $PKG_VER ✓"
       echo
       echo "NOT CHECKED HERE: that $PKG_VER is strictly greater than the latest"
       echo "published GitHub release. That guard needs a GitHub token this"
