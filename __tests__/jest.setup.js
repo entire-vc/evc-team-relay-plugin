@@ -63,3 +63,31 @@ if (typeof global.createDiv === "undefined") {
 if (typeof global.createSpan === "undefined") {
 	global.createSpan = (o) => global.createEl("span", o);
 }
+// Instance-method versions of the same helpers (`el.createEl(...)`, not the
+// free function above) — real Obsidian patches these onto Node.prototype so
+// any Element/DocumentFragment can build+append children fluently (used e.g.
+// by createFragment(el => el.createSpan(...)) callbacks). Guarded on `Node`
+// existing: in a plain node-env test file (no jsdom) `Node` itself isn't
+// defined, so this block is a no-op there, same as the free-function
+// polyfills above being no-ops without `document`.
+if (typeof Node !== "undefined" && typeof Node.prototype.createEl === "undefined") {
+	Node.prototype.createEl = function (tag, o, callback) {
+		const el = applyDomElementInfo(document.createElement(tag), o);
+		this.appendChild(el);
+		if (callback) callback(el);
+		return el;
+	};
+	Node.prototype.createDiv = function (o, callback) {
+		return this.createEl("div", o, callback);
+	};
+	Node.prototype.createSpan = function (o, callback) {
+		return this.createEl("span", o, callback);
+	};
+}
+if (typeof global.createFragment === "undefined" && typeof document !== "undefined") {
+	global.createFragment = (callback) => {
+		const fragment = document.createDocumentFragment();
+		if (callback) callback(fragment);
+		return fragment;
+	};
+}

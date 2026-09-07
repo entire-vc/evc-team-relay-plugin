@@ -512,10 +512,45 @@ export class WebSyncManager {
 				shareId: docShareInfo.shareId,
 			});
 			this.unregisterAutoSyncShare(filePath);
+			const { serverId, shareId } = docShareInfo;
+			const fragment = createFragment((el: DocumentFragment) => {
+				el.createSpan({
+					text: `Team Relay: "${filePath}" was deleted, but its web share is ` +
+						`still published. `,
+				});
+				const unpublishBtn = el.createEl("button", {
+					text: "Unpublish",
+					cls: "mod-warning",
+				});
+				unpublishBtn.onclick = (evt: MouseEvent) => {
+					evt.stopPropagation();
+					void this._unpublishAfterDelete(serverId, shareId, filePath, notice);
+				};
+			});
+			const notice = new Notice(fragment, 8000);
+		}
+	}
+
+	/** "Unpublish" button handler for the post-delete Notice above. */
+	private async _unpublishAfterDelete(
+		serverId: string,
+		shareId: string,
+		filePath: string,
+		notice: Notice,
+	): Promise<void> {
+		try {
+			await this.clientManager.updateShare(serverId, shareId, { web_published: false });
+			notice.hide();
+			new Notice(`Team Relay: web share for "${filePath}" unpublished.`);
+		} catch (error: unknown) {
+			log("Failed to unpublish share after file deletion", {
+				filePath,
+				shareId,
+				error: error instanceof Error ? error.message : String(error),
+			});
 			new Notice(
-				`Team Relay: "${filePath}" was deleted, but its web share is still ` +
-					`published. Unpublish it manually if it should no longer be public.`,
-				0,
+				`Team Relay: failed to unpublish "${filePath}" — ` +
+					`${error instanceof Error ? error.message : "unknown error"}`,
 			);
 		}
 	}

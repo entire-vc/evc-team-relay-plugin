@@ -1,4 +1,6 @@
 /**
+ * @jest-environment jsdom
+ *
  * Unit tests: WebSyncManager auto-sync folder binary filter (TR-31, #34d8835f)
  * and folder-share rate-limited-edit debounce retry (TR-23, #37e7b1e4).
  *
@@ -49,7 +51,7 @@ function makeClientManager(): RelayOnPremShareClientManager {
 function makeDocClient(webSlug = "doc-slug") {
 	return {
 		getShare: jest.fn(async () => ({ web_slug: webSlug })),
-		updateShare: jest.fn(async () => undefined),
+		updateShare: jest.fn(async (_shareId: string, _req: unknown) => undefined),
 	};
 }
 
@@ -59,6 +61,11 @@ function makeClientManagerWithClient(
 	return {
 		syncFolderFileContent: jest.fn(async () => undefined),
 		getClient: jest.fn(() => client),
+		// Real RelayOnPremShareClientManager.updateShare(serverId, shareId, req)
+		// resolves the per-server client and delegates to client.updateShare(shareId, req).
+		updateShare: jest.fn(async (_serverId: string, shareId: string, req: unknown) =>
+			client.updateShare(shareId, req),
+		),
 	} as unknown as RelayOnPremShareClientManager;
 }
 
@@ -329,7 +336,7 @@ describe("WebSyncManager — doc share rename/delete (TR-24, #5aef2c1d)", () => 
 		});
 	});
 
-	test("a deleted doc share is unregistered and the user is notified", async () => {
+	test("a deleted doc share is unregistered and the user is notified, with a non-eternal, actionable Notice", async () => {
 		const vault = makeVault({ "notes/note.md": "content" });
 		const clientManager = makeClientManagerWithClient(makeDocClient());
 		const manager = new WebSyncManager(vault, clientManager);
@@ -340,10 +347,32 @@ describe("WebSyncManager — doc share rename/delete (TR-24, #5aef2c1d)", () => 
 		await manager.onFileDeleted("notes/note.md");
 
 		expect(manager.isAutoSync("notes/note.md")).toBe(false);
-		expect(noticeMock).toHaveBeenCalledWith(
-			expect.stringContaining("notes/note.md"),
-			0,
-		);
+		expect(noticeMock).toHaveBeenCalledTimes(1);
+		const [message, timeout] = noticeMock.mock.calls[0];
+		// Bug fix (#3644e4a8): this Notice used to have timeout 0 (never
+		// disappears) — the common bundle norm for an actionable Notice is a
+		// finite timeout instead.
+		expect(timeout).toBe(8000);
+		// ...and it now carries an actual "Unpublish" action rather than just
+		// telling the user to go do it manually with no button to click.
+		const fragment = message as DocumentFragment;
+		expect(fragment.textContent).toContain("notes/note.md");
+		const unpublishBtn = fragment.querySelector("button");
+		expect(unpublishBtn?.textContent).toBe("Unpublish");
+
+		// Clicking it calls updateShare(web_published: false) for this share.
+		const client = makeDocClient();
+		const clickManager = makeClientManagerWithClient(client);
+		const clickWebManager = new WebSyncManager(vault, clickManager);
+		clickWebManager.registerAutoSyncShare("notes/note.md", "share1", "srv1", "doc");
+		await clickWebManager.onFileDeleted("notes/note.md");
+		const [clickMessage] = noticeMock.mock.calls[noticeMock.mock.calls.length - 1];
+		const clickFragment = clickMessage as DocumentFragment;
+		const clickBtn = clickFragment.querySelector("button") as HTMLButtonElement;
+		clickBtn.click();
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(client.updateShare).toHaveBeenCalledWith("share1", { web_published: false });
 
 		// Confirms unregistration is real, not just isAutoSync() lying: a
 		// later edit at the same path (e.g. a new unrelated file created at
