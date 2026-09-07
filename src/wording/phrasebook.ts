@@ -90,6 +90,48 @@ export const englishPhrasebook = {
 	"shell.breadcrumb.createInvite": "Create Invite",
 	"shell.breadcrumb.agentKeys": "Agent Keys",
 
+	// Server list -- src/components/RelayOnPremServerList.svelte
+	"serverList.emptyNotice":
+		"No relay servers configured. Add a server to get started.",
+	"serverList.defaultBadge": "Default",
+	"serverList.loggedInAs": "As: {email}",
+	"serverList.logoutButton": "Logout",
+	"serverList.testButton": "Test",
+	"serverList.sharesButton": "Shares",
+	"serverList.editButton": "Edit",
+	"serverList.removeButton": "Remove",
+	"serverList.removeConfirmMessage":
+		'Remove server "{name}"? This will also log you out from this server.',
+	"serverList.editServerTitle": "Edit Server",
+	"serverList.addServerTitle": "Add Server",
+	"serverList.saveChangesButton": "Save Changes",
+	"serverList.addServerCta": "+ Add Server",
+	"serverList.controlPlaneUrlLabel": "Control Plane URL",
+	"serverList.serverNameLabel": "Server Name (auto-detected if empty)",
+	"serverList.relayServerUrlLabel":
+		"Relay Server URL (auto-detected if empty)",
+	"serverList.autoDetectPlaceholder": "Leave empty to auto-detect",
+	"serverList.controlPlaneUrlRequiredError": "Control Plane URL is required",
+	"serverList.cannotConnectError": "Cannot connect to server",
+	"serverList.duplicateUrlError":
+		'"{name}" already uses this URL. Edit that server instead of adding a duplicate.',
+	"serverList.connectionSuccessNotice": "Connection successful!",
+	"serverList.connectionFailedStatusNotice": "Connection failed: {status}",
+	"serverList.connectionFailedErrorNotice": "Connection failed: {error}",
+	"serverList.serverUpdatedNotice": "Server updated",
+	"serverList.serverAddedNotice": "Server added",
+	"serverList.serverRemovedNotice": 'Server "{name}" removed',
+	"serverList.oauthStartingNotice": "Starting OAuth login with {provider}...",
+	"serverList.loggedInNotice": "Logged in to {name}",
+	"serverList.oauthFailedNotice":
+		"OAuth failed: {error}. Falling back to password.",
+	"serverList.authProviderNotReadyNotice":
+		"Auth provider not ready. Please try again.",
+	"serverList.loggedOutNotice": "Logged out",
+	"serverList.logoutFailedNotice": "Logout failed: {error}",
+	"serverList.defaultClearedNotice": "Default server cleared",
+	"serverList.defaultSetNotice": "Default server set",
+
 	// Share list -- src/components/ShareListView.svelte
 	"shareList.title": "Shares on {serverName}",
 	"shareList.loading": "Loading shares...",
@@ -348,6 +390,48 @@ export const ruPhrasebook = {
 	"shell.breadcrumb.planUsage": "Тариф и использование",
 	"shell.breadcrumb.createInvite": "Создать приглашение",
 	"shell.breadcrumb.agentKeys": "Ключи агента",
+
+	"serverList.emptyNotice":
+		"Серверы relay не настроены. Добавьте сервер, чтобы начать.",
+	"serverList.defaultBadge": "По умолчанию",
+	"serverList.loggedInAs": "Вход как: {email}",
+	"serverList.logoutButton": "Выйти",
+	"serverList.testButton": "Проверить",
+	"serverList.sharesButton": "Общие доступы",
+	"serverList.editButton": "Изменить",
+	"serverList.removeButton": "Удалить",
+	"serverList.removeConfirmMessage":
+		"Удалить сервер «{name}»? Вы также выйдете из системы на этом сервере.",
+	"serverList.editServerTitle": "Изменить сервер",
+	"serverList.addServerTitle": "Добавить сервер",
+	"serverList.saveChangesButton": "Сохранить изменения",
+	"serverList.addServerCta": "+ Добавить сервер",
+	"serverList.controlPlaneUrlLabel": "Адрес control plane",
+	"serverList.serverNameLabel":
+		"Имя сервера (определяется автоматически, если не указано)",
+	"serverList.relayServerUrlLabel":
+		"Адрес relay-сервера (определяется автоматически, если не указано)",
+	"serverList.autoDetectPlaceholder": "Оставьте пустым для автоопределения",
+	"serverList.controlPlaneUrlRequiredError": "Укажите адрес control plane",
+	"serverList.cannotConnectError": "Не удаётся подключиться к серверу",
+	"serverList.duplicateUrlError":
+		"Сервер «{name}» уже использует этот адрес. Измените его вместо добавления дубликата.",
+	"serverList.connectionSuccessNotice": "Подключение успешно!",
+	"serverList.connectionFailedStatusNotice": "Не удалось подключиться: {status}",
+	"serverList.connectionFailedErrorNotice": "Не удалось подключиться: {error}",
+	"serverList.serverUpdatedNotice": "Сервер обновлён",
+	"serverList.serverAddedNotice": "Сервер добавлен",
+	"serverList.serverRemovedNotice": "Сервер «{name}» удалён",
+	"serverList.oauthStartingNotice": "Выполняется вход через {provider}...",
+	"serverList.loggedInNotice": "Выполнен вход на {name}",
+	"serverList.oauthFailedNotice":
+		"Не удалось войти через OAuth: {error}. Используется вход по паролю.",
+	"serverList.authProviderNotReadyNotice":
+		"Провайдер входа ещё не готов. Попробуйте снова.",
+	"serverList.loggedOutNotice": "Выход выполнен",
+	"serverList.logoutFailedNotice": "Не удалось выйти: {error}",
+	"serverList.defaultClearedNotice": "Сервер по умолчанию сброшен",
+	"serverList.defaultSetNotice": "Назначен сервером по умолчанию",
 
 	"shareList.title": "Общие доступы на {serverName}",
 	"shareList.loading": "Загрузка общих доступов...",

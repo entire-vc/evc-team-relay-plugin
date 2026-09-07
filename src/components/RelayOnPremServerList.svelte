@@ -17,6 +17,7 @@
 	import { platformFetch } from "../platformFetch";
 	import { confirmDialog } from "../ui/dialogs";
 	import evcLogo from "../assets/evc-logo.png";
+	import { uiText } from "../wording/uiText";
 
 	export let live: TeamRelayPlugin;
 
@@ -174,14 +175,18 @@
 		try {
 			const response = await platformFetch(`${url}/health`, { method: "GET" });
 			if (response.ok) {
-				new Notice("Connection successful!");
+				new Notice(uiText("serverList.connectionSuccessNotice"));
 				return true;
 			} else {
-				new Notice(`Connection failed: ${response.status}`);
+				new Notice(uiText("serverList.connectionFailedStatusNotice", { status: response.status }));
 				return false;
 			}
 		} catch (error: unknown) {
-			new Notice(`Connection failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+			new Notice(
+				uiText("serverList.connectionFailedErrorNotice", {
+					error: error instanceof Error ? error.message : uiText("shared.unknownError"),
+				})
+			);
 			return false;
 		} finally {
 			testingServerId = null;
@@ -193,14 +198,14 @@
 
 		// Validate inputs
 		if (!newControlPlaneUrl.trim()) {
-			formError = "Control Plane URL is required";
+			formError = uiText("serverList.controlPlaneUrlRequiredError");
 			return;
 		}
 
 		// Test connection first
 		const connectionOk = await testConnection(newControlPlaneUrl.trim());
 		if (!connectionOk) {
-			formError = "Cannot connect to server";
+			formError = uiText("serverList.cannotConnectError");
 			return;
 		}
 
@@ -236,7 +241,7 @@
 		if (!editingServer) {
 			const duplicate = findDuplicateServer(servers, serverId, newControlPlaneUrl);
 			if (duplicate) {
-				formError = `"${duplicate.name}" already uses this URL. Edit that server instead of adding a duplicate.`;
+				formError = uiText("serverList.duplicateUrlError", { name: duplicate.name });
 				return;
 			}
 		}
@@ -293,7 +298,7 @@
 
 		cancelEdit();
 		dispatch("serversChanged");
-		new Notice(editingServer ? "Server updated" : "Server added");
+		new Notice(editingServer ? uiText("serverList.serverUpdatedNotice") : uiText("serverList.serverAddedNotice"));
 	}
 
 	async function removeServer(serverId: string) {
@@ -301,7 +306,7 @@
 		if (!server) return;
 
 		// Confirm removal
-		if (!(await confirmDialog(live.app, `Remove server "${server.name}"? This will also log you out from this server.`))) {
+		if (!(await confirmDialog(live.app, uiText("serverList.removeConfirmMessage", { name: server.name })))) {
 			return;
 		}
 
@@ -326,7 +331,7 @@
 		live.authSession.removeServer(serverId);
 
 		dispatch("serversChanged");
-		new Notice(`Server "${server.name}" removed`);
+		new Notice(uiText("serverList.serverRemovedNotice", { name: server.name }));
 	}
 
 	async function loginToServer(server: RelayOnPremServer) {
@@ -357,23 +362,27 @@
 
 			if (authProvider) {
 				try {
-					new Notice(`Starting OAuth login with ${serverInfo.features.oauth_provider}...`);
+					new Notice(uiText("serverList.oauthStartingNotice", { provider: serverInfo.features.oauth_provider }));
 					// Route through AuthSession (not the authProvider directly) so
 					// this.user gets set and notifySubscribers() fires — see TR-10,
 					// #e7bca9fb — otherwise main.ts's post-login hook never runs and
 					// shares/live-sync don't start until the plugin is reloaded.
 					await live.authSession.loginWithOAuth2(serverInfo.features.oauth_provider, server.id);
-					new Notice(`Logged in to ${server.name}`);
+					new Notice(uiText("serverList.loggedInNotice", { name: server.name }));
 					refreshAuthStatus();
 					return;
 				} catch (error: unknown) {
 					// OAuth failed, fall back to password login
 					console.error("[RelayOnPrem] OAuth login failed:", error);
-					new Notice(`OAuth failed: ${error instanceof Error ? error.message : "Unknown error"}. Falling back to password.`);
+					new Notice(
+						uiText("serverList.oauthFailedNotice", {
+							error: error instanceof Error ? error.message : uiText("shared.unknownError"),
+						})
+					);
 				}
 			} else {
 				console.warn("[RelayOnPrem] No auth provider found for server:", server.id);
-				new Notice("Auth provider not ready. Please try again.");
+				new Notice(uiText("serverList.authProviderNotReadyNotice"));
 			}
 		}
 
@@ -382,7 +391,7 @@
 			live.app,
 			live.authSession,
 			() => {
-				new Notice(`Logged in to ${server.name}`);
+				new Notice(uiText("serverList.loggedInNotice", { name: server.name }));
 				refreshAuthStatus();
 			},
 			server.id,
@@ -396,10 +405,14 @@
 	async function logoutFromServer(serverId: string) {
 		try {
 			await live.authSession.logoutFromServer(serverId);
-			new Notice("Logged out");
+			new Notice(uiText("serverList.loggedOutNotice"));
 			refreshAuthStatus();
 		} catch (error: unknown) {
-			new Notice(`Logout failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+			new Notice(
+				uiText("serverList.logoutFailedNotice", {
+					error: error instanceof Error ? error.message : uiText("shared.unknownError"),
+				})
+			);
 		}
 	}
 
@@ -414,14 +427,14 @@
 				...current,
 				defaultServerId: undefined,
 			}));
-			new Notice("Default server cleared");
+			new Notice(uiText("serverList.defaultClearedNotice"));
 		} else {
 			// Set as default
 			await relayOnPremSettings.mutateValue((current) => ({
 				...current,
 				defaultServerId: serverId,
 			}));
-			new Notice("Default server set");
+			new Notice(uiText("serverList.defaultSetNotice"));
 		}
 		dispatch("serversChanged");
 	}
@@ -430,7 +443,7 @@
 <div class="relay-server-list">
 	{#if servers.length === 0 && !isAddingServer}
 		<div class="relay-server-empty">
-			<p>No relay servers configured. Add a server to get started.</p>
+			<p>{uiText("serverList.emptyNotice")}</p>
 		</div>
 	{/if}
 
@@ -448,22 +461,22 @@
 					<span class="relay-status-dot" class:is-connected={authStatus.isLoggedIn}></span>
 					{server.name}
 					{#if server.id === defaultServerId}
-						<span class="relay-server-badge default">Default</span>
+						<span class="relay-server-badge default">{uiText("serverList.defaultBadge")}</span>
 					{/if}
 				</div>
 				<div class="relay-server-url">{server.controlPlaneUrl}</div>
 				{#if authStatus.isLoggedIn && authStatus.email}
-					<div class="relay-server-user">As: {authStatus.email}</div>
+					<div class="relay-server-user">{uiText("serverList.loggedInAs", { email: authStatus.email })}</div>
 				{/if}
 			</div>
 			<div class="relay-server-actions">
 				{#if authStatus.isLoggedIn}
 					<button class="relay-server-btn" on:click={() => logoutFromServer(server.id)}>
-						Logout
+						{uiText("serverList.logoutButton")}
 					</button>
 				{:else}
 					<button class="relay-server-btn mod-cta" on:click={() => loginToServer(server)}>
-						Login
+						{uiText("connect.login.loginButton")}
 					</button>
 				{/if}
 				<button
@@ -471,27 +484,27 @@
 					on:click={() => testConnection(server.controlPlaneUrl, server.id)}
 					disabled={testingServerId === server.id}
 				>
-					{testingServerId === server.id ? "..." : "Test"}
+					{testingServerId === server.id ? "..." : uiText("serverList.testButton")}
 				</button>
 				{#if authStatus.isLoggedIn}
 					<button class="relay-server-btn" on:click={() => openSharesForServer(server)}>
-						Shares
+						{uiText("serverList.sharesButton")}
 					</button>
 					{#if serverBillingSupport[server.id]}
 						<button class="relay-server-btn" on:click={() => dispatch('openBilling', { server })}>
-							Plan & Usage
+							{uiText("shell.breadcrumb.planUsage")}
 						</button>
 					{/if}
 					<button class="relay-server-btn" on:click={() => dispatch('openAgentKeys', { server })}>
-						Agent Keys
+						{uiText("shell.breadcrumb.agentKeys")}
 					</button>
 				{/if}
 				<button class="relay-server-btn" on:click={() => startEditServer(server)}>
-					Edit
+					{uiText("serverList.editButton")}
 				</button>
 				{#if !isWellKnownServer(server.id)}
 					<button class="relay-server-btn mod-warning" on:click={() => removeServer(server.id)}>
-						Remove
+						{uiText("serverList.removeButton")}
 					</button>
 				{/if}
 			</div>
@@ -502,7 +515,7 @@
 						checked={server.id === defaultServerId}
 						on:change={() => toggleDefaultServer(server.id, server.id === defaultServerId)}
 					/>
-					<span>Default</span>
+					<span>{uiText("serverList.defaultBadge")}</span>
 				</label>
 			</div>
 		</div>
@@ -510,10 +523,10 @@
 
 	{#if isAddingServer || editingServer}
 		<div class="relay-server-form">
-			<h4>{editingServer ? "Edit Server" : "Add Server"}</h4>
+			<h4>{editingServer ? uiText("serverList.editServerTitle") : uiText("serverList.addServerTitle")}</h4>
 
 			<div class="relay-server-form-field">
-				<label for="control-plane-url">Control Plane URL</label>
+				<label for="control-plane-url">{uiText("serverList.controlPlaneUrlLabel")}</label>
 				<input
 					id="control-plane-url"
 					type="text"
@@ -523,21 +536,21 @@
 			</div>
 
 			<div class="relay-server-form-field">
-				<label for="server-name">Server Name (auto-detected if empty)</label>
+				<label for="server-name">{uiText("serverList.serverNameLabel")}</label>
 				<input
 					id="server-name"
 					type="text"
-					placeholder="Leave empty to auto-detect"
+					placeholder={uiText("serverList.autoDetectPlaceholder")}
 					bind:value={newServerName}
 				/>
 			</div>
 
 			<div class="relay-server-form-field">
-				<label for="relay-server-url">Relay Server URL (auto-detected if empty)</label>
+				<label for="relay-server-url">{uiText("serverList.relayServerUrlLabel")}</label>
 				<input
 					id="relay-server-url"
 					type="text"
-					placeholder="Leave empty to auto-detect"
+					placeholder={uiText("serverList.autoDetectPlaceholder")}
 					bind:value={newRelayServerUrl}
 				/>
 			</div>
@@ -548,14 +561,14 @@
 
 			<div class="relay-server-form-actions">
 				<button class="mod-cta" on:click={saveServer}>
-					{editingServer ? "Save Changes" : "Add Server"}
+					{editingServer ? uiText("serverList.saveChangesButton") : uiText("serverList.addServerTitle")}
 				</button>
-				<button on:click={cancelEdit}>Cancel</button>
+				<button on:click={cancelEdit}>{uiText("shared.cancelButton")}</button>
 			</div>
 		</div>
 	{:else}
 		<button class="relay-server-add-btn" on:click={startAddServer}>
-			+ Add Server
+			{uiText("serverList.addServerCta")}
 		</button>
 	{/if}
 </div>
