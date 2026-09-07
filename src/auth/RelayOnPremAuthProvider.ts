@@ -300,7 +300,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 
 		try {
 			// Step 1: Login and get access token
-			const loginResponse = await platformFetch(`${this.normalizedUrl}/auth/login`, {
+			const loginResponse = await platformFetch(`${this.normalizedUrl}/v1/auth/login`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -329,7 +329,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 			}
 
 			// Step 2: Get user information
-			const meResponse = await platformFetch(`${this.normalizedUrl}/auth/me`, {
+			const meResponse = await platformFetch(`${this.normalizedUrl}/v1/auth/me`, {
 				method: "GET",
 				headers: {
 					Authorization: `Bearer ${this.token}`,
@@ -482,7 +482,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 				this.tokenExpiresAt = Date.now() + refreshData.expires_in * 1000;
 
 				// Fetch updated user info
-				const meResponse = await platformFetch(`${this.normalizedUrl}/auth/me`, {
+				const meResponse = await platformFetch(`${this.normalizedUrl}/v1/auth/me`, {
 					method: "GET",
 					headers: {
 						Authorization: `Bearer ${this.token}`,
@@ -514,7 +514,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 				// Legacy mode: just verify the current token is still valid
 				this.log("No refresh token available, verifying current token");
 
-				const meResponse = await platformFetch(`${this.normalizedUrl}/auth/me`, {
+				const meResponse = await platformFetch(`${this.normalizedUrl}/v1/auth/me`, {
 					method: "GET",
 					headers: {
 						Authorization: `Bearer ${this.token}`,
@@ -577,7 +577,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 		if (this.token) {
 			try {
 				// Call logout endpoint
-				await platformFetch(`${this.normalizedUrl}/auth/logout`, {
+				await platformFetch(`${this.normalizedUrl}/v1/auth/logout`, {
 					method: "POST",
 					headers: {
 						Authorization: `Bearer ${this.token}`,
