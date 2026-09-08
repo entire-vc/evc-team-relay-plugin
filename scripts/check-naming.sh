@@ -21,13 +21,13 @@ set -euo pipefail
 # Measured 2026-08-23: the baseline's current HEAD has substantially more
 # src files than the pinned commit, so scoring against HEAD would flatter us
 # with names the baseline has since moved. Do not swap this for HEAD.
-FORK_POINT="d1b24af2"
-BASELINE_REPO="${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}"
+PINNED_COMMIT="${PINNED_COMMIT:?PINNED_COMMIT is not set - refusing to run a baseline gate with no baseline}"
+BASELINE_REPO="${BASELINE_REPO_URL:?BASELINE_REPO_URL is not set - refusing to run a baseline gate with no baseline}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="${PYTHON:-python3}"
 GATE="$REPO_ROOT/scripts/check-naming.py"
-BASELINE_REF="$FORK_POINT"
+BASELINE_REF="$PINNED_COMMIT"
 SELFTEST=0
 EXTRA=()
 while [[ $# -gt 0 ]]; do
