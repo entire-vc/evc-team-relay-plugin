@@ -218,7 +218,7 @@ export class RelayCredentialCache extends CredentialCache<DocumentGrant> {
 
 		// TR-09: mirror universalRefresh's isRelayOnPremMode/tokenProvider branch
 		// (RelayCredentialRefresh.ts) — this method previously always hit the
-		// System-3 API regardless of mode, so BlobClient.ts's verify/readFile/writeFile
+		// cloud-backend API regardless of mode, so BlobClient.ts's verify/readFile/writeFile
 		// silently used an empty API URL in relay-onprem builds.
 		const relayOnPremProvider = this.getRelayOnPremProvider(documentId);
 		if (this.isRelayOnPremMode && relayOnPremProvider) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate 4: NAMES shared with upstream — files, directories, types, members.
+"""Gate 4: NAMES shared with baseline — files, directories, types, members.
 
 Why a fourth gate. Gates 1-3 all read the CONTENTS of lines: similarity score,
 longest verbatim run, distinguishable retained lines. None of them looks at what
@@ -20,7 +20,7 @@ DECLARED, not used. `TFile` appears in both trees hundreds of times and is
 Obsidian's name; nobody declares it, so it never enters the count. This is the
 distinction that keeps the gate pointed at our own naming.
 
-The member axis ALSO compares a renamed class against its upstream
+The member axis ALSO compares a renamed class against its baseline
 PREDECESSOR (PREDECESSOR_TYPES below), not just against a same-named class
 -- required because "both trees declare that class" (line above) is
 impossible for a class we renamed, which silently removed its entire member
@@ -28,7 +28,7 @@ set from the ordinary comparison for as long as this gate existed (Mesh
 #a2f4027a). Renaming `RelayManager` to `RelayRegistry` does not, on its own,
 rename `subscribe()`/`buildRelayRoles()` inside it.
 
-Four baskets, per the epic convention (Mesh #f3eb7b30):
+Four baskets, per the epic convention (#f3eb7b30):
   contract    — a name we do not get to choose: the Obsidian plugin interface,
                 Svelte/DOM component API, the wire/DB field names kept
                 deliberately for compatibility, and vendored third-party files.
@@ -47,7 +47,7 @@ Four baskets, per the epic convention (Mesh #f3eb7b30):
                 (modulo the adjudicated exceptions named above).
 
 Usage:
-  check-naming.py <upstream_src> <our_src> [--max-work N] [--show-samples FILE]
+  check-naming.py <baseline_src> <our_src> [--max-work N] [--show-samples FILE]
                   [--json out.json] [--limit N]
 Exit 1 if the work basket exceeds --max-work (default: report only, exit 0).
 Exit 2 if the probe could not run — never reports clean when it failed to look.
@@ -63,7 +63,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 # Imported, not re-typed. check-verbatim-distinct.py (gate 3) says so in its own
 # comment: two hand-copies of one basket list drift apart silently, and we have
-# already paid for that once on this epic (Mesh #6b88fc6f point 5). If that file
+# already paid for that once on this epic (#6b88fc6f point 5). If that file
 # moves, this gate fails loudly rather than falling back to an empty set.
 def _load_gate3():
     path = os.path.join(HERE, 'check-verbatim-distinct.py')
@@ -96,13 +96,13 @@ VENDOR_FILES = _G3.VENDOR_FILES
 
 # Directories that ARE the vendored third-party code the VENDOR_FILES entries
 # live in. Kept as a separate, explicitly-listed set because the dir axis has no
-# per-file entry to match against. Each carries its own upstream LICENSE.
+# per-file entry to match against. Each carries its own baseline LICENSE.
 VENDOR_DIRS = frozenset({
     'y-codemirror.next',   # Kevin Jahns, y-codemirror.next
     'client',              # y-websocket-derived provider
     'storage',             # y-indexeddb
 })
-# 'pocketbase' left this set on 2026-08-23 (Mesh #84bd2a91): the directory is
+# 'pocketbase' left this set on 2026-08-23 (#84bd2a91): the directory is
 # gone from src/ entirely, so excusing its name excused nothing.
 
 # ---------------------------------------------------------------------------
@@ -176,7 +176,7 @@ SVELTE_LIFECYCLE = frozenset({
 
 # CodeMirror 6 mandates `update(ViewUpdate)` and `destroy()` on a PluginValue,
 # by those exact names. Scoped to classes that ARE plugin values -- the naming
-# convention upstream and we both follow -- rather than granted globally, which
+# convention baseline and we both follow -- rather than granted globally, which
 # is what let ~60 unrelated `destroy`s into the contract basket on first draft.
 CM_PLUGIN_MEMBERS = frozenset({'update', 'destroy'})
 
@@ -194,7 +194,7 @@ CM_PLUGIN_MEMBERS = frozenset({'update', 'destroy'})
 #
 # NB: only the MEMBERS are contract. The interface NAMES (`CanvasView` itself)
 # are ours -- nothing external requires that spelling -- so they stay in work.
-# UPDATED (Mesh #a2f4027a): `CanvasView`/`CanvasNode`/`CanvasEdge` were
+# UPDATED (#a2f4027a): `CanvasView`/`CanvasNode`/`CanvasEdge` were
 # themselves renamed to `HostCanvasView`/`HostCanvasNode`/`HostCanvasEdge` in a
 # later wave -- this set held the OLD names, so it silently stopped matching
 # anything (`cls in STRUCTURAL_EXTERNAL_TYPES` fails for `HostCanvasView`,
@@ -205,7 +205,7 @@ CM_PLUGIN_MEMBERS = frozenset({'update', 'destroy'})
 # still dead. `CanvasNodeData`/`CanvasEdgeData`/`CanvasData` were NOT renamed
 # (by design -- see CONVERGENT_TYPES's platform test) and are correctly still
 # their original names.
-# UPDATED (W16, Mesh #2e075374): `HostCanvas` itself (predecessor `Canvas` ->
+# UPDATED (W16, #2e075374): `HostCanvas` itself (predecessor `Canvas` ->
 # `ObsidianCanvas` -> `HostCanvas`, per PREDECESSOR_TYPES) was MISSING from
 # this set entirely -- not a stale entry like the four above, just never
 # added when the class-rename-residue basket was introduced, so its 9
@@ -330,13 +330,13 @@ def _reaches_obsidian_base(cls, bases, seen=None):
 # three interfaces with byte-identical field sets, serving them from
 # `.well-known/relay.md/license`. We kept the shape and changed only the
 # path segment to `.well-known/evc-team-relay/license`. So these are the
-# baseline's design copied verbatim -- the exact thing this gate exists to surface, not an
+# baseline's design carried over unchanged -- the exact thing this gate exists to surface, not an
 # obligation that survives it. `LicenseInfo` is not even on the wire: it is
 # constructed locally from a decoded JWT. Excusing 8 names on an unverified
 # claim about deployed customer servers is how the contract basket got a third
 # too big twice already (606 -> 466 -> 395). If someone re-raises this, the
 # burden is a named third party actually speaking our path, not plausibility.
-# UPDATED (Mesh #a2f4027a): 6 of these entries held OLD names of types that
+# UPDATED (#a2f4027a): 6 of these entries held OLD names of types that
 # were themselves renamed in a later wave -- same dead-reference failure as
 # STRUCTURAL_EXTERNAL_TYPES above, found by the same measurement (does the
 # entry name still resolve to a DECLARED type in our current tree? six did
@@ -379,7 +379,7 @@ WIRE_SHAPE_TYPES = frozenset({
     # `RelayOnPremSettings.servers: RelayOnPremServer[]`.
     'AttachmentToggles', 'RelayOnPremServer',
     # relay token payloads. Added 2026-08-23 with the de-vendoring of
-    # client/types.ts (Mesh #84bd2a91) -- these 18 field names WERE excused
+    # client/types.ts (#84bd2a91) -- these 18 field names WERE excused
     # before, but as "vendored third-party", which was the wrong reason. The
     # right one is that they are the token JSON itself, and the proof is a
     # direct unmapped cast: RelayCredentialCache.ts:202 does
@@ -388,7 +388,7 @@ WIRE_SHAPE_TYPES = frozenset({
     # object -- a cast asserts, it does not validate. The sibling path
     # (RelayOnPremTokenProvider.ts) builds a DocumentGrant field by field and
     # would survive a rename; one unmapped cast is enough to fix the names.
-    # UPDATED (Mesh #a2f4027a): the TYPE names themselves were ClientToken/
+    # UPDATED (#a2f4027a): the TYPE names themselves were ClientToken/
     # FileToken when this was written ("ours and stay in the work basket");
     # both were renamed since, to DocumentGrant/FileGrant (relay/TokenShapes.ts),
     # and the file holding the unmapped cast was itself renamed
@@ -396,7 +396,7 @@ WIRE_SHAPE_TYPES = frozenset({
     # current; the type-axis rename this comment anticipated already happened.
     'DocumentGrant', 'FileGrant',
     #
-    # W-axis2-tail (Mesh #6489249d). Seven types, each with its own unmapped
+    # W-axis2-tail (#6489249d). Seven types, each with its own unmapped
     # read/write, not grouped by guesswork from the shape of the name --
     # exactly the standard the FileGrant/DocumentGrant entry above set and
     # the axis-2 planning note (#df095a62) warned not to skip: enumerate the
@@ -478,7 +478,7 @@ WIRE_SHAPE_TYPES = frozenset({
 # silently excuses names nobody re-examines. Revisit if the count grows.
 
 # ---------------------------------------------------------------------------
-# W0b adjudication (Mesh #1268d259). Three tests, applied in this order:
+# W0b adjudication (#1268d259). Three tests, applied in this order:
 #
 #   B / contract  — the NAME ITSELF is the binding: renaming it breaks something
 #                   outside our control. Almost nothing qualifies. A type whose
@@ -526,7 +526,7 @@ CONTRACT_TYPES = frozenset({
 #            (`obsidian`, `svelte`), and it declares the SAME NAME for the SAME
 #            CONCEPT -- verified by opening both declarations, not by the word.
 #            This is the innocent cause from the card's category B: we and
-#            upstream reach for the word because we both build on that platform.
+#            baseline reach for the word because we both build on that platform.
 #            Naming this test explicitly is a correction -- these names used to
 #            ride in on the corpus test, which they do not pass.
 #
@@ -930,7 +930,7 @@ def collect(root, files):
 
 
 # ---------------------------------------------------------------------------
-# W8 adjudication (Mesh #4a73e623, decided in the wave's own comment). Member-
+# W8 adjudication (#4a73e623, decided in the wave's own comment). Member-
 # level exceptions, gate 3's ADJUDICATED convention applied to this axis.
 # None of these is 'contract': nothing external fixes any of these names, we
 # are free to rename every one of them. They sit here because renaming them
@@ -939,14 +939,14 @@ def collect(root, files):
 # outside our control requires the spelling. A future wave can move any
 # entry back to work by deleting it here and doing the rename.
 #
-# W9 (Mesh #cf371fdf) closed 4 of the 15 W8 entries: `SyncableEntry.{cleanup,
+# W9 (#cf371fdf) closed 4 of the 15 W8 entries: `SyncableEntry.{cleanup,
 # move}` -> `dispose`/`relocate`, `MimeTyped.mimetype` -> `mimeType`, and
 # `Settings.notifyListeners` -> `notifySubscribers` (OWN_BASE_CLASS_ADJUDICATED,
 # now empty and removed, dict deleted below). `SyncableEntry.{connect,destroy,
-# path}` were NOT closed then; W10 (Mesh #d9031010 + #b1cd12e0) closed all
+# path}` were NOT closed then; W10 (#d9031010 + #b1cd12e0) closed all
 # three in the dedicated pass W9 asked for.
 #
-#   - `connect`/`destroy`: CLOSED W10, 2026-08-27 (Mesh #d9031010) ->
+#   - `connect`/`destroy`: CLOSED W10, 2026-08-27 (#d9031010) ->
 #     `bringOnline`/`dismantle`. The hazard W9 named was real:
 #     `ProviderBacked.connect()`/`.destroy()` also call
 #     `this._provider.connect()` / `this._provider.destroy()` (a REAL
@@ -966,7 +966,7 @@ def collect(root, files):
 #     that the external objects are still reached under `connect`/`destroy`
 #     and never under the new names -- something `tsc` cannot check on a
 #     structurally-typed provider.
-#   - `path`: CLOSED W10, 2026-08-27 (Mesh #b1cd12e0) -- renamed to
+#   - `path`: CLOSED W10, 2026-08-27 (#b1cd12e0) -- renamed to
 #     `entryPath` on `SyncableEntry` and every implementor, together with
 #     `Document`'s six TFILE_MIRROR names (that class's row removed from the
 #     basket below; `AttachmentFile`'s six -- added independently by W17,
@@ -984,10 +984,10 @@ def collect(root, files):
 #     container entries are addressed against, not an entry) and overrides
 #     `getVaultPath()` instead.
 #
-# `guid`/`disconnect` (added W14, Mesh #0b72373d -- restated as W17 a few
+# `guid`/`disconnect` (added W14, #0b72373d -- restated as W17 a few
 # lines below in an earlier pass of this comment) and `Disposable.destroy`
 # were OUT OF SCOPE for W10, which touched only `connect`/`destroy`/`path`.
-# `guid`/`disconnect` CLOSED (Mesh #fe4e6843, W22 follow-up): `SyncableEntry`
+# `guid`/`disconnect` CLOSED (#fe4e6843, W22 follow-up): `SyncableEntry`
 # renamed to `entityGuid`/`goOffline` together with every declaration that
 # shared its exact spelling -- not "four implementors with their own
 # copies" as first assumed, but three thin compat aliases (`Document`,
@@ -1006,7 +1006,7 @@ def collect(root, files):
 # renamed *parameter* there, independent of this interface, is the actual
 # hazard -- confirmed red/green by trying it).
 OWN_INTERFACE_ADJUDICATED = {
-    # W14 (Mesh #0b72373d). `Disposable` (src/ui/treeVisitor.ts:22) is OURS --
+    # W14 (#0b72373d). `Disposable` (src/ui/treeVisitor.ts:22) is OURS --
     # one method, `destroy(): void` -- and is therefore renameable in
     # principle, which is exactly why it sits here rather than in
     # DECLARED_INTERFACE_CONTRACTS above. It is not renamed THIS wave because
@@ -1029,7 +1029,7 @@ OWN_INTERFACE_ADJUDICATED = {
     # and `ProviderBacked.destroy()` -- four unrelated authorities sharing one
     # verb.
     'Disposable': frozenset({'destroy'}),
-    # W-axis2-C (Mesh #0de35c1c). `PropertiesEditorSync`/`ReadingViewSync`
+    # W-axis2-C (#0de35c1c). `PropertiesEditorSync`/`ReadingViewSync`
     # both `implements DocumentSurfaceSync` (viewSync/DocumentSurfaceSync.ts)
     # -- `render`/`destroy` are declared on the interface (:11,:14), not
     # chosen freely by either implementor. The interface is consumed
@@ -1043,9 +1043,9 @@ OWN_INTERFACE_ADJUDICATED = {
     # declarations), not assumed from the `implements` clause being present
     # in source.
     'DocumentSurfaceSync': frozenset({'render', 'destroy'}),
-    # W-axis2-B (Mesh #d934b4b9). Notifier<T> `implements Subscribable<T>`
+    # W-axis2-B (#d934b4b9). Notifier<T> `implements Subscribable<T>`
     # (notifiers/Notifier.ts:34) -- `on`/`off` are declared on the interface
-    # (:13,15), not chosen freely by Notifier itself. Upstream's own
+    # (:13,15), not chosen freely by Notifier itself. Baseline's own
     # `IObservable` declares `on, subscribe, off, unsubscribe`; our
     # `Subscribable` already diverged on the fourth member
     # (`unsubscribe`->`dropSubscriber`, a prior wave), but `on`/`subscribe`/
@@ -1061,7 +1061,7 @@ OWN_INTERFACE_ADJUDICATED = {
     # renamed; not this wave's decision to make alone.
     'Subscribable': frozenset({'on', 'off'}),
 }
-# NOTE (W20, Mesh #b8f7818d): SettingsScope<T> extends Notifier<T>
+# NOTE (W20, #b8f7818d): SettingsScope<T> extends Notifier<T>
 # (src/SettingsPersistence.ts:246) and overrides `destroy()`/`subscribe()`
 # from the base -- already covered generically by
 # OWN_BASE_CLASS_ADJUDICATED['Notifier'] below (every direct Notifier
@@ -1070,13 +1070,13 @@ OWN_INTERFACE_ADJUDICATED = {
 # SVELTE_STORE_MEMBERS.
 
 # TFILE_MIRROR_ADJUDICATED (`Document.{name,extension,basename,stat,vault,
-# parent}`) is CLOSED W10, 2026-08-27 (Mesh #b1cd12e0) and its row removed
+# parent}`) is CLOSED W10, 2026-08-27 (#b1cd12e0) and its row removed
 # below. `Document` no longer mirrors `TFile`'s shape: the six are now
 # `docLabel`, `docSuffix`, `docStem`, `fileMetrics`, `obsidianVault` and
 # `parentFolder`, so the class is no longer structurally assignable to
 # `TFile` at all (`find-tfile-document-duck-typing.mjs` prints
 # `Document assignable to TFile (structural)? false`). `AttachmentFile`'s
-# identical six-member row (added W17, Mesh #d1ec15d8, after this branch
+# identical six-member row (added W17, #d1ec15d8, after this branch
 # forked -- see below) is NOT part of W10's scope and remains open.
 #
 # W9's reason for deferring `Document`'s row was that the tsc-iterate method
@@ -1090,7 +1090,7 @@ OWN_INTERFACE_ADJUDICATED = {
 # at all; it does now (`__tests__/fileDiffView.test.ts`), written and shown
 # red against the renamed shape before the narrowing landed.
 #
-# UPDATE (W9, Mesh #cf371fdf): the prior version of this comment said "grep
+# UPDATE (W9, #cf371fdf): the prior version of this comment said "grep
 # -rn 'as TFile\b|as unknown as TFile' src/ found zero casts, so no CONFIRMED
 # duck-typed consumer exists on this tree today" -- THAT IS NOW KNOWN FALSE,
 # not just theoretically incomplete. A type-aware scan (TS compiler API,
@@ -1114,7 +1114,7 @@ OWN_INTERFACE_ADJUDICATED = {
 # assignment needs no cast to compile, so grepping for `as TFile` was never
 # going to find it regardless of how carefully it was run.
 #
-# UPDATE (W17, Mesh #d1ec15d8): `AttachmentFile` added. Its case is stronger
+# UPDATE (W17, #d1ec15d8): `AttachmentFile` added. Its case is stronger
 # than `Document`'s above, not just similar: `AttachmentFile` carries an
 # EXPLICIT `implements TFile` clause (`AttachmentFile.ts`), so these six
 # field names are not merely a duck-typing risk somewhere downstream -- they
@@ -1126,7 +1126,7 @@ TFILE_MIRROR_ADJUDICATED = {
     'AttachmentFile': frozenset({'name', 'extension', 'basename', 'stat', 'vault', 'parent'}),
 }
 
-# CLOSED (Mesh #6f9a8eb0, 2026-08-28): the "this vault entry belongs to a
+# CLOSED (#6f9a8eb0, 2026-08-28): the "this vault entry belongs to a
 # VaultShare" convention used to be spelled `sharedFolder` verbatim on
 # `Document`, `TrackedFolder`, `TransferBatch`, `CanvasDocument`, and
 # `AttachmentFile` alike -- all five renamed to `vaultShare` together
@@ -1142,7 +1142,7 @@ TFILE_MIRROR_ADJUDICATED = {
 # Members a class only OVERRIDES -- the name is declared on a base class of
 # ours, so the subclass cannot rename it in isolation and a polymorphic caller
 # never sees the subclass's spelling anyway. W8 had a dict of this shape and
-# emptied it in W9; W14 (Mesh #0b72373d) needs it again, for a much broader
+# emptied it in W9; W14 (#0b72373d) needs it again, for a much broader
 # case than W8's single entry.
 #
 # MEASURED before adding: `destroy()` is DECLARED 64 times across src/. It is
@@ -1163,7 +1163,7 @@ OWN_BASE_CLASS_ADJUDICATED = {
     'Notifier': frozenset({'destroy'}),
     'NotifierSet': frozenset({'destroy'}),
     # W14: `VaultShare extends ProviderBacked` and overrides exactly these
-    # four. `ProviderBacked` is W18's board (Mesh #a73c16d4's auth/credentials
+    # four. `ProviderBacked` is W18's board (#a73c16d4's auth/credentials
     # wave), and an override cannot be renamed without its base: the base
     # declaration keeps the old spelling, every polymorphic caller goes through
     # the base type, and TypeScript rejects the subclass member outright.
@@ -1194,8 +1194,8 @@ CONVENTION_ADJUDICATED = {
     # featureToggleState, CanvasViewPatch, CanvasDocument) -- verified by grep,
     # not assumed from one prior sighting. Renaming CanvasDocument's copy alone
     # would fragment that same-purpose vocabulary from every sibling that
-    # isn't in scope here, for a name upstream's own `Canvas` class also
-    # happened to use (coincidence of a common pattern, not evidence upstream
+    # isn't in scope here, for a name baseline's own `Canvas` class also
+    # happened to use (coincidence of a common pattern, not evidence baseline
     # invented the convention). A plugin-wide rename of all ~10 classes is its
     # own unit of work.
     'CanvasDocument': frozenset({'_parent', 'unsubscribes'}),
@@ -1214,10 +1214,10 @@ CONVENTION_ADJUDICATED = {
     # Deferred here rather than renamed in isolation; a future wave doing
     # `ProviderBacked` (still in CLASS_RENAME_RESIDUE_DEFERRED below) is the
     # natural place to rename `s3rn` on all five classes together.
-    # Wire-protocol half of `.s3rn` tracked separately at Mesh #f0e674e7.
+    # Wire-protocol half of `.s3rn` tracked separately at #f0e674e7.
     'AttachmentFile': frozenset({'_parent', 's3rn'}),
     #
-    # W20 (Mesh #b8f7818d): Obsidian's `PluginSettingTab`/`SettingTab` base
+    # W20 (#b8f7818d): Obsidian's `PluginSettingTab`/`SettingTab` base
 # (obsidian.d.ts) documents its default `getControlValue`/`setControlValue`
 # as reading/writing through `this.plugin` ("Reads from `this.plugin.settings`.
 # Override to read from a different data source."), which means the running
@@ -1228,7 +1228,7 @@ CONVENTION_ADJUDICATED = {
 # own `plugin` field would decouple OUR copy from whatever the base class
 # keeps calling `this.plugin` under the hood, with nothing to catch it if a
 # future change (ours or Obsidian's) starts relying on that base behavior.
-# W20 (Mesh #b8f7818d): `RelayOnPremShareClient.ts` declares its OWN, unrelated
+# W20 (#b8f7818d): `RelayOnPremShareClient.ts` declares its OWN, unrelated
 # `interface Account` (a relay-onprem control-plane wire response: `id`,
 # `email`, `name`, `is_admin`, `is_active`, `created_at`) that happens to share
 # the class name `Account` with `src/Account.ts`'s renamed presence-account
@@ -1242,7 +1242,7 @@ CONVENTION_ADJUDICATED = {
 # might grow under the same name.
     'RelaySettingsPage': frozenset({'plugin'}),
     'Account': frozenset({'id', 'email', 'name'}),
-    # W22 (Mesh #d61384ba): `ExplorerDecorationCoordinator` shares the
+    # W22 (#d61384ba): `ExplorerDecorationCoordinator` shares the
     # `unsubscribes` convention named above on `CanvasDocument` -- but
     # verified narrower than that entry's own "VaultShare, TextViewPatch, ...
     # CanvasViewPatch, CanvasDocument" list claims (that list predates this
@@ -1268,7 +1268,7 @@ CONVENTION_ADJUDICATED = {
     # entry rather than riding that basket.
     'ExplorerDecorationCoordinator': frozenset({'unsubscribes'}),
     #
-    # W-axis2-C (Mesh #0de35c1c). Implements the table from #df095a62 for the
+    # W-axis2-C (#0de35c1c). Implements the table from #df095a62 for the
     # Disposable/destroy family's non-rename lines. `destroy` itself is the
     # codebase's single lifecycle verb (measured in the adjudication task:
     # declared 64 times across src/, also Svelte's `$destroy()`, Yjs's
@@ -1302,7 +1302,7 @@ CONVENTION_ADJUDICATED = {
     # chosen by both classes plus >=5 unrelated classes elsewhere in src/
     # (Notifier, LiveEditPlugin, RemoteSelections, LiveNodePlugin,
     # NotifierMap, SettingsPersistence per the wave-B registration above) --
-    # generic lifecycle vocabulary, not upstream-specific. Their sibling
+    # generic lifecycle vocabulary, not baseline-specific. Their sibling
     # `render`/`destroy` members are OWN_INTERFACE (DocumentSurfaceSync,
     # above), NOT repeated here.
     'BlobClient': frozenset({'destroy'}),
@@ -1313,7 +1313,7 @@ CONVENTION_ADJUDICATED = {
     'ViewNoticeBar': frozenset({'destroy'}),
     'PropertiesEditorSync': frozenset({'destroyed'}),
     'ReadingViewSync': frozenset({'destroyed'}),
-    # W-axis2-B (Mesh #d934b4b9). `Notifier.{_listeners, destroyed,
+    # W-axis2-B (#d934b4b9). `Notifier.{_listeners, destroyed,
     # unsubscribes}` -- `destroy` itself is separately covered by
     # OWN_BASE_CLASS_ADJUDICATED['Notifier'] above, NOT repeated here; the
     # parent card explicitly warns not to assume `destroyed`/`unsubscribes`
@@ -1330,7 +1330,7 @@ CONVENTION_ADJUDICATED = {
     #     LiveEditPlugin, RemoteSelections, LiveNodePlugin, NotifierMap (its
     #     own copy despite extending Notifier) and SettingsPersistence -- the
     #     same generic "torn-down" boolean flag chosen independently by at
-    #     least 7 unrelated classes, not upstream-specific vocabulary.
+    #     least 7 unrelated classes, not baseline-specific vocabulary.
     #   - `_listeners`: the ONE line here that is genuinely Notifier's own,
     #     not shared with any sibling (grep across src/ finds it declared
     #     nowhere else, `protected`, never read outside Notifier.ts itself).
@@ -1341,7 +1341,7 @@ CONVENTION_ADJUDICATED = {
     #     renaming the storage without revisiting the interface it backs
     #     would just be cosmetic churn on a base class already flagged as a
     #     future wave's work, not this one's.
-    #   - `destroy`: bounced back by review (Mesh #d934b4b9) -- assumed
+    #   - `destroy`: bounced back by review (#d934b4b9) -- assumed
     #     covered by OWN_BASE_CLASS_ADJUDICATED['Notifier'] above (line
     #     ~1080) without reading `_adjudicated_member`'s actual mechanism
     #     first. That dict is keyed by a class's DIRECT BASE (`ifaces =
@@ -1358,7 +1358,7 @@ CONVENTION_ADJUDICATED = {
 }
 
 # Members that override a REAL method Obsidian's own base `Plugin` class
-# declares (not just a name that happens to match upstream's custom `Live`
+# declares (not just a name that happens to match baseline's custom `Live`
 # class). `TeamRelayPlugin.removeCommand(command: string): void` shims the
 # pre-1.7.2 Obsidian API gap (`requireApiVersion("1.7.2")` branches to
 # `super.removeCommand(command)` on newer hosts, hand-rolls the removal via
@@ -1376,7 +1376,7 @@ BASE_CLASS_OVERRIDE_ADJUDICATED = {
 }
 
 
-# OVERRIDE_CONTRACT_ADJUDICATED (Mesh #f34f11d3, closed 2026-08-28) used to
+# OVERRIDE_CONTRACT_ADJUDICATED (#f34f11d3, closed 2026-08-28) used to
 # hold `NotifierMap.unsubscribe`: an override of `Notifier.unsubscribe` (part
 # of the `Subscribable<T>` interface, `src/notifiers/Notifier.ts`) whose base
 # and third override link (`FilteredMap.unsubscribe`, same file) sat outside
@@ -1390,20 +1390,20 @@ BASE_CLASS_OVERRIDE_ADJUDICATED = {
 # convention's check in `_adjudicated_member` are removed rather than kept
 # empty, per the convention every ADJUDICATED basket in this file follows.
 #
-# The general convention (a member that is upstream vocabulary on its own
+# The general convention (a member that is baseline vocabulary on its own
 # class but ALSO overrides a same-named method on a base class outside the
 # current wave's board) may recur on a future wave -- re-add a basket named
 # for its own reason if it does, rather than reviving this one by name.
 
 
 # ---------------------------------------------------------------------------
-# Class-rename residue (Mesh #a2f4027a). Structural gap in the member axis
+# Class-rename residue (#a2f4027a). Structural gap in the member axis
 # above, distinct from every basket before this point: `shared_members` (in
 # main(), below) only pairs (cls, member) when BOTH trees declare the SAME
 # class name. Renaming a class -- something this epic has done to dozens of
 # classes across 13 waves -- silently drops its entire member set out of
 # that comparison, because the DICT KEY (the class name) stops matching, not
-# because the members stopped being upstream's vocabulary. This was read
+# because the members stopped being baseline's vocabulary. This was read
 # throughout the epic as "renaming a type sweeps its members out for free"
 # (wave-plan.py's own docstring says so) and used as a convenience; it
 # actually means the members stopped being VISIBLE to the gate. W8 covered
@@ -1413,7 +1413,7 @@ BASE_CLASS_OVERRIDE_ADJUDICATED = {
 # had: class RENAMED, members untouched, invisible since the day the rename
 # landed.
 #
-# PREDECESSOR_TYPES maps OUR current class name -> the upstream class name
+# PREDECESSOR_TYPES maps OUR current class name -> the baseline class name
 # it replaced, so main() can additionally intersect our_members[ours]
 # against up_members[predecessor] -- a second membership test the ordinary
 # shared_members loop cannot express on its own, since that loop needs one
@@ -1421,10 +1421,10 @@ BASE_CLASS_OVERRIDE_ADJUDICATED = {
 # them by definition.
 #
 # MEASURED, not recalled from memory or reconstructed from wave history: for
-# every class in our tree with no upstream class of the same name, and every
-# upstream class with no successor of the same name in ours, scored by RAW
+# every class in our tree with no baseline class of the same name, and every
+# baseline class with no successor of the same name in ours, scored by RAW
 # COUNT of shared non-generic member names -- not the ratio (Jaccard), which
-# systematically UNDERCOUNTS a big upstream class absorbed into an even
+# systematically UNDERCOUNTS a big baseline class absorbed into an even
 # bigger one of ours. Worked example: `LoginManager` (28 members) ->
 # `AuthSession` (45 members, only ~14 of them carried over from LoginManager,
 # the rest grown independently across 13 waves) scores a LOW ratio (0.25)
@@ -1437,12 +1437,12 @@ BASE_CLASS_OVERRIDE_ADJUDICATED = {
 # 2-field DTOs both declaring `id`/`name`) can score a coincidental 1.0 with
 # no rename relationship at all. Some low-count matches at the tail of the
 # full scan (Modal subclasses sharing only `onOpen`/`onClose`/`plugin` --
-# Obsidian's own lifecycle names, not upstream-specific vocabulary; generic
+# Obsidian's own lifecycle names, not baseline-specific vocabulary; generic
 # storage interfaces sharing only `getData`/`setData`) were excluded on
 # exactly this basis and are NOT in this table -- a further precision pass
 # over that noisier tail is real remaining work, named rather than silently
 # skipped (see the Mesh task's own closing comment for the cut line used).
-# Axis-2 addendum (Mesh #f810d51d, 29.08.2026): 54 of the 66 residue pairs
+# Axis-2 addendum (#f810d51d, 29.08.2026): 54 of the 66 residue pairs
 # (class+INTERFACE successors alike -- the member axis's stack-based extract()
 # never distinguished class/interface, so find-renamed-class-predecessors.py
 # was never structurally blind to interfaces; the residue was simply that
@@ -1451,23 +1451,23 @@ BASE_CLASS_OVERRIDE_ADJUDICATED = {
 # candidates were rejected as coincidental -- shared vocabulary that is
 # either an Obsidian Modal-lifecycle convention (onOpen/onClose/plugin) or
 # a generic record/DTO shape (id/name/email, appId/path/relay) rather than
-# upstream-specific wording, OR the upstream class already has a stronger,
+# baseline-specific wording, OR the baseline class already has a stronger,
 # separately-confirmed successor (LoginManager->AuthSession,
 # TenantConfig->TenantRecord, StoreAnalysis->ObjectStoreReport,
 # ToastMessage->FlashMessage) that the coincidental match would have
 # duplicated. Two entries (OperationBase, and originally SettingsBackend +
 # SettingsBackendBase) corrected the diagnostic tool's top-ranked candidate:
-# both had MULTIPLE upstream classes tied at the same (shared-count, score)
+# both had MULTIPLE baseline classes tied at the same (shared-count, score)
 # -- find-renamed-class-predecessors.py's tie-break falls through to Python
 # `set` iteration order, which is not deterministic run-to-run under hash
-# randomization -- and the semantically correct match (the upstream BASE
+# randomization -- and the semantically correct match (the baseline BASE
 # interface each tied variant/implementer itself derives from: `Operation`,
 # not one variant `Upgrade`; `ISettingsStorage`, not one implementer
 # `ObsidianSettingsStorage`) had to be picked by reading, same as any other
-# entry. Full per-pair reasoning (all 66, both directions): Mesh #f810d51d.
+# entry. Full per-pair reasoning (all 66, both directions): #f810d51d.
 # SettingsBackend/SettingsBackendBase/VaultSettingsBackend/
 # InMemorySettingsBackend (and their PREDECESSOR_TYPES + adjudication
-# entries) were later deleted outright as dead code -- Mesh #f3902463, zero
+# entries) were later deleted outright as dead code -- #f3902463, zero
 # callers anywhere outside their own declaration file, confirmed by grep
 # and by the production bundle: not literally byte-identical (removing the
 # declarations shifts esbuild's minified LOCAL BINDING numbering globally,
@@ -1608,7 +1608,7 @@ PREDECESSOR_TYPES = {
 
 # Of the 74 classes in PREDECESSOR_TYPES above, 64 still had members left
 # over after the ordinary contract/generic/convergent classification (i.e.
-# real, specific upstream vocabulary -- not just a coincidentally-shared
+# real, specific baseline vocabulary -- not just a coincidentally-shared
 # framework or storage-interface verb) when this basket was built. Renaming
 # those classes' members safely means the SAME per-call-site tracing every
 # gate-4 wave has always needed (a member name can collide with an unrelated
@@ -1624,15 +1624,15 @@ PREDECESSOR_TYPES = {
 # below, and the full per-member breakdown is already measured and attached
 # to the tracking task rather than duplicated into a giant comment here.
 #
-# W21 (Mesh #61c5c11a) closed 6 of the 64: `NotifierMap`, `NotifierSet`,
+# W21 (#61c5c11a) closed 6 of the 64: `NotifierMap`, `NotifierSet`,
 # `NotificationDispatcher`, `PatchRegistry`, `Clock`, `SystemClock` -- all 64
 # of their combined members renamed except `NotifierMap.unsubscribe`, left
 # adjudicated at the time (the now-removed OVERRIDE_CONTRACT_ADJUDICATED
 # basket, above) because its override chain reached `Notifier`/`Subscribable`
-# and `FilteredMap.unsubscribe`, outside W21's board. Mesh #f34f11d3 closed
+# and `FilteredMap.unsubscribe`, outside W21's board. #f34f11d3 closed
 # that deferral by renaming the whole chain together.
 #
-# W22 (Mesh #d61384ba) closes the 8 that were actually enumerated in this
+# W22 (#d61384ba) closes the 8 that were actually enumerated in this
 # set: `ExplorerDecorationCoordinator`, `ExternalLinkPluginValue`,
 # `PresenceTitleDecorator`, `SuggestPickerModal`, `ServiceHealthMonitor`,
 # `KindRegistry`, `ObjectStoreReport`, `SyncableEntry` -- 60 of their combined
@@ -1641,7 +1641,7 @@ PREDECESSOR_TYPES = {
 # leaves this basket, so needed no rename at all; `SyncableEntry`'s
 # `guid`/`disconnect` and `ExplorerDecorationCoordinator`'s `unsubscribes`
 # needed their own `CONVENTION_ADJUDICATED` entries instead -- see there for
-# why, and Mesh #fe4e6843 for the follow-up that closes the former). The set
+# why, and #fe4e6843 for the follow-up that closes the former). The set
 # is now empty: the much larger PREDECESSOR_TYPES-derived backlog this
 # comment block's own history describes was never fully enumerated as
 # literal entries here (measured, not enumerated, per the block above) --
@@ -1784,7 +1784,7 @@ def main():
         for name in sorted(set(up_members[cls]) & set(our_members[cls])):
             shared_members.append((cls, name,
                                    sorted(our_members[cls][name])[0]))
-    # Class-rename residue (Mesh #a2f4027a, PREDECESSOR_TYPES above): the loop
+    # Class-rename residue (#a2f4027a, PREDECESSOR_TYPES above): the loop
     # above requires the SAME class name in both dicts, which a renamed class
     # can never satisfy. Compare OUR renamed class's members against its
     # PREDECESSOR's members instead -- a different key in up_members than the
@@ -1822,7 +1822,7 @@ def main():
                      'basket': 'contract' if basket_file(where) == 'contract'
                      else basket_name(n, 'member', where, cls, our_bases, our_zero_arg)})
 
-    print(f"upstream src files: {len(up_files):4d}   ours: {len(our_files):4d}")
+    print(f"baseline src files: {len(up_files):4d}   ours: {len(our_files):4d}")
     print()
     print(f"{'axis':8s} {'shared':>7s} {'contract':>9s} {'converged':>10s} "
           f"{'adjudicat':>10s} {'work':>7s}")
@@ -1872,7 +1872,7 @@ def main():
         print(f"\nfull classified list -> {samples_to}")
     if out_json:
         with open(out_json, 'w', encoding='utf-8') as fh:
-            json.dump({'upstream_files': len(up_files),
+            json.dump({'baseline_files': len(up_files),
                        'our_files': len(our_files),
                        'rows': rows,
                        'work': len(work), 'contract': len(contract),

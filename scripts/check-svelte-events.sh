@@ -9,7 +9,7 @@
 #   ./scripts/check-svelte-events.sh --update-baseline
 #   ./scripts/check-svelte-events.sh --self-test      # controls; run before trusting it
 #
-# Background: Mesh #8c9a4223. A Svelte producer/consumer event pair is
+# Background: #8c9a4223. A Svelte producer/consumer event pair is
 # joined by nothing but two string literals in two different files
 # (`dispatch("name", ...)` / `on:name={handler}`), and nothing in this
 # repo's gates checks that match -- confirmed by renaming a definitely-LIVE

@@ -8,7 +8,7 @@
 #   ./scripts/check-svelte-types.sh --update-baseline
 #   ./scripts/check-svelte-types.sh --self-test      # controls; run before trusting it
 #
-# Background: Mesh #acf0e621. Two real runtime bugs (renamed class members
+# Background: #acf0e621. Two real runtime bugs (renamed class members
 # read stale in NavTrail.svelte / FolderPathAutocomplete.svelte) shipped past
 # tsc/jest/lint/build/check-naming.sh because none of them ever look inside a
 # .svelte file. This closes that blind spot with svelte-check, ratcheted
@@ -47,7 +47,7 @@ if [[ "$SELFTEST" == "1" ]]; then
 
   echo
   echo "-- POSITIVE control: revert NavTrail.svelte's VaultShare.name -> .folderLabel"
-  echo "   rename (the actual historical bug, Mesh #acf0e621). The gate MUST go red."
+  echo "   rename (the actual historical bug, #acf0e621). The gate MUST go red."
   sed -i.bak 's/{item\.folder\.folderLabel}/{item.folder.name}/' "$WORK/probe/src/components/NavTrail.svelte"
   if diff -q "$WORK/probe/src/components/NavTrail.svelte" "$WORK/probe/src/components/NavTrail.svelte.bak" >/dev/null; then
     echo "   FATAL: sed did not change NavTrail.svelte -- probe file layout drifted, self-test cannot proceed"; exit 2

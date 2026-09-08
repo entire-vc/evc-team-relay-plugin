@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gate 4 of the whole-file similarity legal gates (Mesh #f3eb7b30): how many
+# Gate 4 of the whole-file similarity legal gates (#f3eb7b30): how many
 # NAMES our src/ still shares with the baseline tree — files, directories,
 # types, class members, exports.
 #
@@ -22,17 +22,17 @@ set -euo pipefail
 # src files than the pinned commit, so scoring against HEAD would flatter us
 # with names the baseline has since moved. Do not swap this for HEAD.
 FORK_POINT="d1b24af2"
-UPSTREAM_REPO="${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}"
+BASELINE_REPO="${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="${PYTHON:-python3}"
 GATE="$REPO_ROOT/scripts/check-naming.py"
-UPSTREAM_REF="$FORK_POINT"
+BASELINE_REF="$FORK_POINT"
 SELFTEST=0
 EXTRA=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --upstream) UPSTREAM_REF="$2"; shift 2 ;;
+    --baseline) BASELINE_REF="$2"; shift 2 ;;
     --self-test) SELFTEST=1; shift ;;
     *) EXTRA+=("$1"); shift ;;
   esac
@@ -41,17 +41,17 @@ done
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-echo "== cloning upstream $UPSTREAM_REPO ..."
-git clone --quiet "$UPSTREAM_REPO" "$WORK/upstream" \
-  || { echo "FATAL: upstream clone failed"; exit 2; }
-if [[ "$UPSTREAM_REF" == "HEAD" ]]; then
-  UPSTREAM_SHA="$(git -C "$WORK/upstream" rev-parse --short HEAD)"
+echo "== cloning baseline $BASELINE_REPO ..."
+git clone --quiet "$BASELINE_REPO" "$WORK/baseline" \
+  || { echo "FATAL: baseline clone failed"; exit 2; }
+if [[ "$BASELINE_REF" == "HEAD" ]]; then
+  BASELINE_SHA="$(git -C "$WORK/baseline" rev-parse --short HEAD)"
 else
-  UPSTREAM_SHA="$UPSTREAM_REF"
+  BASELINE_SHA="$BASELINE_REF"
 fi
-git -C "$WORK/upstream" checkout --quiet "$UPSTREAM_SHA" \
-  || { echo "FATAL: upstream commit $UPSTREAM_SHA not found"; exit 2; }
-echo "== upstream pinned at $UPSTREAM_SHA ($(git -C "$WORK/upstream" log -1 --format=%ad --date=short))"
+git -C "$WORK/baseline" checkout --quiet "$BASELINE_SHA" \
+  || { echo "FATAL: baseline commit $BASELINE_SHA not found"; exit 2; }
+echo "== baseline pinned at $BASELINE_SHA ($(git -C "$WORK/baseline" log -1 --format=%ad --date=short))"
 echo "== ours at $(git -C "$REPO_ROOT" rev-parse --short HEAD)"
 echo
 
@@ -61,11 +61,11 @@ if [[ "$SELFTEST" == "1" ]]; then
   # "always red" are both failures and only one of them is noticeable.
   fail=0
 
-  echo "-- POSITIVE control: upstream measured against a copy of ITSELF."
+  echo "-- POSITIVE control: baseline measured against a copy of ITSELF."
   echo "   Every name is shared by construction, so the gate MUST go red."
-  cp -R "$WORK/upstream/src" "$WORK/identical"
+  cp -R "$WORK/baseline/src" "$WORK/identical"
   set +e
-  out="$("$PY" "$GATE" "$WORK/upstream/src" "$WORK/identical" --max-work 0 --limit 0 2>&1)"
+  out="$("$PY" "$GATE" "$WORK/baseline/src" "$WORK/identical" --max-work 0 --limit 0 2>&1)"
   rc=$?
   set -e
   echo "$out" | sed -n '/^axis/,/^TOTAL/p' | sed 's/^/   /'
@@ -76,7 +76,7 @@ if [[ "$SELFTEST" == "1" ]]; then
   fi
 
   echo
-  echo "-- NEGATIVE control: upstream measured against a tree that shares"
+  echo "-- NEGATIVE control: baseline measured against a tree that shares"
   echo "   nothing. The gate MUST come back green with an empty work basket."
   mkdir -p "$WORK/disjoint/qqzz"
   cat > "$WORK/disjoint/qqzz/Zzqq.ts" <<'TSEOF'
@@ -89,7 +89,7 @@ export class ZzqqWidgetHolder {
 export const zzqqDefaultHolder = new ZzqqWidgetHolder();
 TSEOF
   set +e
-  out="$("$PY" "$GATE" "$WORK/upstream/src" "$WORK/disjoint" --max-work 0 --limit 0 2>&1)"
+  out="$("$PY" "$GATE" "$WORK/baseline/src" "$WORK/disjoint" --max-work 0 --limit 0 2>&1)"
   rc=$?
   set -e
   echo "$out" | sed -n '/^axis/,/^TOTAL/p' | sed 's/^/   /'
@@ -104,4 +104,4 @@ TSEOF
   echo "SELF-TEST FAIL — do not trust this gate's number until fixed"; exit 2
 fi
 
-"$PY" "$GATE" "$WORK/upstream/src" "$REPO_ROOT/src" ${EXTRA[@]+"${EXTRA[@]}"}
+"$PY" "$GATE" "$WORK/baseline/src" "$REPO_ROOT/src" ${EXTRA[@]+"${EXTRA[@]}"}

@@ -74,7 +74,7 @@ const tld = staging ? "dev" : "md";
 // repository carried it, and every build wrote into that machine.
 const obsidianPluginDir = process.env.OBSIDIAN_PLUGIN_DIR || null;
 
-// EVC Team Relay uses relay-onprem mode, no default System 3 URLs.
+// EVC Team Relay uses relay-onprem mode, no default cloud-backend URLs.
 // (Relay health-check URL is NOT build-time config — it's derived at runtime
 // from the relay-onprem settings' per-server controlPlaneUrl; see
 // healthUrlForServer() in src/main.ts, TR-26.)

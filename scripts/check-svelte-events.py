@@ -17,13 +17,13 @@ names are untyped strings to it), not svelte-check (it type-checks values,
 not event-name existence), not gate 4 (it reads identifiers; this is a
 string literal plus an attribute name), not jest/lint/build (none of them
 execute the click-to-dispatch DOM interaction). Confirmed by direct
-experiment (Mesh #8c9a4223, 2026-08-28): renamed a definitely-LIVE listener
+experiment (#8c9a4223, 2026-08-28): renamed a definitely-LIVE listener
 (`SettingsPanel.svelte`'s `on:goBack`, wired to the visible "back" button in
 the settings panel) to a bogus name -- tsc/lint/svelte-check/build/jest all
 stayed at their exact pre-break numbers. Nothing noticed a real UI control
 had just been severed.
 
-This is the same class of gap as population B in Mesh #6f9a8eb0/!237
+This is the same class of gap as population B in #6f9a8eb0/!237
 (`Object.defineProperty(obj, "memberName", ...)`, a string key past every
 type checker) and the mock drift in #00631a54 -- a runtime-string join that
 no static type system sees through -- but worse here: the cost isn't a
@@ -31,7 +31,7 @@ silently-stopped-checking test, it's a silently-broken UI control.
 
 ## The mistake this gate exists to not repeat
 
-Mesh #a4ccff97's own accepted methodology was "break the event name, and if
+#a4ccff97's own accepted methodology was "break the event name, and if
 NOTHING goes red, that's proof of deadness." That's exactly backwards for
 Svelte custom events: NOTHING in this repo's gates executes a click, so a
 LIVE listener produces the identical all-green result as a genuinely DEAD
@@ -100,7 +100,7 @@ DEFAULT_BASELINE = REPO_ROOT / "scripts" / "svelte-events-baseline.json"
 # in this script re-verifies the union stays single-branch -- keying a
 # human-adjudicated table to a type it never reads is exactly this file's
 # own reason for existing, and the honest way to close that gap is not
-# "trust this comment forever" but re-open Mesh #8c9a4223's own root cause).
+# "trust this comment forever" but re-open #8c9a4223's own root cause).
 DYNAMIC_COMPONENT_ADJUDICATED = {
     ("components/SettingsPanel.svelte", "activeManageView.component"): "components/SyncedFolderManager.svelte",
 }
@@ -306,7 +306,7 @@ def save_baseline(path: Path, violations, note=""):
             "Frozen baseline of pre-existing unreachable Svelte listener bindings "
             "found by check-svelte-events.py --update-baseline. Do NOT hand-edit to "
             "silence a new one -- fix it (rename to match a real dispatch, or delete "
-            "the dead listener with a static proof, per Mesh #8c9a4223), or if it is "
+            "the dead listener with a static proof, per #8c9a4223), or if it is "
             "genuinely deliberate, say why in the commit and update via --update-baseline."
         ),
         "generated_note": note,

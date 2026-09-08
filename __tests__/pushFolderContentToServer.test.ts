@@ -1,6 +1,6 @@
 /**
  * Regression test for the folder-publish partial-failure fix (#546ce7e3 /
- * Mesh #154ea78c): one file the server's path validator rejects used to
+ * #154ea78c): one file the server's path validator rejects used to
  * abort the whole `pushFolderContentToServer` loop, so a single bad name
  * (e.g. an em-dash Obsidian allows but the server's path allowlist didn't)
  * failed publishing every other file in the folder too.

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""One-shot investigation for Mesh #a2f4027a: which of OUR classes are a
-RENAMED upstream class, and what upstream name did they rename FROM?
+"""One-shot investigation for #a2f4027a: which of OUR classes are a
+RENAMED baseline class, and what baseline name did they rename FROM?
 
 check-naming.py's member axis only counts `Class.member` when BOTH trees
 declare the exact same class name. Renaming a class silently removes its
 entire member set from the comparison -- not because the members stopped
-being upstream's vocabulary, but because the KEY vanished. This script
-finds candidate (our_name -> upstream_name) pairs by structural similarity
+being baseline's vocabulary, but because the KEY vanished. This script
+finds candidate (our_name -> baseline_name) pairs by structural similarity
 (member-set overlap) between classes that exist in one tree but not the
 other, so the predecessor mapping is MEASURED, not recalled from memory or
 guessed from wave history.
@@ -16,7 +16,7 @@ table for check-naming.py -- each candidate below still needs a human
 (or agent) to read both class bodies and confirm it is a real rename, not
 a coincidental member-set overlap between two unrelated small classes.
 
-Usage: find-renamed-class-predecessors.py <upstream_src> <our_src>
+Usage: find-renamed-class-predecessors.py <baseline_src> <our_src>
 """
 import os
 import sys
@@ -63,12 +63,12 @@ def main():
     up_only = set(up_members) - set(our_members)
     our_only = set(our_members) - set(up_members)
 
-    print(f"upstream-only classes (candidates for 'predecessor'): {len(up_only)}")
+    print(f"baseline-only classes (candidates for 'predecessor'): {len(up_only)}")
     print(f"our-only classes (candidates for 'successor'):        {len(our_only)}")
     print()
 
     # Rank by RAW shared non-generic count, not the Jaccard ratio: a big
-    # upstream class (e.g. LoginManager, 28 members) renamed into an even
+    # baseline class (e.g. LoginManager, 28 members) renamed into an even
     # bigger one of ours (AuthSession, 45 members -- it absorbed more
     # responsibility over 13 waves) scores a LOW ratio (0.25) despite being a
     # real, confirmed rename (per the task's own worked example) -- the ratio
@@ -93,7 +93,7 @@ def main():
             results.append((ours, up, score, len(up_set), len(our_set), sorted(shared)))
 
     results.sort(key=lambda r: -len(r[5]))
-    print(f"{'ours':24s} {'upstream':24s} {'shared':>6s} {'score':>6s} {'up#':>4s} {'our#':>5s}  shared (non-generic)")
+    print(f"{'ours':24s} {'baseline':24s} {'shared':>6s} {'score':>6s} {'up#':>4s} {'our#':>5s}  shared (non-generic)")
     for ours, up, score, upn, ourn, shared in results:
         print(f"{ours:24s} {up:24s} {len(shared):6d} {score:6.2f} {upn:4d} {ourn:5d}  {shared}")
 

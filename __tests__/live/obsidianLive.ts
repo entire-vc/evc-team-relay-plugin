@@ -16,8 +16,8 @@
  * translated from Obsidian's RequestUrlResponse to fetch's Response, which is
  * exactly what the real Obsidian implementation does.
  *
- * Every other export is re-exported verbatim from the shared unit-test mock so
- * the two stay in step.
+ * Every other export is re-exported unchanged from the shared unit-test mock
+ * so the two stay in step.
  */
 
 export {

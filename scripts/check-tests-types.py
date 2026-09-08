@@ -18,7 +18,7 @@ then only by accident. Confirmed twice in one evening in the same file
     field was left behind, every mock folder read `isOnline` as `undefined`
     (falsy) in the real _poll() code, and 8 assertions failed for a reason
     that had nothing to do with what they were testing.
-  - FakeFile.guid -> entityGuid (MR !235, closing Mesh #fe4e6843): same
+  - FakeFile.guid -> entityGuid (MR !235, closing #fe4e6843): same
     shape, one field later. Reverting `entityGuid` to `guid` was proven
     (verifier's own subsitution) to make 2 tests silently stop checking
     what they claimed to check, rather than fail loudly.

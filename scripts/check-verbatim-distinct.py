@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate 3: DISTINGUISHABLE verbatim lines retained from upstream, per file.
+"""Gate 3: DISTINGUISHABLE verbatim lines retained from baseline, per file.
 
 Why not raw retention. `check-verbatim-overlap.py` counts every substantive line
 that survives, order-free. On a Svelte component that over-counts badly: measured
@@ -9,7 +9,7 @@ the retained lines are `<script lang="ts">`, `let isVisible = false;`,
 two independent implementations of the same component MUST share. Building a gate on
 raw % would demand rewriting things that cannot be written differently.
 
-The question the gate exists to approximate is "would the upstream author recognise
+The question the gate exists to approximate is "would the baseline author recognise
 his own code here". That is answered by lines carrying AUTHORED content: his log and
 error wording, his identifiers in non-trivial statements. This counts those.
 
@@ -20,7 +20,7 @@ what it called distinguishable and what it discarded, so the definition can be
 argued with rather than trusted.
 
 Usage:
-  check-verbatim-distinct.py <upstream_src> <our_src> [--max-distinct N]
+  check-verbatim-distinct.py <baseline_src> <our_src> [--max-distinct N]
                              [--show-samples FILE] [--json out.json]
 Exit 1 if any in-scope file exceeds --max-distinct (default: report only).
 """
@@ -31,22 +31,22 @@ import sys
 from collections import Counter
 
 # This is currently the ONLY place these three baskets are enumerated for the
-# epic's derivativeness gates: check-verbatim-runs.py (gate 2) walks every
-# upstream file with no basket concept at all, and measure-derivativeness.py
+# epic's similarity gates: check-verbatim-runs.py (gate 2) walks every
+# baseline file with no basket concept at all, and measure-similarity.py
 # (gate 1) only knows a broader whole-directory VENDORED_THIRD_PARTY prefix
 # list, not do-not-touch/adjudicated. If a future gate grows its own basket
 # lists, import these rather than re-typing them — two hand-copies of the
-# same list drift apart silently (Mesh #6b88fc6f point 5).
+# same list drift apart silently (#6b88fc6f point 5).
 # Named per file, not by directory prefix — a prefix silently annexes any file
 # later added under that path without a fresh "is this really vendor" check.
-# The entries here are honest third-party code with their own upstream LICENSE
+# The entries here are honest third-party code with their own original LICENSE
 # headers (y-codemirror.next: Kevin Jahns; client/provider.ts and
 # storage/y-indexeddb.js: adapted from Kevin Jahns' y-websocket / y-indexeddb),
-# confirmed by independent verifier review (Mesh #8bac4985).
+# confirmed by independent verifier review (#8bac4985).
 #
-# This basket SHRINKS as vendoring is cleared (Mesh #84bd2a91). An entry may be
+# This basket SHRINKS as vendoring is cleared (#84bd2a91). An entry may be
 # removed only when the file is gone from src/ -- never because it stopped
-# looking derivative. Two were removed on 2026-08-23:
+# looking similar. Two were removed on 2026-08-23:
 #   pocketbase/LocalAuthStore.ts -> replaced by our auth/VaultCredentialStore.ts,
 #       written against BaseAuthStore, a public API of the pocketbase dependency
 #       we already ship. No Gani Georgiev code remains.
@@ -63,7 +63,7 @@ VENDOR_FILES = frozenset({
     'client/provider.ts',
 })
 DO_NOT_TOUCH = set()
-# Wave 4 adjudication (Mesh #0ec60ab6, decided in the 23.08 10:19 comment;
+# Wave 4 adjudication (#0ec60ab6, decided in the 23.08 10:19 comment;
 # executed via #7685292e): all 20 files still over threshold after waves
 # A1/A2/B1/B2 carry zero remaining author comments -- what's left is
 # Obsidian/DOM contracts and our own API calls/idioms, not prose that could
@@ -111,7 +111,7 @@ BOILERPLATE = (
     re.compile(r'^(public|private|protected)?\s*\w+\s*\([^)]*\)\s*\{?$'),
 )
 LITERAL = re.compile(r'''(["'`])([^"'`]{10,})\1''')
-# An authored COMMENT is the single most recognisable thing in a file — upstream's
+# An authored COMMENT is the single most recognisable thing in a file — baseline's
 # "FIXME: race condition because sharedFolder doesn't use postie" survives any
 # renaming. Length is the wrong filter for them: `// XXX file meta typing` is 23
 # chars and unmistakably his. Any retained comment of >=3 words counts.
@@ -192,7 +192,7 @@ def main():
             keptc = Counter(u) & Counter(o)
             kept = sum(keptc.values())
             dist_lines = [l for l in keptc.elements() if distinguishable(l)]
-            rows.append({"rel": rel, "bucket": bucket(rel), "upstream": len(u),
+            rows.append({"rel": rel, "bucket": bucket(rel), "baseline": len(u),
                          "kept": kept, "distinct": len(dist_lines),
                          "samples": sorted(set(dist_lines))[:5]})
 

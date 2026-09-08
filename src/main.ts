@@ -152,7 +152,7 @@ declare const GIT_TAG: string;
 
 // relay-onprem control-plane URLs are runtime/per-server config (multi-server,
 // user-editable), not a build-time constant — unlike the TenantRegistry's
-// System-3 API_URL/AUTH_URL, there is no fixed default to bake in at build time.
+// cloud-backend API_URL/AUTH_URL, there is no fixed default to bake in at build time.
 function healthUrlForServer(server?: RelayOnPremServer): string {
 	if (!server?.controlPlaneUrl) {
 		return "";
@@ -230,7 +230,7 @@ export default class TeamRelayPlugin extends Plugin {
 	// Persisted-settings namespaces
 	private featureToggleSettings!: SettingsScope<FeatureToggles>;
 	private loggingSettings!: SettingsScope<LoggingSettings>;
-	// Deliberately NOT renamed to vaultShareSettings (Mesh #a4ccff97, dictionary
+	// Deliberately NOT renamed to vaultShareSettings (#a4ccff97, dictionary
 	// residue after #6f9a8eb0/!237): this scope wraps the on-wire settings key
 	// "sharedFolders" (constructed below with that literal), and RelaySettings
 	// .sharedFolders is the actual top-level key in every installed vault's
@@ -505,10 +505,10 @@ export default class TeamRelayPlugin extends Plugin {
 		);
 		this.uiNotifier = new NoticeSink();
 
-		this.logDebug = namedLogger("[System 3][Relay]", "debug");
-		this.logInfo = namedLogger("[System 3][Relay]", "log");
-		this.logWarn = namedLogger("[System 3][Relay]", "warn");
-		this.logError = namedLogger("[System 3][Relay]", "error");
+		this.logDebug = namedLogger("[Relay]", "debug");
+		this.logInfo = namedLogger("[Relay]", "log");
+		this.logWarn = namedLogger("[Relay]", "warn");
+		this.logError = namedLogger("[Relay]", "error");
 	}
 
 	async onload() {

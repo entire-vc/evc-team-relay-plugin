@@ -4,7 +4,7 @@
 #
 # Development moved from GitHub to GitLab on 2026-08-23 (§0z). The checks that
 # guarded merges here — type-check, Jest, ESLint, build smoke, manifest version
-# sync, the derivativeness legal gate, Hold gate — live in `.github/workflows/`
+# sync, the similarity legal gates, Hold gate — live in `.github/workflows/`
 # and are executed by GitHub Actions. They still run, on a repository nobody
 # merges into any more. Until this file existed every merge request on the
 # canon landed on `main` having been checked by nothing: no pipeline, no
@@ -132,7 +132,7 @@ type-check:
 # consumer with zero red anywhere in this pipeline -- confirmed twice for
 # real: NavTrail.svelte and FolderPathAutocomplete.svelte both shipped a
 # stale rename past tsc/jest/lint/build/legal-naming across 4 rounds of
-# independent review before a manual sweep caught them (Mesh #acf0e621).
+# independent review before a manual sweep caught them (#acf0e621).
 #
 # Ratcheted against scripts/svelte-check-baseline.json rather than gated on
 # zero errors: a full run surfaces 37 pre-existing, unrelated type errors
@@ -170,8 +170,8 @@ svelte-check:
 # referencing the real production type can go stale after a rename with zero
 # red anywhere -- confirmed twice for real in one evening, same file:
 # FakeFolder.connected -> isOnline (MR !228) and FakeFile.guid -> entityGuid
-# (MR !235, Mesh #fe4e6843) both shipped past tsc/jest/lint/build before an
-# accidental assertion failure caught them (Mesh #00631a54).
+# (MR !235, #fe4e6843) both shipped past tsc/jest/lint/build before an
+# accidental assertion failure caught them (#00631a54).
 #
 # Ratcheted against scripts/tests-typecheck-baseline.json rather than gated
 # on zero errors: a full run surfaces 209 pre-existing, unrelated type
@@ -188,7 +188,7 @@ svelte-check:
 # proves green -- plus a THIRD control on a file with zero pre-existing
 # errors and no relation to either historical case, proving this is a
 # general type-checker gate and not one that only recognizes two hardcoded
-# names (same "previously silent file" distinction Mesh #09b9f5ff drew for
+# names (same "previously silent file" distinction #09b9f5ff drew for
 # svelte-check).
 tests-typecheck:
   <<: *node_job
@@ -208,7 +208,7 @@ tests-typecheck:
 # strings, `svelte-check` above type-checks values not event-name existence,
 # `legal-naming` reads identifiers (a string literal and an attribute name
 # are neither), `test`/`lint`/`build` don't execute a Svelte click-to-dispatch
-# interaction. Confirmed live (Mesh #8c9a4223): renamed a definitely-LIVE
+# interaction. Confirmed live (#8c9a4223): renamed a definitely-LIVE
 # listener (SettingsPanel.svelte's `on:goBack`, wired to the settings panel's
 # own visible "back" button) to a bogus name -- every job in this file stayed
 # exactly as green as before. Two listeners on that same element really were
@@ -219,11 +219,11 @@ tests-typecheck:
 # `--self-test` runs FOUR controls, not two, and deliberately in this order --
 # a positive control on a well-known live pair, restore, a SECOND positive
 # control on a different, previously-uninvolved live pair, restore -- because
-# this gate's own origin is a false negative control: Mesh #a4ccff97's
+# this gate's own origin is a false negative control: #a4ccff97's
 # accepted methodology ("break the name, nothing reddens = proof of dead")
 # turned out to be unfalsifiable for exactly this reason, and a self-test
 # that only re-proves the ONE case a gate was built for is the same shape of
-# mistake (Mesh #09b9f5ff, #00631a54 drew the identical distinction for their
+# mistake (#09b9f5ff, #00631a54 drew the identical distinction for their
 # own gates: catching known cases is not the same as being a general check).
 svelte-events:
   <<: *node_job
@@ -282,7 +282,7 @@ manifest-check:
       # pipeline reads either path, so a lockfile frozen at some earlier point
       # drifts silently forever: this project shipped four releases
       # (0.0.1..0.0.4) with the lock still reading a stale version the whole
-      # time (Mesh #038e3320). Fixed once with `npm install
+      # time (#038e3320). Fixed once with `npm install
       # --package-lock-only`; this check is what keeps the next `npm version`
       # bump from re-opening the same gap.
       LOCK_ROOT_VER=$(node -p "require('./package-lock.json').version")
@@ -321,10 +321,10 @@ manifest-check:
       fi
       # A release has shipped with CHANGELOG.md still naming the PREVIOUS
       # version three times now (TR-59 #37ecb67f; #1d48ad10; and 0.0.2 itself,
-      # published with CHANGELOG.md still reading "## 0.0.1" — Mesh #e86a9ce1).
+      # published with CHANGELOG.md still reading "## 0.0.1" — #e86a9ce1).
       # All three were fixed by appending a line after the fact, which repairs
       # that one release and leaves the next one free to drift the same way —
-      # nothing upstream of a human remembering stops it. This is the fourth
+      # nothing earlier in the chain than a human remembering stops it. This is the fourth
       # file in the version-sync set; it belongs in the same job that already
       # holds the other three so there is exactly one place "did the version
       # bump land everywhere" is answered.
@@ -348,7 +348,7 @@ manifest-check:
       echo "pipeline does not have — see the header of this file."
 
 # Legal gate 3 of three baseline-similarity gates: #1 whole-file similarity
-# (check-derivativeness.sh), #2 longest verbatim run, #3 here — count of
+# (check-similarity.sh), #2 longest verbatim run, #3 here — count of
 # DISTINGUISHABLE verbatim lines per file (framework/CSS boilerplate does not
 # count; an author's comment or a quoted literal does).
 #
@@ -362,7 +362,7 @@ manifest-check:
 # a pass.
 #
 # The baseline ref is pinned to a fixed commit read OUT OF
-# scripts/check-derivativeness.sh rather than duplicated here, so the two
+# scripts/check-similarity.sh rather than duplicated here, so the two
 # cannot drift. Re-pinning to the baseline's own later history would let its
 # later changes "clean" our files with no work of ours.
 legal-verbatim-distinct:
@@ -371,17 +371,17 @@ legal-verbatim-distinct:
   timeout: 15m
   cache: {}
   before_script:
-    # No git in python:*-alpine, and this job clones upstream.
+    # No git in python:*-alpine, and this job clones the baseline tree.
     - apk add --no-cache git
   script:
     - |
       set -eu
-      FP=$(grep -oE 'FORK_POINT="[^"]+"' scripts/check-derivativeness.sh | head -1 | sed 's/.*"\(.*\)"/\1/')
-      test -n "$FP" || { echo "REFUSING: could not read FORK_POINT out of scripts/check-derivativeness.sh"; exit 1; }
-      echo "upstream fork-point: $FP"
-      git clone --quiet "${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}" /tmp/relay-upstream
-      git -C /tmp/relay-upstream checkout --quiet "$FP"
-      python3 scripts/check-verbatim-distinct.py /tmp/relay-upstream/src src --max-distinct 15
+      FP=$(grep -oE 'FORK_POINT="[^"]+"' scripts/check-similarity.sh | head -1 | sed 's/.*"\(.*\)"/\1/')
+      test -n "$FP" || { echo "REFUSING: could not read FORK_POINT out of scripts/check-similarity.sh"; exit 1; }
+      echo "baseline commit: $FP"
+      git clone --quiet "${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}" /tmp/relay-baseline
+      git -C /tmp/relay-baseline checkout --quiet "$FP"
+      python3 scripts/check-verbatim-distinct.py /tmp/relay-baseline/src src --max-distinct 15
 
 # Legal gate 4: how many NAMES our src/ still shares with the baseline
 # tree — files, directories, types, class members, exports. Gates 1-3 read
@@ -389,7 +389,7 @@ legal-verbatim-distinct:
 # could pass all three and still hand a reader a one-to-one map onto the
 # baseline on sight. A large multi-wave renaming effort drove this to zero by
 # hand — until this job, that zero was held by discipline and a manually-run
-# script, not by CI (Mesh #50bf471c).
+# script, not by CI (#50bf471c).
 #
 # `scripts/check-naming.sh` does its OWN baseline clone into a throwaway
 # tmpdir (same fixed-commit pin as check-verbatim-distinct.py, read out of the

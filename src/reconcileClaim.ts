@@ -19,7 +19,7 @@ function isReconcileClaim(value: unknown): value is ReconcileClaim {
 
 /**
  * Closes the two-client race in TransferQueue.reconcileRelayContent()'s
- * "safe, no-conflict-copy" fast path (Mesh #3f81b101; the fast path itself
+ * "safe, no-conflict-copy" fast path (#3f81b101; the fast path itself
  * is #7fa11325's fix for a DIFFERENT, single-client race).
  *
  * That fast path's safety condition -- `base === syncedText`, i.e. "the

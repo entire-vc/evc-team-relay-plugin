@@ -2726,7 +2726,7 @@ export class ShareRegistry extends NotifierSet<VaultShare> {
 			// gets picked up by loadRelayOnPremShares()'s guid-mismatch
 			// migration path, producing a third, `relay-onprem`-marker entry
 			// -- three competing local records from one corrupt input, none
-			// of them cleaned up (Mesh #0c38f743). Refusing here, at the
+			// of them cleaned up (#0c38f743). Refusing here, at the
 			// single point where a persisted entry becomes a live VaultShare,
 			// closes the whole chain at its root rather than patching each
 			// downstream symptom separately.
@@ -2769,7 +2769,7 @@ export class ShareRegistry extends NotifierSet<VaultShare> {
 	 * prefer a candidate with a valid guid over one without -- restoring the
 	 * folder from whichever record can actually be turned into a VaultShare
 	 * beats silently discarding all of them because an invalid one happened
-	 * to sort first (Mesh #a2ef4d4b: the old path-only dedupe kept the FIRST
+	 * to sort first (#a2ef4d4b: the old path-only dedupe kept the FIRST
 	 * record regardless of guid validity, so a corrupted entry ahead of the
 	 * real one meant the restore guard below rejected the only candidate it
 	 * ever saw and the share never came back). Only among equally-valid (or

@@ -1,6 +1,6 @@
 /**
  * Unit test: ShareRegistry._restoreFrom() refuses a persisted sharedFolders
- * entry with a missing/invalid guid (Mesh #0c38f743).
+ * entry with a missing/invalid guid (#0c38f743).
  *
  * The bug: a corrupt/missing `guid` field on a persisted entry (data.json
  * hand-edited, a field renamed by a bug elsewhere, a truncated write) used

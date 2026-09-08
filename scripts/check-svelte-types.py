@@ -9,7 +9,7 @@ naming waves) can go stale in a .svelte consumer -- script block OR template
 expression -- with zero red from tsc/jest/lint/build/check-naming.sh. Two real
 runtime regressions of exactly this shape shipped past 4 rounds of independent
 review before a manual sweep caught them (NavTrail.svelte, FolderPathAutocomplete
-.svelte -- see Mesh #acf0e621). A third (EditorStatusActions.svelte, W15) was
+.svelte -- see #acf0e621). A third (EditorStatusActions.svelte, W15) was
 caught by a similar manual sweep the same day, including a case embedded in
 template markup rather than a <script> block (`data-filename={liveView.view...}`).
 
@@ -25,7 +25,7 @@ debt indefinitely, or invite disabling the whole gate at the first false-start
 on anything NEW. The baseline shrinks over time as that debt gets fixed
 elsewhere; it must never be edited to silence a genuinely new error.
 
-CLOSED GAP (Mesh #09b9f5ff): EditorStatusActions.svelte used to declare
+CLOSED GAP (#09b9f5ff): EditorStatusActions.svelte used to declare
 `export let liveView: DocumentViewBinding;` with a MISSING generic type
 argument (DocumentViewBinding<ViewType extends TextFileView> has no default
 -- src/ViewBindings.ts:475). That made TypeScript give up on `liveView`'s type

@@ -2,7 +2,7 @@
  * Relay On-Premise Token Provider
  *
  * This provider fetches relay access tokens from the relay-onprem control plane.
- * It replaces the System 3 /token endpoint with relay-onprem /tokens/relay endpoint.
+ * It replaces the cloud-backend /token endpoint with relay-onprem /tokens/relay endpoint.
  */
 
 import { platformFetch } from "../platformFetch";

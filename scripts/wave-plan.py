@@ -23,7 +23,7 @@ Definition of a "name to decide" (pinned, so anyone can recompute it):
 
 The dedup is load-bearing, not cosmetic: `Relay.ts` the file and `Relay`
 the class inside it are ONE naming decision, not two. Members are excluded
-by construction -- a `Class.member` row is only shared with upstream while
+by construction -- a `Class.member` row is only shared with baseline while
 BOTH halves match, so renaming the owning type removes the whole member set
 with it. Members ride along; they never need a decision of their own.
 
@@ -77,7 +77,7 @@ SUBWAVES = {
              "RelayOnPremShareClient.ts", "relay/TokenShapes.ts"}),
             # Renamed by gate4 W7d (#b2cf036c): every file above except
             # main.ts/RelayOnPremShareClient.ts/relay/TokenShapes.ts, which
-            # keep their upstream-convergent or already-clean names. The
+            # keep their baseline-convergent or already-clean names. The
             # ghost entry "Frontmatter.ts" that used to sit here named a file
             # that no longer exists on disk (and never generated a row) --
             # dropped rather than carried forward, same cleanup class as the

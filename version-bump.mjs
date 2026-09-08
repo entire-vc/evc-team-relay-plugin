@@ -7,7 +7,7 @@ const targetVersion = process.env.npm_package_version;
 // manifest-beta.json on 2-space indent with a trailing newline while
 // versions.json is tab-indented, and a bump that renormalises either look is
 // a whole-file diff that has to be reverted by hand before a release MR is
-// readable (Mesh #7bd39233).
+// readable (#7bd39233).
 function readJSON(path) {
   const raw = readFileSync(path, "utf8");
   const indentMatch = raw.match(/^\{\r?\n([ \t]+)/);

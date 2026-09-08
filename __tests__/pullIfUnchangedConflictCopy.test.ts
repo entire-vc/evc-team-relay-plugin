@@ -1,7 +1,7 @@
 /**
- * Regression test: Mesh #0d7bcf0f — TransferQueue.pullIfUnchanged() silently
+ * Regression test: #0d7bcf0f — TransferQueue.pullIfUnchanged() silently
  * discarded the losing client's unsynced edit in the two-client restart race
- * (Mesh #dc11277f), with NO conflict-copy and no trace.
+ * (#dc11277f), with NO conflict-copy and no trace.
  *
  * Root cause (traced live with temporary instrumentation against the
  * self-hosted stand, see task comments): pullIfUnchanged()'s only guard

@@ -1,6 +1,6 @@
 /**
  * Token refresh logic for RelayCredentialCache — relay-onprem control plane only.
- * (The System 3 API fallback this module used to also support was removed as
+ * (The cloud-backend API fallback this module used to also support was removed as
  * dead code, #c671c032: relayOnPremSettings always seeds at least one
  * built-in server, so by the time RelayCredentialCache is constructed a token
  * provider always resolves and the fallback never fired in the shipped
