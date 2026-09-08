@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.7
+- Debug/info/warn/error console log lines are now prefixed `[Relay]` instead of a stale internal tag left over from an earlier build.
+
 ## 0.0.6
 - Local document storage and the realtime connection layer are now our own implementations, replacing two third-party modules that were vendored into the source tree. Behaviour is unchanged; the plugin ships less code it does not own.
 - The last share and login calls still using the server's deprecated unversioned routes now use the current `/v1` API, like every other call already did. No server-side change is needed: `/v1` has been served since the first release.
