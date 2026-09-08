@@ -1354,7 +1354,7 @@ export default class TeamRelayPlugin extends Plugin {
 					}
 				}
 
-				// Deferred initial full-sync for stale auto-sync folder shares (v1.1.18)
+				// Deferred initial full-sync for stale auto-sync folder shares
 				const staleAutoSyncShares = allShares.filter(s => {
 					if (!s.web_published || s.kind !== "folder" || s.web_sync_mode !== "auto") return false;
 					if (!s.web_content_updated_at) return true;

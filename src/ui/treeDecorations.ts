@@ -294,7 +294,7 @@ export class FileUploadPillVisitor extends NoopVisitor<FileUploadPill> {
 
 // Marks a file as excluded from sync (extension not covered by any syncable
 // type) with a "NOT SYNCED" pill. `text`/`label` are copy read by the user
-// and must stay byte-for-byte identical to upstream.
+// and must stay byte-for-byte stable — do not reword casually.
 class UnsyncedFilePill implements Disposable {
 	private readonly pill: TextBadge;
 

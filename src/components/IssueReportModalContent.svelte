@@ -21,12 +21,12 @@
 		includeLogs = !includeLogs;
 	}
 
-	// TR·plugin (#89b78daf): this used to PUT the report straight to an
-	// upstream project's own bug-report endpoint — our users' account IDs,
-	// debug logs and descriptions went to infrastructure we don't operate
-	// or see reports from, with no review step. Route to our own GitHub
-	// issues instead (same repo the plugin's other outbound links already
-	// point at — see RelayOnPremSettings.svelte), pre-filled but NOT
+	// TR·plugin (#89b78daf): this used to PUT the report straight to a
+	// third-party bug-report endpoint — our users' account IDs, debug logs
+	// and descriptions went to infrastructure we don't operate or see
+	// reports from, with no review step. Route to our own GitHub issues
+	// instead (same repo the plugin's other outbound links already point
+	// at — see RelayOnPremSettings.svelte), pre-filled but NOT
 	// auto-submitted: the user reviews the exact content on GitHub's
 	// compose page before anything is public.
 	//
@@ -74,8 +74,8 @@
 	// gets no built-in keyboard activation — a focusable control that only
 	// responds to the mouse. Enter and Space are what WAI-ARIA specifies for
 	// role="checkbox"; preventDefault on Space stops the modal scrolling
-	// underneath the toggle. Until 1.1.43 this was `on:keypress={() => {}}`,
-	// an empty handler that silenced Svelte's a11y-click-events-have-key-events
+	// underneath the toggle. This used to be `on:keypress={() => {}}`, an
+	// empty handler that silenced Svelte's a11y-click-events-have-key-events
 	// warning without implementing the behaviour it asks for; verified live
 	// over CDP that Space/Enter did nothing while the mouse worked.
 	function handleCheckboxKeydown(event: KeyboardEvent) {

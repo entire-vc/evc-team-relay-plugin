@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Gate 4 of the "remove derivativeness from upstream" epic (Mesh #f3eb7b30):
-# how many NAMES our src/ still shares with upstream — files, directories,
+# Gate 4 of the whole-file similarity legal gates (Mesh #f3eb7b30): how many
+# NAMES our src/ still shares with the baseline tree — files, directories,
 # types, class members, exports.
 #
 # Gates 1-3 read the contents of lines. None of them reads what a thing is
-# CALLED, so a file can pass all three and still hand a reader upstream's map
-# on sight. This closes that axis.
+# CALLED, so a file can pass all three and still hand a reader a one-to-one
+# map onto the baseline on sight. This closes that axis.
 #
 #   ./scripts/check-naming.sh                     # measure, exit 0
 #   ./scripts/check-naming.sh --max-work 0        # gate: exit 1 if work > 0
@@ -16,11 +16,11 @@
 # could not run. It never reports clean when it failed to look.
 set -euo pipefail
 
-# Same pin as gates 1-3 — the commit our initial import (b2e3e60, 2026-02-05)
-# was copied from. A derivative-work question is about the code we took, not
-# about whatever upstream looks like today. Measured 2026-08-23: upstream HEAD
-# has 246 src files against the fork point's 155, so scoring against HEAD would
-# flatter us with names UPSTREAM has since moved. Do not swap this for HEAD.
+# Same pin as gates 1-3. A similarity question is about the code we took at
+# import time, not about whatever the baseline tree looks like today.
+# Measured 2026-08-23: the baseline's current HEAD has substantially more
+# src files than the pinned commit, so scoring against HEAD would flatter us
+# with names the baseline has since moved. Do not swap this for HEAD.
 FORK_POINT="d1b24af2"
 UPSTREAM_REPO="${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}"
 

@@ -279,12 +279,12 @@ manifest-check:
       # package-lock.json carries its own copy of the version at two JSON
       # paths (root "version" and packages[""].version) that `npm version`
       # does NOT touch -- it edits package.json only. Nothing else in this
-      # pipeline reads either path, so a lockfile frozen at fork time drifts
-      # silently forever: this repo forked from an upstream on version line
-      # 1.1.x and shipped four releases (0.0.1..0.0.4) with the lock still
-      # reading "1.1.43" the whole time (Mesh #038e3320). Fixed once with
-      # `npm install --package-lock-only`; this check is what keeps the next
-      # `npm version` bump from re-opening the same gap.
+      # pipeline reads either path, so a lockfile frozen at some earlier point
+      # drifts silently forever: this project shipped four releases
+      # (0.0.1..0.0.4) with the lock still reading a stale version the whole
+      # time (Mesh #038e3320). Fixed once with `npm install
+      # --package-lock-only`; this check is what keeps the next `npm version`
+      # bump from re-opening the same gap.
       LOCK_ROOT_VER=$(node -p "require('./package-lock.json').version")
       LOCK_PKG_VER=$(node -p "require('./package-lock.json').packages[''].version")
       echo "package-lock.json:   $LOCK_ROOT_VER / $LOCK_PKG_VER  (root / packages[\"\"])"
@@ -296,10 +296,10 @@ manifest-check:
       # Форма версии, а не только согласованность файлов. Равенство выше ловит
       # расхождение, но пропускает СОГЛАСОВАННЫЙ мусор: одна и та же кривая строка
       # в обоих файлах плюс запись в versions.json проходит все прежние барьеры.
-      # Реальный случай: сборка вписала в манифест "1.1.43-237-g1833d8a" (git describe)
-      # — тег ЧУЖОГО репозитория, число коммитов над ним и хеш — и это уехало в
-      # публичный первый коммит. Аллоулист, а не денилист по суффиксу: голый sha
-      # денилист пропустил бы, а это та же грязь в другой форме.
+      # Реальный случай: сборка вписала в манифест сырой вывод `git describe`
+      # (тег, число коммитов над ним и хеш) вместо чистого релизного номера —
+      # и это уехало в публичный первый коммит. Аллоулист, а не денилист по
+      # суффиксу: голый sha денилист пропустил бы, а это та же грязь в другой форме.
       SHAPE_OK=$(node -e 'process.stdout.write(/^\d+\.\d+\.\d+$/.test(process.argv[1])?"1":"0")' "$MFT_VER")
       if [ "$SHAPE_OK" != "1" ]; then
         echo "REFUSING: version \"$MFT_VER\" is not a bare semver (X.Y.Z)."
@@ -347,11 +347,10 @@ manifest-check:
       echo "published GitHub release. That guard needs a GitHub token this"
       echo "pipeline does not have — see the header of this file."
 
-# Legal gate 3 of three derivativeness gates for the "remove derivativeness
-# from upstream" epic: #1 whole-file similarity (check-derivativeness.sh),
-# #2 longest verbatim run, #3 here — count of DISTINGUISHABLE verbatim lines
-# per file (framework/CSS boilerplate does not count; an author's comment or a
-# quoted literal does).
+# Legal gate 3 of three baseline-similarity gates: #1 whole-file similarity
+# (check-derivativeness.sh), #2 longest verbatim run, #3 here — count of
+# DISTINGUISHABLE verbatim lines per file (framework/CSS boilerplate does not
+# count; an author's comment or a quoted literal does).
 #
 # Ported as BLOCKING, unlike its GitHub counterpart. That job is wrapped in a
 # `LEGAL_GATE3_MODE` REPORT switch because when it was written `main` held 26
@@ -362,10 +361,10 @@ manifest-check:
 # setting is "enforce" is worse than no flag — it invites reading a warning as
 # a pass.
 #
-# Upstream is pinned to the fork-point commit read OUT OF
+# The baseline ref is pinned to a fixed commit read OUT OF
 # scripts/check-derivativeness.sh rather than duplicated here, so the two
-# cannot drift. Re-pinning to upstream HEAD would let upstream's own later
-# commits "clean" our files with no work of ours.
+# cannot drift. Re-pinning to the baseline's own later history would let its
+# later changes "clean" our files with no work of ours.
 legal-verbatim-distinct:
   stage: check
   image: python:3.12-alpine
@@ -384,27 +383,27 @@ legal-verbatim-distinct:
       git -C /tmp/relay-upstream checkout --quiet "$FP"
       python3 scripts/check-verbatim-distinct.py /tmp/relay-upstream/src src --max-distinct 15
 
-# Legal gate 4 of the "remove derivativeness from upstream" epic: how many
-# NAMES our src/ still shares with upstream — files, directories, types, class
-# members, exports. Gates 1-3 read the CONTENTS of lines; none of them reads
-# what a thing is CALLED, so a file could pass all three and still hand a
-# reader upstream's map on sight. Eight rename waves (W5 → W8, ~2000 names
-# across 156 files) drove this to zero by hand — until this job, that zero was
-# held by discipline and a manually-run script, not by CI (Mesh #50bf471c).
+# Legal gate 4: how many NAMES our src/ still shares with the baseline
+# tree — files, directories, types, class members, exports. Gates 1-3 read
+# the CONTENTS of lines; none of them reads what a thing is CALLED, so a file
+# could pass all three and still hand a reader a one-to-one map onto the
+# baseline on sight. A large multi-wave renaming effort drove this to zero by
+# hand — until this job, that zero was held by discipline and a manually-run
+# script, not by CI (Mesh #50bf471c).
 #
-# `scripts/check-naming.sh` does its OWN upstream clone into a throwaway
-# tmpdir (same FORK_POINT pin as check-verbatim-distinct.py, read out of the
+# `scripts/check-naming.sh` does its OWN baseline clone into a throwaway
+# tmpdir (same fixed-commit pin as check-verbatim-distinct.py, read out of the
 # script itself so the two cannot drift) — this job does not clone directly,
 # unlike legal-verbatim-distinct above. Deliberately UNCACHED: a cached clone
-# would need its own invalidation keyed to FORK_POINT, and getting that wrong
-# means the gate silently compares against a stale upstream forever. A fresh
+# would need its own invalidation keyed to that pin, and getting that wrong
+# means the gate silently compares against a stale baseline forever. A fresh
 # ~1s shallow-able clone every run costs less than that failure mode.
 #
 # `--self-test` runs first and is itself a gate: it proves the classifier can
-# still go RED (upstream vs itself) and still goes GREEN on a disjoint tree,
+# still go RED (baseline vs itself) and still goes GREEN on a disjoint tree,
 # so a broken classifier that stopped counting anything doesn't read as "we
 # hit zero names" — a green run says "checked and clean", never "couldn't
-# check". Then `--max-work 0` is the real assertion: no additional upstream
+# check". Then `--max-work 0` is the real assertion: no additional baseline
 # names may return.
 legal-naming:
   stage: check

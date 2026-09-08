@@ -1,7 +1,7 @@
 /**
  * Regression test: Mesh #3b1e0c93 — loadRelayOnPremShares() first-ever
  * discovery truncated a known-remote file to 0 bytes, permanently (no
- * self-heal across 3 restarts), build-independent (1.1.42 == 1.1.43).
+ * self-heal across 3 restarts), reproduced identically across builds.
  *
  * Root cause (live-traced against the self-hosted stand's own relay-server
  * logs and MinIO-backed storage, task comments): TransferQueue.fetchDocument()

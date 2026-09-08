@@ -5,11 +5,11 @@ Why a fourth gate. Gates 1-3 all read the CONTENTS of lines: similarity score,
 longest verbatim run, distinguishable retained lines. None of them looks at what
 a thing is CALLED. A file can pass all three and still be `RelayManager.ts`
 holding `class RelayManager` with `subscribe()`/`buildRelayRoles()` inside — and
-anyone who opens the tree sees upstream's map before reading a single line. The
-condition we are answering ("no longer a fork in substance") is judged on exactly
-that first impression, without a diff.
+anyone who opens the tree sees the baseline's map before reading a single line.
+The condition we are answering ("no longer a one-to-one map onto the baseline")
+is judged on exactly that first impression, without a diff.
 
-What it compares, against upstream pinned at the fork point:
+What it compares, against the baseline tree pinned at a fixed commit:
   file    — a source file at the same relative path in both trees
   dir     — a directory at the same relative path in both trees
   type    — a class / interface / type-alias / enum name declared in BOTH trees
@@ -326,11 +326,11 @@ def _reaches_obsidian_base(cls, bases, seen=None):
 # (EndpointManager.ts). A fourth review proposed them as an external contract,
 # on the premise that the licence protocol is one EVC defined and third-party
 # enterprise licence servers already implement. That premise is false, and the
-# check is one command: upstream at the fork point d1b24af2 declares all three
-# interfaces with byte-identical field sets, serving them from
-# `.well-known/relay.md/license`. We inherited the shape and changed only the
-# path segment to `.well-known/evc-team-relay/license`. So these are upstream's
-# design copied verbatim -- the exact thing this gate exists to surface, not an
+# check is one command: the baseline tree, at the pinned commit, declares all
+# three interfaces with byte-identical field sets, serving them from
+# `.well-known/relay.md/license`. We kept the shape and changed only the
+# path segment to `.well-known/evc-team-relay/license`. So these are the
+# baseline's design copied verbatim -- the exact thing this gate exists to surface, not an
 # obligation that survives it. `LicenseInfo` is not even on the wire: it is
 # constructed locally from a decoded JWT. Excusing 8 names on an unverified
 # claim about deployed customer servers is how the contract basket got a third

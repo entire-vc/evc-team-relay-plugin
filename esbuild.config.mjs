@@ -24,9 +24,9 @@ if you want to view the source, please visit the github repository of this plugi
 // `--always` USED to be here, and it cost us a public release. With no tag in
 // reach the flag stops describe from failing and hands back a bare sha, which
 // the build then silently writes into the manifest as the version. That is how
-// "1.1.43-237-g1833d8a" -- the old repository's tag, the commit count above it
-// and a hash -- shipped in this repository's first release. Nothing lied: the
-// failure had been switched off in advance. Do not put the flag back.
+// a raw `git describe` string -- a tag, the commit count above it and a hash --
+// shipped in this repository's first release. Nothing lied: the failure had
+// been switched off in advance. Do not put the flag back.
 // The Obsidian catalogue validator builds the published tarball, which carries
 // no .git at all: there describe exits 128 and aborts the build at module load.
 // That is a different case from "a git repository with no tag reachable" --

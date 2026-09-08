@@ -66,9 +66,8 @@ the version — there is no step where a human types the version anywhere else.
 (`esbuild.config.mjs`, `updateManifest`). A hand-published artifact therefore carries
 whatever the build stamped rather than the release version, and it skips both the
 `tag == manifest.version` check and the provenance attestation. This is not
-hypothetical: a published manifest once shipped `"version": "1.1.43-237-g1833d8a"` —
-an upstream tag, a commit count and a source-tree hash, in the file Obsidian's
-catalogue reads.
+hypothetical: a published manifest once shipped a raw `git describe` string — a tag, a
+commit count and a source-tree hash — in the file Obsidian's catalogue reads.
 
 So: after any local `npm run build`, check `git status --short` and restore the file
 before committing.
