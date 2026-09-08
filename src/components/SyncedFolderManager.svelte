@@ -28,9 +28,9 @@
 		dispatch("goBack", {});
 	}
 
-	// Both buttons re-trigger a debounced click guard on every render, same as
-	// upstream's inline `debounce(() => handler())` -- named here instead of
-	// wrapped in an extra arrow function.
+	// Both buttons re-trigger a debounced click guard on every render -- an
+	// inline `debounce(() => handler())` named here instead of wrapped in an
+	// extra arrow function.
 	$: crumbs = [
 		{ type: "home" as const, onClick: goHome },
 		{ type: "folder" as const, folder: syncedFolder },

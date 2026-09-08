@@ -75,8 +75,8 @@
 	}
 
 	// Each rule is independent (not mutually exclusive): a single-item list
-	// gets both "first-item" and "evc-last-item" on that one element, matching
-	// the upstream template's three separate ternaries.
+	// gets both "first-item" and "evc-last-item" on that one element, mirroring
+	// three separate ternaries rather than one if/else chain.
 	function positionClasses(index: number, total: number): string {
 		const classes: string[] = [];
 		if (index === 0) classes.push("first-item");

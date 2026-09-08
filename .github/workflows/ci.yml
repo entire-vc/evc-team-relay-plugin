@@ -114,7 +114,8 @@ jobs:
           # make this job green again is to put `--always` back in esbuild.config
           # or wrap the call in `|| true`, and that silently reinstates the exact
           # defect the guard exists to prevent — a published manifest whose
-          # "version" is a commit hash (it shipped once: 1.1.43-237-g1833d8a).
+          # "version" is a raw `git describe` string, not a bare release number
+          # (it shipped once, in this repository's first release).
           # Turning a red build green by disabling the thing that made it red is
           # not a fix, and here the two moves look identical from the outside.
           #
@@ -184,13 +185,13 @@ jobs:
 
           # package-lock.json carries its own copy of the version at two JSON
           # paths (root "version" and packages[""].version) that `npm version`
-          # does NOT touch -- it edits package.json only. This repo forked
-          # from an upstream on version line 1.1.x and shipped four releases
-          # (0.0.1..0.0.4) with the lock still reading "1.1.43" the whole
-          # time, on the showcase side too (Mesh #4c85478c) -- ported from
-          # the canon-side fix (Mesh #038e3320), which only ever guarded the
-          # GitLab pipeline. Without this check here too, the next
-          # 'npm version' bump on the showcase side silently reopens the gap.
+          # does NOT touch -- it edits package.json only. This project shipped
+          # four releases (0.0.1..0.0.4) with the lock still reading a stale
+          # version the whole time, on the showcase side too (Mesh #4c85478c)
+          # -- ported from the canon-side fix (Mesh #038e3320), which only
+          # ever guarded the GitLab pipeline. Without this check here too, the
+          # next 'npm version' bump on the showcase side silently reopens the
+          # gap.
           LOCK_ROOT_VER=$(node -p "require('./package-lock.json').version")
           LOCK_PKG_VER=$(node -p "require('./package-lock.json').packages[''].version")
           echo "package-lock.json: $LOCK_ROOT_VER / $LOCK_PKG_VER  (root / packages[\"\"])"
@@ -207,9 +208,9 @@ jobs:
 
           # TR-40: manifest-beta.json is what BRAT reads directly off the default
           # branch for beta-channel installs — it's not a release asset and nothing
-          # else keeps it in sync, so it silently rotted 7 releases behind (1.1.28
-          # while manifest.json reached 1.1.35) with no CI signal. Require it to
-          # track manifest.json on every version bump, same as versions.json above.
+          # else keeps it in sync, so it once silently rotted 7 releases behind
+          # with no CI signal. Require it to track manifest.json on every version
+          # bump, same as versions.json above.
           MFB_VER=$(node -p "require('./manifest-beta.json').version")
           echo "manifest-beta.json: $MFB_VER"
           if [ "$MFB_VER" != "$MFT_VER" ]; then
@@ -259,15 +260,15 @@ jobs:
           echo "OK: $CUR_VER > $LATEST_VER (monotonically increasing)"
 
   # ── Legal gate 3 lives on the canon, not here ───────────────────────────────
-  # `legal-verbatim-distinct` (distinguishable verbatim lines vs the pinned
-  # upstream fork-point) used to run here and was removed on 2026-09-03. It had
-  # been failing every run on the showcase with:
+  # `legal-verbatim-distinct` (distinguishable verbatim lines vs a fixed baseline
+  # commit) used to run here and was removed on 2026-09-03. It had been failing
+  # every run on the showcase with:
   #
   #   UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline
   #
-  # which is the job refusing correctly: it needs to clone the upstream we forked
-  # from, and that URL is a CI variable on the canon. It is not absent here by
-  # oversight — a derivativeness baseline has no business being configured into a
+  # which is the job refusing correctly: it needs to clone a baseline tree, and
+  # that URL is a CI variable on the canon only. It is not absent here by
+  # oversight — a similarity-baseline configuration has no business living in a
   # PUBLIC repository whose purpose is to stand on its own. The gate is ported and
   # green on the canon (`.gitlab-ci.yml`, job `legal-verbatim-distinct`; likewise
   # `legal-naming`, gate 4), so deleting it here removes a permanently-red display,

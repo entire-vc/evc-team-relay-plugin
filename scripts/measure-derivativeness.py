@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Acceptance probe for epic #f3eb7b30 — how derivative is our plugin's src/ vs the upstream it was forked from.
+"""Acceptance probe for epic #f3eb7b30 — how similar is our plugin's src/ to the pinned baseline tree.
 
 Usage: measure-derivativeness.py <ours_src_dir> <upstream_src_dir> [--json out.json] [--threshold 0.70]
 
