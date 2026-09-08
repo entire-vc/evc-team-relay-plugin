@@ -303,7 +303,7 @@ export type PhraseKey = keyof typeof englishPhrasebook;
 export type Phrasebook = Partial<Record<PhraseKey, string>>;
 
 /**
- * Russian phrasebook (Mesh #bac8b7dd, MR2 of 2) -- covers every key MR1
+ * Russian phrasebook (#bac8b7dd, MR2 of 2) -- covers every key MR1
  * extracted (Phase 1: connect screen, plugin shell, share list, share
  * detail card incl. members/invites/web-publish/actions, create share,
  * create invite). {name}-style placeholders are preserved verbatim, never

@@ -1,5 +1,5 @@
 /**
- * W10 (Mesh #d9031010) guard: our OWN lifecycle methods were renamed
+ * W10 (#d9031010) guard: our OWN lifecycle methods were renamed
  * `connect` -> `bringOnline` and `destroy` -> `dismantle`, but the calls
  * ProviderBacked makes INTO the third-party y-sweet provider and into Yjs's
  * own `Y.Doc` must keep their original spellings — `_provider.connect()`,

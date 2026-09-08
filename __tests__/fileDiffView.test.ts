@@ -3,7 +3,7 @@
  * tab title (`getDisplayText()`) and the per-side header baked into the
  * generated patch (`recomputeDiff()` -> `structuredPatch(path1, path2, ...)`).
  *
- * Why this file exists (Mesh #b1cd12e0, follow-up to the W9 duck-typing scan
+ * Why this file exists (#b1cd12e0, follow-up to the W9 duck-typing scan
  * in #cf371fdf): `DiffViewState.leftFile`/`rightFile` used to be typed as
  * Obsidian's `TFile`, while both real call sites -- `ViewBindings.openDiffView()`
  * and `y-codemirror.next/LiveEditPlugin` -- pass a live CRDT `Document` as

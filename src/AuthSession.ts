@@ -75,7 +75,7 @@ export class AuthSession extends Notifier<AuthSession> {
 					this.authProvider = this.multiServerAuthManager.getProvider(this.activeServerId);
 				}
 
-				// In relay-onprem mode, we don't need PocketBase or System 3 connectivity
+				// In relay-onprem mode, we don't need PocketBase or cloud-backend connectivity
 				// Return early to avoid initializing PocketBase
 				this.settingsOpener = openSettings;
 

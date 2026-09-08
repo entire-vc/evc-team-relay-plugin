@@ -20,7 +20,7 @@
 	export let live: TeamRelayPlugin;
 	export let initialPath: string | undefined = undefined;
 	// `const`, not `let`: nothing in this component reads onClose anymore
-	// (its only caller, handleClose, was removed -- Mesh #8c9a4223, `close`
+	// (its only caller, handleClose, was removed -- #8c9a4223, `close`
 	// was one of the two unreachable svelte:component listeners). Still a
 	// real, meaningful callback the caller (RelaySettingsPage.ts) passes at
 	// construction to close the whole Obsidian settings tab; kept as part of
@@ -115,7 +115,7 @@
 	//
 	// Three events used to be listened for on that <svelte:component> --
 	// `manageSharedFolder` (removed by #a4ccff97), `close` and
-	// `manageRemoteFolder` (removed here, Mesh #8c9a4223). All three were
+	// `manageRemoteFolder` (removed here, #8c9a4223). All three were
 	// dead: SyncedFolderManager is the only component ever substituted
 	// through <svelte:component> (ManageViewState's own single-variant
 	// union), and it dispatches only `goBack` (SyncedFolderManager.svelte:

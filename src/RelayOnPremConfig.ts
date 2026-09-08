@@ -117,7 +117,7 @@ export interface RelayOnPremServer {
  */
 export interface RelayOnPremSettings {
 	/**
-	 * Enable relay-onprem mode (instead of System 3 cloud)
+	 * Enable relay-onprem mode (instead of the hosted cloud backend)
 	 */
 	enabled: boolean;
 
@@ -145,7 +145,7 @@ interface LegacyRelayOnPremSettings {
 }
 
 export const DEFAULT_RELAY_ONPREM_SETTINGS: RelayOnPremSettings = {
-	// EVC Team Relay always uses relay-onprem mode (no System 3 cloud)
+	// EVC Team Relay always uses relay-onprem mode (no hosted cloud backend)
 	enabled: true,
 	servers: [
 		{

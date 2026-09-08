@@ -1,5 +1,5 @@
 /**
- * Unit tests: reconcileClaim (Mesh #3f81b101)
+ * Unit tests: reconcileClaim (#3f81b101)
  *
  * The bug: TransferQueue.reconcileRelayContent()'s "safe, no-conflict-copy"
  * fast path applies a raw CRDT bulk insert whenever `base === syncedText`

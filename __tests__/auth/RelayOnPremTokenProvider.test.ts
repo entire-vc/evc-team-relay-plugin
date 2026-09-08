@@ -121,7 +121,7 @@ describe("RelayOnPremTokenProvider.updateControlPlaneUrl", () => {
 });
 
 /**
- * Tests for the write->read fallback (U3, Mesh #eb6ab38f).
+ * Tests for the write->read fallback (U3, #eb6ab38f).
  *
  * The caller (RelayCredentialRefresh.ts) always requests mode "write" regardless
  * of the member's actual share role. The control-plane correctly 403s a

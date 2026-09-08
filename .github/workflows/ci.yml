@@ -187,8 +187,8 @@ jobs:
           # paths (root "version" and packages[""].version) that `npm version`
           # does NOT touch -- it edits package.json only. This project shipped
           # four releases (0.0.1..0.0.4) with the lock still reading a stale
-          # version the whole time, on the showcase side too (Mesh #4c85478c)
-          # -- ported from the canon-side fix (Mesh #038e3320), which only
+          # version the whole time, on the showcase side too (#4c85478c)
+          # -- ported from the canon-side fix (#038e3320), which only
           # ever guarded the GitLab pipeline. Without this check here too, the
           # next 'npm version' bump on the showcase side silently reopens the
           # gap.
@@ -233,7 +233,7 @@ jobs:
           # Gate on the manifest.json "version" VALUE at base vs head, NOT on whether
           # a version FILE was touched. Dependabot bumps edit package.json (a dep range)
           # without changing the plugin version — a file-presence skip stays red on them
-          # and, under enforce_admins=true, wedges the PR permanently (Mesh #f45df4ad,
+          # and, under enforce_admins=true, wedges the PR permanently (#f45df4ad,
           # ported from evc-local-sync-plugin #fa82cc92 / PR #39).
           BASE_VER=""
           if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
@@ -262,22 +262,19 @@ jobs:
   # ── Legal gate 3 lives on the canon, not here ───────────────────────────────
   # `legal-verbatim-distinct` (distinguishable verbatim lines vs a fixed baseline
   # commit) used to run here and was removed on 2026-09-03. It had been failing
-  # every run on the showcase with:
+  # every run on the showcase because the baseline-repo location it needs to
+  # clone is a CI variable configured on the canon only — the job refuses
+  # correctly rather than run with no baseline to compare against. It is not
+  # absent here by oversight — a similarity-baseline configuration has no
+  # business living in a PUBLIC repository whose purpose is to stand on its
+  # own. The gate is ported and green on the canon (`.gitlab-ci.yml`, job
+  # `legal-verbatim-distinct`; likewise `legal-naming`, gate 4), so deleting it
+  # here removes a permanently-red display, not a check.
   #
-  #   UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline
-  #
-  # which is the job refusing correctly: it needs to clone a baseline tree, and
-  # that URL is a CI variable on the canon only. It is not absent here by
-  # oversight — a similarity-baseline configuration has no business living in a
-  # PUBLIC repository whose purpose is to stand on its own. The gate is ported and
-  # green on the canon (`.gitlab-ci.yml`, job `legal-verbatim-distinct`; likewise
-  # `legal-naming`, gate 4), so deleting it here removes a permanently-red display,
-  # not a check.
-  #
-  # The tempting alternative was to skip the job when UPSTREAM_REPO_URL is unset.
-  # That is worse than the red: a gate able to not-check and still report success
-  # is indistinguishable from a passing one, and the showcase is precisely where
-  # it would always take the skip branch.
+  # The tempting alternative was to skip the job when that CI variable is
+  # unset. That is worse than the red: a gate able to not-check and still
+  # report success is indistinguishable from a passing one, and the showcase
+  # is precisely where it would always take the skip branch.
 
   # ── Gate ────────────────────────────────────────────────────────────────────
   ci-gate:

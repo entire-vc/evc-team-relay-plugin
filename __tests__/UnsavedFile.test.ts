@@ -80,7 +80,7 @@ function installFakeIndexedDB(): void {
 	};
 }
 
-describe("UnsavedFileStore (Mesh #fe4e6843: guid wire-format guard)", () => {
+describe("UnsavedFileStore (#fe4e6843: guid wire-format guard)", () => {
 	beforeEach(() => {
 		installFakeIndexedDB();
 	});

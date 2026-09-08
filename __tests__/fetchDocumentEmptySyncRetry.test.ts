@@ -1,5 +1,5 @@
 /**
- * Regression test: Mesh #3b1e0c93 — loadRelayOnPremShares() first-ever
+ * Regression test: #3b1e0c93 — loadRelayOnPremShares() first-ever
  * discovery truncated a known-remote file to 0 bytes, permanently (no
  * self-heal across 3 restarts), reproduced identically across builds.
  *

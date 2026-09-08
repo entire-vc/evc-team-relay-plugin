@@ -8,6 +8,11 @@
 # npm
 node_modules
 
+# Python bytecode cache -- was accidentally tracked and baked stale snapshots
+# of scripts/*.py into the published tree (#932262a0).
+__pycache__/
+*.pyc
+
 *.js
 !src/storage/y-indexeddb.js
 !__tests__/jest.setup.js

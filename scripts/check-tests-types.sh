@@ -9,7 +9,7 @@
 #   ./scripts/check-tests-types.sh --update-baseline
 #   ./scripts/check-tests-types.sh --self-test      # controls; run before trusting it
 #
-# Background: Mesh #00631a54, follow-up to #acf0e621's .svelte gate. Two real
+# Background: #00631a54, follow-up to #acf0e621's .svelte gate. Two real
 # regressions (a hand-rolled __tests__ mock's own field going stale after the
 # real production field it stands in for was renamed) shipped past
 # tsc/jest/lint/build in one evening because __tests__ was excluded from
@@ -27,7 +27,7 @@
 # case (__tests__/mocks/MockClock.ts) with a synthetic, unrelated type
 # error -- proving this is a real general type-checker gate, not something
 # that only recognizes the two names it was written to reproduce (the same
-# distinction Mesh #09b9f5ff drew for check-svelte-types.py).
+# distinction #09b9f5ff drew for check-svelte-types.py).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -62,7 +62,7 @@ if [[ "$SELFTEST" == "1" ]]; then
   TARGET="$WORK/probe/__tests__/crdtBackgroundSyncPoller.test.ts"
   MOCKCLOCK="$WORK/probe/__tests__/mocks/MockClock.ts"
 
-  # ── Control 1 (positive): FakeFile.guid -- Mesh #fe4e6843 / MR !235 ────────
+  # ── Control 1 (positive): FakeFile.guid -- #fe4e6843 / MR !235 ────────
   echo
   echo "-- POSITIVE control 1: revert FakeFile's Pick<Document, ...> to the OLD"
   echo "   'guid' field name (real historical bug: Document.guid -> entityGuid)."
@@ -134,7 +134,7 @@ if [[ "$SELFTEST" == "1" ]]; then
 
   # ── Control 3 (positive): a file with ZERO pre-existing errors, unrelated to
   # either historical case -- proves this is a general type-checker gate, not
-  # one hardcoded to recognize only the two known names (Mesh #09b9f5ff drew
+  # one hardcoded to recognize only the two known names (#09b9f5ff drew
   # the same distinction for check-svelte-types.py).
   echo
   echo "-- POSITIVE control 3: inject a synthetic, unrelated type error into"

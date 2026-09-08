@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Acceptance probe for epic #f3eb7b30 — how similar is our plugin's src/ to the pinned baseline tree.
 
-Usage: measure-derivativeness.py <ours_src_dir> <upstream_src_dir> [--json out.json] [--threshold 0.70]
+Usage: measure-similarity.py <ours_src_dir> <baseline_src_dir> [--json out.json] [--threshold 0.70]
 
 Two independent similarity ratios per name-matched file:
   char  = difflib.SequenceMatcher over raw characters (autojunk on — the fast default)
@@ -15,7 +15,7 @@ exit 2 == the probe could not run (missing/empty input) — never silently "clea
 """
 import sys, os, json, difflib
 
-# Directories vendored from a THIRD party (not from upstream). Both we and upstream copied
+# Directories vendored from a THIRD party (not from baseline). Both we and baseline copied
 # these from their real authors, so they are near-identical BY CONSTRUCTION and rewriting them
 # would be pointless — and for the LICENSE files actively wrong. They are excluded from the
 # acceptance count and reported separately. Provenance is stated inside the files themselves:
@@ -23,7 +23,7 @@ import sys, os, json, difflib
 #   client/provider.ts  -> "Adapted from y-websocket" (yjs)
 #   storage/y-indexeddb.js -> y-indexeddb (yjs)
 #   pocketbase/         -> Gani Georgiev, pocketbase/js-sdk, MIT
-# "pocketbase/" dropped 2026-08-23 (Mesh #84bd2a91) -- the directory no longer
+# "pocketbase/" dropped 2026-08-23 (#84bd2a91) -- the directory no longer
 # exists in src/, so the prefix could only ever excuse a future file put there.
 VENDORED_THIRD_PARTY = ("y-codemirror.next/", "client/", "storage/")
 
@@ -40,13 +40,13 @@ def rel_files(root):
 
 def main():
     if len(sys.argv) < 3:
-        print("usage: measure-derivativeness.py <ours_src> <upstream_src> [--json out] [--threshold 0.70]")
+        print("usage: measure-similarity.py <ours_src> <baseline_src> [--json out] [--threshold 0.70]")
         return 2
     ours_root, up_root = sys.argv[1], sys.argv[2]
     thr = float(sys.argv[sys.argv.index('--threshold') + 1]) if '--threshold' in sys.argv else 0.70
     ours, up = rel_files(ours_root), rel_files(up_root)
     if not ours or not up:
-        print(f"FATAL: empty input tree (ours={len(ours)} upstream={len(up)}) — probe cannot run")
+        print(f"FATAL: empty input tree (ours={len(ours)} baseline={len(up)}) — probe cannot run")
         return 2
     common = sorted(set(ours) & set(up))
     if not common:
@@ -72,7 +72,7 @@ def main():
     rows.sort(key=lambda r: (-r['score'], -r['our_bytes']))
     over = [r for r in rows if r['score'] >= thr and not r['vendored']]
     vendored_over = [r for r in rows if r['score'] >= thr and r['vendored']]
-    summary = {'threshold': thr, 'ours_total_files': len(ours), 'upstream_total_files': len(up),
+    summary = {'threshold': thr, 'ours_total_files': len(ours), 'baseline_total_files': len(up),
                'name_matched': len(common), 'identical': sum(r['identical'] for r in rows),
                'ge90': sum(1 for r in rows if r['score'] >= 0.90),
                'over_threshold': len(over),

@@ -1,5 +1,5 @@
 /**
- * W18 (Mesh #8d98a50a) guard: gate-4 class-rename residue renamed 26
+ * W18 (#8d98a50a) guard: gate-4 class-rename residue renamed 26
  * ProviderBacked members, including the ones that WRAP calls into the
  * third-party y-sweet provider (`_provider` -> `_liveProvider`) and into
  * Yjs's own `Y.Doc` (`ydoc` -> `crdtDoc`). Those two fields hold EXTERNAL

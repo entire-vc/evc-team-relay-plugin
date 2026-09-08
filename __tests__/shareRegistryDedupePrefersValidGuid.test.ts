@@ -1,7 +1,7 @@
 /**
  * Unit test: ShareRegistry._dedupeByPath() prefers a candidate with a valid
  * guid over one without, when the same path appears more than once in
- * persisted settings (Mesh #a2ef4d4b).
+ * persisted settings (#a2ef4d4b).
  *
  * The bug: the old path-only dedupe kept the FIRST record it saw at a given
  * path (only overriding it when a later record had `relay` set and the

@@ -1,7 +1,7 @@
 "use strict";
 
 // RelayRegistry used to be built entirely around a PocketBase-backed DAO/Store
-// layer (System 3 cloud) -- DAO interfaces mirroring PocketBase collections,
+// layer (the hosted cloud backend) -- DAO interfaces mirroring PocketBase collections,
 // a generic LiveCollection/Store graph, and one wrapper class per record type
 // (RelayAuto, UserRecord, etc.), all populated via realtime subscriptions
 // fired from a live `pb: PocketBase` client. That entire layer was removed as

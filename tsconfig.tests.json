@@ -15,7 +15,7 @@
 	// baseline concept is a wider blast radius than the fix needs. Mirrors
 	// tsconfig.svelte-check.json's own rationale exactly.
 	//
-	// Background: Mesh #00631a54 (follow-up to #acf0e621's .svelte gate).
+	// Background: #00631a54 (follow-up to #acf0e621's .svelte gate).
 	// __tests__ was excluded from tsc's `include` entirely, so a hand-rolled
 	// mock declaring its OWN shape instead of referencing the real production
 	// type went stale after a rename with zero compile error -- caught twice

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One-shot investigation script for Mesh #cf371fdf (gate4 W9): is `Document`
+// One-shot investigation script for #cf371fdf (gate4 W9): is `Document`
 // ever passed, WITHOUT an explicit cast, into a slot statically typed as
 // (or including) Obsidian's own `TFile`? Structural typing means this needs
 // no cast to compile -- the `grep -rn "as TFile"` check from W8 only finds
@@ -8,7 +8,7 @@
 // Not a permanent tool: a throwaway diagnostic, deleted after this task's
 // investigation is written up in the closing comment either way.
 //
-// W10 UPDATE (Mesh #b1cd12e0): kept, not deleted, because the W9 finding got
+// W10 UPDATE (#b1cd12e0): kept, not deleted, because the W9 finding got
 // fixed and the fix needs a re-check. One correction was required to make the
 // re-run meaningful. The fix for the finding was to widen the offending slot
 // from `TFile` to an explicit `DiffViewFile = TFile | Document | UnsavedFile`

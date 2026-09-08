@@ -1,5 +1,5 @@
 /**
- * Regression test: Mesh #f19b4411 — reconcileRelayContent()'s claim+settle
+ * Regression test: #f19b4411 — reconcileRelayContent()'s claim+settle
  * fast path had no bound of its OWN around awaitReconcileSettled(), only
  * that function's internal contract (documented maxWaitMs=3000ms,
  * initContentClaim.ts). Live CDP console capture during the two-client

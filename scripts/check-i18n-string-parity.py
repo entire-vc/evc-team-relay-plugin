@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Proves the i18n extraction (Mesh #bac8b7dd, MR1) moved every string it
+"""Proves the i18n extraction (#bac8b7dd, MR1) moved every string it
 touched BYTE FOR BYTE -- no English wording was rewritten in transit.
 
 This is the "before/after set-equality" check called out by the task's

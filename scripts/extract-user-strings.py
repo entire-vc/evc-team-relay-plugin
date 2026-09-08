@@ -2,7 +2,7 @@
 """Inventory of the strings a USER reads, for src/components/ and src/ui/.
 
 Exists to make one acceptance criterion checkable instead of assertable: the
-UI rewrite (Mesh #4d55aa42) may rewrite markup, structure and class names
+UI rewrite (#4d55aa42) may rewrite markup, structure and class names
 freely, but every user-visible string must survive VERBATIM, because product
 copy changes only with Pavel's approval (CLAUDE-workflow §1r.A).
 

@@ -43,7 +43,7 @@ const flushPromises = (): Promise<void> =>
 
 // `isOnline`/`entityGuid`/`workspaceId` below are `Pick<>`'d off the real
 // production types rather than declared as this mock's own free-standing
-// fields (Mesh #00631a54, follow-up to #acf0e621's .svelte gate). This file
+// fields (#00631a54, follow-up to #acf0e621's .svelte gate). This file
 // shipped exactly that shape of bug twice in one evening: FakeFolder.connected
 // (MR !228, real field renamed to isOnline) and FakeFile.guid (MR !235, real
 // field renamed to entityGuid) both went stale silently -- __tests__ was

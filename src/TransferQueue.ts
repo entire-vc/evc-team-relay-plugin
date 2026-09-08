@@ -104,7 +104,7 @@ const PULL_CONNECT_TIMEOUT_MS = 15_000;
 const PULL_SYNC_GRACE_MS = 2_000;
 /**
  * Outer safety bound on reconcileRelayContent()'s claim+settle fast path
- * (Mesh #f19b4411). awaitReconcileSettled() already has its own internal
+ * (#f19b4411). awaitReconcileSettled() already has its own internal
  * maxWaitMs (3000ms default, initContentClaim.ts) -- this is a SECOND,
  * independent ceiling around the whole call, not a replacement for it. Set
  * comfortably above the inner contract so it never fires in the normal
@@ -759,10 +759,10 @@ export class TransferQueue extends Loggable {
 	 * actually synced. An edit written straight to disk (app.vault.modify()
 	 * with no live editor binding) that lands and then simply sits there --
 	 * because the client that owns pushing it is busy, offline, or mid
-	 * restart -- looks byte-for-byte identical to "genuinely nothing to
+	 * restart -- looks indistinguishable from "genuinely nothing to
 	 * preserve" from this call's point of view, and would previously be
 	 * silently overwritten with the relay's stale content: no conflict copy,
-	 * no trace (Mesh #0d7bcf0f, live-reproduced 6/6 via
+	 * no trace (#0d7bcf0f, live-reproduced 6/6 via
 	 * verity/e2e/two_client_restart_doubling_probe.py). Same invariant as
 	 * uploadDocumentViaSocket()/reconcileRelayContent(): before discarding
 	 * vault content, check it against `Document.getSyncBase()` -- what this
@@ -1021,7 +1021,7 @@ export class TransferQueue extends Loggable {
 				// claim for the sibling "two clients seed the same brand-new
 				// doc" race -- see reconcileClaim.ts's doc comment.
 				// awaitReconcileSettled() is documented to resolve within its
-				// own maxWaitMs (3000ms default). Mesh #f19b4411: live CDP
+				// own maxWaitMs (3000ms default). #f19b4411: live CDP
 				// console capture during the two-client restart race never
 				// caught a thrown/swallowed rejection on this path, but it
 				// also never captured this settle call outliving its own
