@@ -361,10 +361,12 @@ manifest-check:
 # setting is "enforce" is worse than no flag — it invites reading a warning as
 # a pass.
 #
-# The baseline ref is pinned to a fixed commit read OUT OF
-# scripts/check-similarity.sh rather than duplicated here, so the two
-# cannot drift. Re-pinning to the baseline's own later history would let its
-# later changes "clean" our files with no work of ours.
+# The baseline ref is pinned to a fixed commit read out of the CI/CD variable
+# PINNED_COMMIT -- the SAME variable scripts/check-similarity.sh and
+# scripts/check-naming.sh read, so all three consumers share one source of
+# truth and cannot drift from each other. Re-pinning to the baseline's own
+# later history would let its later changes "clean" our files with no work
+# of ours.
 legal-verbatim-distinct:
   stage: check
   image: python:3.12-alpine
@@ -376,11 +378,10 @@ legal-verbatim-distinct:
   script:
     - |
       set -eu
-      FP=$(grep -oE 'FORK_POINT="[^"]+"' scripts/check-similarity.sh | head -1 | sed 's/.*"\(.*\)"/\1/')
-      test -n "$FP" || { echo "REFUSING: could not read FORK_POINT out of scripts/check-similarity.sh"; exit 1; }
-      echo "baseline commit: $FP"
-      git clone --quiet "${UPSTREAM_REPO_URL:?UPSTREAM_REPO_URL is not set - refusing to run a baseline gate with no baseline}" /tmp/relay-baseline
-      git -C /tmp/relay-baseline checkout --quiet "$FP"
+      PC="${PINNED_COMMIT:?PINNED_COMMIT is not set - refusing to run a baseline gate with no baseline}"
+      echo "baseline commit: $PC"
+      git clone --quiet "${BASELINE_REPO_URL:?BASELINE_REPO_URL is not set - refusing to run a baseline gate with no baseline}" /tmp/relay-baseline
+      git -C /tmp/relay-baseline checkout --quiet "$PC"
       python3 scripts/check-verbatim-distinct.py /tmp/relay-baseline/src src --max-distinct 15
 
 # Legal gate 4: how many NAMES our src/ still shares with the baseline
