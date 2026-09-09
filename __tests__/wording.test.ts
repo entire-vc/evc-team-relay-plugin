@@ -230,3 +230,101 @@ describe("uiText with the real ru phrasebook (not a stub)", () => {
 		);
 	});
 });
+
+// #d8b4c267 -- billing screen. The period suffix is the half of a price that
+// IS interface language (the currency symbol is not -- see
+// __tests__/billingMoney.test.ts). Asserted here because a price reading
+// "290 ₽/mo" would satisfy every currency test and still be half-English on
+// the screen going to the bank.
+describe("billing screen phrases", () => {
+	afterEach(() => {
+		mockGetLanguage.mockReturnValue("en");
+	});
+
+	it("renders the period suffixes in Russian", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("billing.period.month")).toBe("мес");
+		expect(uiText("billing.period.year")).toBe("год");
+	});
+
+	// Positive control: the same two keys on the entire.vc contour.
+	it("leaves the English period suffixes untouched", () => {
+		mockGetLanguage.mockReturnValue("en");
+		expect(uiText("billing.period.month")).toBe("mo");
+		expect(uiText("billing.period.year")).toBe("yr");
+	});
+
+	it("translates storage units -- '3 GB' is an English word on a Russian screen", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("billing.bytes.gigabytes", { value: "3,0" })).toBe("3,0 ГБ");
+		expect(uiText("billing.bytes.megabytes", { value: "500" })).toBe("500 МБ");
+	});
+
+	it("writes the decimal mark the way each language does", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("billing.decimalSeparator")).toBe(",");
+		mockGetLanguage.mockReturnValue("en");
+		expect(uiText("billing.decimalSeparator")).toBe(".");
+	});
+
+	it("keeps the subscription's Cancel apart from the dialog's Cancel", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		// Identical in English, and that is exactly the trap: collapsing them
+		// would put «Отмена» (dismiss a dialog) on a button that ends a paid
+		// subscription.
+		expect(englishPhrasebook["billing.cancelSubscriptionButton"]).toBe(
+			englishPhrasebook["shared.cancelButton"],
+		);
+		expect(uiText("billing.cancelSubscriptionButton")).toBe("Отменить");
+		expect(uiText("shared.cancelButton")).toBe("Отмена");
+	});
+
+	it("does not reuse «хранилище» (the vault) for the storage quota", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("billing.entitlement.maxStorageBytes")).toBe("Место");
+		expect(uiText("billing.usage.storage")).not.toMatch(/хранилищ/i);
+	});
+
+	it("substitutes the server name into the Russian subtitle", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("billing.onServer", { server: "Team Relay RU" })).toBe(
+			"на Team Relay RU",
+		);
+	});
+
+	// Pavel's mandate on #d8b4c267: when checkout is unavailable the screen
+	// shows OUR words, and the server's ("Billing is in stub mode. Upgrade not
+	// available.") must never reach a buyer -- or a bank reading the
+	// screenshot. "stub" and "mode" are internal terms.
+	it.each(["en", "ru"])(
+		"keeps internal server vocabulary out of the coming-soon copy (%s)",
+		(lang) => {
+			mockGetLanguage.mockReturnValue(lang);
+			for (const key of ["billing.comingSoonButton", "billing.checkoutComingSoonNote"] as const) {
+				const text = uiText(key).toLowerCase();
+				expect(text).not.toContain("stub");
+				expect(text).not.toContain("mode");
+				expect(text).not.toContain("checkout");
+				expect(text.length).toBeGreaterThan(0);
+			}
+		},
+	);
+
+	it("frames the unavailable state as being connected, not as broken", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("billing.comingSoonButton")).toBe("Скоро");
+		expect(uiText("billing.checkoutComingSoonNote")).toBe(
+			"Приём платежей подключается. Оплатить можно будет в ближайшее время.",
+		);
+		// The rejected framing: "недоступна" reads as a fault, not a stage.
+		expect(uiText("billing.checkoutComingSoonNote")).not.toMatch(/недоступн/i);
+	});
+
+	it("has a Russian phrase for every billing key -- no half-translated screen", () => {
+		const billingKeys = (Object.keys(englishPhrasebook) as PhraseKey[]).filter((k) =>
+			k.startsWith("billing."),
+		);
+		expect(billingKeys.length).toBeGreaterThan(0); // guards against a vacuous pass
+		expect(billingKeys.filter((k) => !(k in ruPhrasebook))).toEqual([]);
+	});
+});
