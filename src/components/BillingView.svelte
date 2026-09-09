@@ -5,6 +5,10 @@
 	import type { RelayOnPremServer } from "../RelayOnPremConfig";
 	import { BillingApiError } from "../RelayOnPremShareClient";
 	import { resolveCurrentPlanId } from "../billing/currentPlan";
+	import { formatAmount } from "../billing/money";
+	import { isOpenableUrl } from "../billing/openableUrl";
+	import { selectDisplayPrice } from "../billing/planPrice";
+	import { uiText } from "../wording/uiText";
 	import type { BillingPlanResponse, AvailablePlan } from "../RelayOnPremShareClient";
 
 	export let live: TeamRelayPlugin;
@@ -17,6 +21,12 @@
 	let cancellingSubscription = false;
 	let checkingOut = false;
 	let openingPortal = false;
+	// Set once the server answers a checkout attempt with something that is
+	// not an openable link. Drives the "Soon" button + explanatory line: the
+	// button must STAY on screen saying what is happening, not disappear
+	// (Pavel via #d8b4c267 -- an empty space tells a bank nothing; "being
+	// connected" tells it the mechanism exists and is waiting on them).
+	let checkoutComingSoon = false;
 
 	onMount(async () => {
 		await loadBillingData();
@@ -32,7 +42,7 @@
 		try {
 			const client = getClient();
 			if (!client) {
-				error = "Not connected to server";
+				error = uiText("billing.notConnectedToServer");
 				return;
 			}
 			billingData = await client.getBillingPlan();
@@ -42,7 +52,7 @@
 				// Non-critical
 			}
 		} catch (e: unknown) {
-			error = e instanceof Error ? e.message : "Failed to load billing data";
+			error = e instanceof Error ? e.message : uiText("billing.loadFailed");
 		} finally {
 			loading = false;
 		}
@@ -61,7 +71,12 @@
 	}
 
 	function formatLimit(max: number | null | undefined): string {
-		return max == null ? "Unlimited" : String(max);
+		return max == null ? uiText("billing.unlimited") : String(max);
+	}
+
+	/** `3.0` -> `3,0`. The only fractional figure on this screen is GB. */
+	function localizeDecimal(value: string): string {
+		return value.replace(".", uiText("billing.decimalSeparator"));
 	}
 
 	function formatBytes(bytes: number | null | undefined): string {
@@ -70,16 +85,28 @@
 		// (JS `undefined`, not JSON `null`) -- treat that the same as "no limit"
 		// rather than falling through to the numeric branches below and printing
 		// the literal string "undefined B".
-		if (bytes === null || bytes === undefined) return "Unlimited";
-		if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`;
-		if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(0)} MB`;
-		return `${bytes} B`;
+		if (bytes === null || bytes === undefined) return uiText("billing.unlimited");
+		if (bytes >= 1073741824)
+			return uiText("billing.bytes.gigabytes", {
+				value: localizeDecimal((bytes / 1073741824).toFixed(1)),
+			});
+		if (bytes >= 1048576)
+			return uiText("billing.bytes.megabytes", { value: (bytes / 1048576).toFixed(0) });
+		return uiText("billing.bytes.bytes", { value: bytes });
+	}
+
+	/**
+	 * The `/mo` half of a price. Interface language, unlike the symbol --
+	 * `formatAmount` deliberately knows nothing about the phrasebook.
+	 */
+	function formatPeriod(billingPeriod: string): string {
+		return billingPeriod === "month"
+			? uiText("billing.period.month")
+			: uiText("billing.period.year");
 	}
 
 	function formatPrice(amount: number, currency: string, period: string): string {
-		const dollars = (amount / 100).toFixed(0);
-		const sym = currency === "USD" ? "$" : currency;
-		return `${sym}${dollars}/${period === "month" ? "mo" : "yr"}`;
+		return `${formatAmount(amount, currency)}/${formatPeriod(period)}`;
 	}
 
 	function getEntitlementLimit(value: { limit: number | null } | number | null): number | null {
@@ -90,25 +117,34 @@
 	}
 
 
+	/**
+	 * Shown as the card's headline price. The three-way choice lives in
+	 * `selectDisplayPrice` (pure, unit-tested); this only puts words to it.
+	 */
 	function getPlanPrice(plan: AvailablePlan): string {
-		const monthly = plan.prices?.find(p => p.billing_period === "month");
-		if (!monthly || monthly.amount === 0) return "Free";
-		const dollars = (monthly.amount / 100).toFixed(0);
-		const sym = monthly.currency === "USD" ? "$" : monthly.currency;
-		return `${sym}${dollars}/mo`;
+		const display = selectDisplayPrice(plan);
+		if (display.kind === "none") return NO_PRICE;
+		if (display.kind === "free") return uiText("billing.freePrice");
+		const { amount, currency, billing_period } = display.price;
+		return formatPrice(amount, currency, billing_period);
 	}
 
+	/** Em dash: "we were told no price", as opposed to "the price is zero". */
+	const NO_PRICE = "—";
+
+	// Built once, not reactively: the interface language is fixed for the
+	// lifetime of the Obsidian window, so there is nothing here to re-run.
 	const USAGE_LABELS: Record<string, string> = {
-		shares: "Shares",
-		web_published: "Web published",
-		storage: "Storage",
+		shares: uiText("billing.usage.shares"),
+		web_published: uiText("billing.usage.webPublished"),
+		storage: uiText("billing.usage.storage"),
 	};
 
 	const ENTITLEMENT_LABELS: Record<string, string> = {
-		max_shares: "Shares",
-		max_members_per_share: "Members per share",
-		max_web_published: "Web published",
-		max_storage_bytes: "Storage",
+		max_shares: uiText("billing.entitlement.maxShares"),
+		max_members_per_share: uiText("billing.entitlement.maxMembersPerShare"),
+		max_web_published: uiText("billing.entitlement.maxWebPublished"),
+		max_storage_bytes: uiText("billing.entitlement.maxStorageBytes"),
 	};
 
 	// Non-numeric entitlements to skip in the plan feature list
@@ -118,25 +154,47 @@
 		checkingOut = true;
 		try {
 			const client = getClient();
-			if (!client) throw new Error("Not connected");
+			if (!client) throw new Error(uiText("billing.notConnected"));
 
 			// Smart routing: existing active subscription → change plan, otherwise → new checkout
 			if (hasSub && !isCancelled && billingData?.subscription?.id) {
-				const result = await client.changePlan(plan.id, priceId);
-				new Notice(result.message || "Plan changed successfully!");
+				await client.changePlan(plan.id, priceId);
+				// `result.message` is deliberately dropped, same rule as the two
+				// paths below. The server has a stub branch here too
+				// (billing_service.py: "Plan changed (stub mode)") -- I claimed
+				// in an earlier commit that it had none, and that was wrong.
+				// It is unreachable today only because stub mode never
+				// populates a subscription, so `hasSub` gates this branch off
+				// -- i.e. the safety comes from a DIFFERENT subsystem, not from
+				// anything here. That is a landmine, not a guarantee.
+				new Notice(uiText("billing.planChangedNotice"));
 				await loadBillingData();
 			} else {
 				const result = await client.createCheckout(plan.id, priceId);
-				if (result.checkout_url) {
-					window.open(result.checkout_url);
-					new Notice("Opening checkout in browser...");
+				const checkoutUrl = result.checkout_url;
+				if (isOpenableUrl(checkoutUrl)) {
+					window.open(checkoutUrl);
+					new Notice(uiText("billing.openingCheckoutNotice"));
+				} else if (typeof checkoutUrl === "string" && checkoutUrl.trim() !== "") {
+					// The server answered with something that is not a link --
+					// today the stub marker, tomorrow anything else. Announcing
+					// a checkout that is not opening would be a lie, so switch
+					// the button to its "being connected" state instead.
+					//
+					// `result.message` is deliberately NOT surfaced: the server
+					// says "Billing is in stub mode. Upgrade not available.",
+					// and those are internal words. Our own copy ships instead.
+					checkoutComingSoon = true;
+					new Notice(uiText("billing.checkoutComingSoonNote"));
 				} else {
-					new Notice("Subscription activated!");
+					new Notice(uiText("billing.subscriptionActivatedNotice"));
 					await loadBillingData();
 				}
 			}
 		} catch (e: unknown) {
-			new Notice(`Upgrade failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("billing.upgradeFailedNotice", {
+				error: e instanceof Error ? e.message : uiText("shared.unknownError"),
+			}));
 		} finally {
 			checkingOut = false;
 		}
@@ -146,16 +204,25 @@
 		openingPortal = true;
 		try {
 			const client = getClient();
-			if (!client) throw new Error("Not connected");
+			if (!client) throw new Error(uiText("billing.notConnected"));
 			const result = await client.createPortalSession();
-			if (result.url) {
+			// Same guard as checkout above. The stub happens to return a null
+			// url here (so plain truthiness would have worked today), but the
+			// two paths must not disagree about what counts as openable --
+			// that difference is exactly how the checkout bug survived.
+			if (isOpenableUrl(result.url)) {
 				window.open(result.url);
-				new Notice("Opening subscription portal in browser...");
+				new Notice(uiText("billing.openingPortalNotice"));
 			} else {
-				new Notice(result.message || "Portal not available");
+				// Same reason as checkout above: the stub's own message says
+				// "Billing is in stub mode. Portal not available." Our copy,
+				// not theirs -- internal words must not reach a user.
+				new Notice(uiText("billing.portalNotAvailable"));
 			}
 		} catch (e: unknown) {
-			new Notice(`Failed to open portal: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("billing.portalFailedNotice", {
+				error: e instanceof Error ? e.message : uiText("shared.unknownError"),
+			}));
 		} finally {
 			openingPortal = false;
 		}
@@ -165,12 +232,14 @@
 		cancellingSubscription = true;
 		try {
 			const client = getClient();
-			if (!client) throw new Error("Not connected");
+			if (!client) throw new Error(uiText("billing.notConnected"));
 			await client.cancelSubscription();
-			new Notice("Subscription cancelled. Access continues until end of billing period.");
+			new Notice(uiText("billing.subscriptionCancelledNotice"));
 			await loadBillingData();
 		} catch (e: unknown) {
-			new Notice(`Cancel failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+			new Notice(uiText("billing.cancelFailedNotice", {
+				error: e instanceof Error ? e.message : uiText("shared.unknownError"),
+			}));
 		} finally {
 			cancellingSubscription = false;
 		}
@@ -183,11 +252,11 @@
 </script>
 
 <div class="evc-billing-view">
-	<div class="evc-section-title">Billing & Plan</div>
-	<div class="evc-section-desc">on {server.name}</div>
+	<div class="evc-section-title">{uiText("billing.title")}</div>
+	<div class="evc-section-desc">{uiText("billing.onServer", { server: server.name })}</div>
 
 	{#if loading}
-		<div class="evc-loading">Loading billing info...</div>
+		<div class="evc-loading">{uiText("billing.loading")}</div>
 	{:else if error}
 		<div class="evc-error">{error}</div>
 	{:else if billingData}
@@ -203,11 +272,11 @@
 							<div class="evc-plan-name">{plan.name}</div>
 							{#if current}
 								{#if isCancelled}
-									<span class="evc-plan-badge evc-badge-warning">Cancelling</span>
+									<span class="evc-plan-badge evc-badge-warning">{uiText("billing.badge.cancelling")}</span>
 								{:else if hasSub}
-									<span class="evc-plan-badge evc-badge-active">Active</span>
+									<span class="evc-plan-badge evc-badge-active">{uiText("billing.badge.active")}</span>
 								{:else}
-									<span class="evc-plan-badge evc-badge-current">Current</span>
+									<span class="evc-plan-badge evc-badge-current">{uiText("billing.badge.current")}</span>
 								{/if}
 							{/if}
 						</div>
@@ -241,7 +310,7 @@
 												disabled={checkingOut}
 												on:click={() => handleUpgrade(plan, price.id)}
 											>
-												{checkingOut ? "..." : "Resubscribe"}
+												{checkingOut ? "..." : uiText("billing.resubscribeButton")}
 											</button>
 										{/if}
 									{/each}
@@ -251,17 +320,17 @@
 										disabled={openingPortal}
 										on:click={handleManageSubscription}
 									>
-										{openingPortal ? "..." : "Manage"}
+										{openingPortal ? "..." : uiText("billing.manageButton")}
 									</button>
 									<button
 										class="evc-plan-btn evc-btn-cancel"
 										disabled={cancellingSubscription}
 										on:click={handleCancel}
 									>
-										{cancellingSubscription ? "..." : "Cancel"}
+										{cancellingSubscription ? "..." : uiText("billing.cancelSubscriptionButton")}
 									</button>
 								{:else}
-									<div class="evc-plan-btn evc-btn-current">Current plan</div>
+									<div class="evc-plan-btn evc-btn-current">{uiText("billing.currentPlanButton")}</div>
 								{/if}
 							{:else if !isFreeCard}
 								<div class="evc-plan-prices-row">
@@ -269,10 +338,17 @@
 										{#if price.amount > 0}
 											<button
 												class="evc-plan-btn evc-btn-upgrade"
-												disabled={checkingOut}
+												class:is-coming-soon={checkoutComingSoon}
+												disabled={checkingOut || checkoutComingSoon}
 												on:click={() => handleUpgrade(plan, price.id)}
 											>
-												{checkingOut ? "..." : formatPrice(price.amount, price.currency, price.billing_period)}
+												{#if checkingOut}
+													...
+												{:else if checkoutComingSoon}
+													{uiText("billing.comingSoonButton")}
+												{:else}
+													{formatPrice(price.amount, price.currency, price.billing_period)}
+												{/if}
 											</button>
 										{/if}
 									{/each}
@@ -282,7 +358,7 @@
 
 						{#if current && isCancelled && billingData.subscription?.current_period_end}
 							<div class="evc-plan-note">
-								Access until {new Date(billingData.subscription.current_period_end).toLocaleDateString()}
+								{uiText("billing.accessUntil", { date: new Date(billingData.subscription.current_period_end).toLocaleDateString() })}
 							</div>
 						{/if}
 					</div>
@@ -290,9 +366,13 @@
 			</div>
 		{/if}
 
+		{#if checkoutComingSoon}
+			<div class="evc-checkout-note">{uiText("billing.checkoutComingSoonNote")}</div>
+		{/if}
+
 		<!-- Usage -->
 		<div class="evc-usage-section">
-			<div class="evc-usage-title">Your Usage</div>
+			<div class="evc-usage-title">{uiText("billing.usageTitle")}</div>
 			{#each Object.entries(billingData.usage) as [key, usage]}
 				{@const percent = getUsagePercent(usage)}
 				{@const usageClass = getUsageClass(percent)}
@@ -318,9 +398,9 @@
 					{#if percent >= 80 && usage.max != null}
 						<div class="evc-usage-hint {usageClass}">
 							{#if percent >= 100}
-								Limit reached
+								{uiText("billing.limitReached")}
 							{:else}
-								{percent}% used
+								{uiText("billing.percentUsed", { percent })}
 							{/if}
 						</div>
 					{/if}
@@ -330,7 +410,7 @@
 
 		<!-- Refresh -->
 		<button class="evc-refresh-btn" on:click={loadBillingData}>
-			Refresh
+			{uiText("billing.refreshButton")}
 		</button>
 	{/if}
 </div>
@@ -519,6 +599,21 @@
 	.evc-plan-note {
 		font-size: 0.8em;
 		color: var(--text-muted);
+	}
+
+	/* Reads as a state, not a failure: muted text, no error colouring. */
+	.evc-checkout-note {
+		font-size: 0.85em;
+		color: var(--text-muted);
+		padding: 8px 12px;
+		background: var(--background-secondary);
+		border-radius: 6px;
+	}
+
+	.evc-btn-upgrade.is-coming-soon {
+		background: var(--background-modifier-border);
+		color: var(--text-muted);
+		cursor: default;
 	}
 
 	/* Usage section */

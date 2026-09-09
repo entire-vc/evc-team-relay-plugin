@@ -933,7 +933,14 @@ export class RelayOnPremShareClient {
 	/**
 	 * Create a checkout session for upgrading to a paid plan
 	 */
-	async createCheckout(productId: string, priceId: string): Promise<{ checkout_url?: string; id?: string; status?: string }> {
+	/**
+	 * `message` is part of the contract, not an extra: when the control plane
+	 * cannot actually start a checkout it answers 200 with a human-readable
+	 * reason (stub mode returns `checkout_url: "#stub-checkout-not-available"`
+	 * alongside one). Leaving it off the type is what let the UI announce a
+	 * checkout it was not opening -- there was no typed way to say why.
+	 */
+	async createCheckout(productId: string, priceId: string): Promise<{ checkout_url?: string; id?: string; status?: string; message?: string }> {
 		log(`Creating checkout for product ${productId}, price ${priceId}...`);
 		const response = await platformFetch(`${this.normalizedUrl}/v1/billing/checkout`, {
 			method: "POST",
@@ -951,7 +958,7 @@ export class RelayOnPremShareClient {
 			throw new BillingApiError(message, response.status);
 		}
 
-		return (await response.json()) as { checkout_url?: string; id?: string; status?: string };
+		return (await response.json()) as { checkout_url?: string; id?: string; status?: string; message?: string };
 	}
 
 	/**
