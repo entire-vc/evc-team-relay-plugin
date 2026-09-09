@@ -217,7 +217,12 @@ export interface AvailablePlan {
 		currency: string;
 		billing_period: string;
 	}>;
-	entitlements: Record<string, { limit: number | null }>;
+	// Not every value here is `{ limit: number | null }` -- `roles_enabled` and
+	// `closing_docs_edo_enabled` are `{ enabled: boolean }`, and
+	// `allowed_web_visibility` is `{ allowed: string[] }`. The old narrower
+	// type was never true; `classifyEntitlement()` is what actually decides
+	// the shape at render time (`../billing/entitlements`).
+	entitlements: Record<string, unknown>;
 	metadata: Record<string, unknown>;
 }
 

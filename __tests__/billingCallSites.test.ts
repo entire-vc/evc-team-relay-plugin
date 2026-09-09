@@ -139,6 +139,54 @@ describe("BillingView.svelte call sites", () => {
 			// on purpose, to record what the incident actually looked like.
 			expect(codeLines().filter((l) => l.includes("stub-checkout"))).toEqual([]);
 		});
+
+		// #c18ef689 finding 2 (Ralph, AC#7-8): the RU catalogue moved off
+		// BILLING_STUB_MODE, and its real backend throws (422 "Invalid billing
+		// data") when the payment gateway isn't active yet -- a DIFFERENT
+		// failure shape than the non-URL stub response the tests above cover.
+		// The checkout code was tested against a scenario the real backend had
+		// already stopped producing: a thrown error still fell through to the
+		// generic `catch` and put `e.message` -- raw backend English -- on
+		// screen via billing.upgradeFailedNotice.
+		describe("checkout failure honesty -- thrown errors, not just non-URL responses (defect from #c18ef689)", () => {
+			function handleUpgradeBody(): string {
+				const start = source().indexOf("async function handleUpgrade");
+				const end = source().indexOf("async function handleManageSubscription");
+				expect(start).toBeGreaterThan(-1);
+				expect(end).toBeGreaterThan(start);
+				return source().slice(start, end);
+			}
+
+			it("wraps createCheckout in its own try/catch, not just the outer one", () => {
+				const body = handleUpgradeBody();
+				const checkoutCallIdx = body.indexOf("createCheckout(");
+				const tryIdx = body.lastIndexOf("try", checkoutCallIdx);
+				const catchIdx = body.indexOf("catch", checkoutCallIdx);
+				expect(checkoutCallIdx).toBeGreaterThan(-1);
+				expect(tryIdx).toBeGreaterThan(-1);
+				expect(catchIdx).toBeGreaterThan(checkoutCallIdx);
+			});
+
+			it("a thrown createCheckout error degrades to the SAME coming-soon state as a non-URL response", () => {
+				const body = handleUpgradeBody();
+				const checkoutCallIdx = body.indexOf("createCheckout(");
+				const catchIdx = body.indexOf("catch", checkoutCallIdx);
+				const catchBlockEnd = body.indexOf("}", body.indexOf("{", catchIdx));
+				const catchBody = body.slice(catchIdx, catchBlockEnd);
+				expect(catchBody).toMatch(/checkoutComingSoon = true/);
+				expect(catchBody).toMatch(/uiText\("billing\.checkoutComingSoonNote"\)/);
+			});
+
+			it("never puts the caught error's own message on screen for a checkout failure", () => {
+				const body = handleUpgradeBody();
+				const checkoutCallIdx = body.indexOf("createCheckout(");
+				const catchIdx = body.indexOf("catch", checkoutCallIdx);
+				const catchBlockEnd = body.indexOf("}", body.indexOf("{", catchIdx));
+				const catchBody = body.slice(catchIdx, catchBlockEnd);
+				expect(catchBody).not.toMatch(/\.message/);
+				expect(catchBody).not.toMatch(/upgradeFailedNotice/);
+			});
+		});
 	});
 
 	it("routes the fractional GB figure through the locale decimal mark", () => {
@@ -160,6 +208,76 @@ describe("BillingView.svelte call sites", () => {
 		// The three-way decision must NOT be re-implemented inline.
 		expect(body).not.toMatch(/prices\.find\(/);
 		expect(body).not.toMatch(/amount === 0/);
+	});
+
+	// #c18ef689: `max_file_size_bytes`/`version_history_days` printed their raw
+	// snake_case key, and the boolean-shaped `roles_enabled`/
+	// `closing_docs_edo_enabled` printed "Без ограничений"/"Unlimited" -- a
+	// count claim on a yes/no feature -- because the render loop had no shape
+	// dispatch at all, just a numeric formatter and a `|| key` label fallback.
+	describe("entitlement row rendering", () => {
+		function entitlementLoopBody(): string {
+			const start = source().indexOf('Object.entries(plan.entitlements');
+			const end = source().indexOf("<!-- Action -->");
+			expect(start).toBeGreaterThan(-1);
+			expect(end).toBeGreaterThan(start);
+			return source().slice(start, end);
+		}
+
+		it("delegates shape classification to classifyEntitlement, not a local copy", () => {
+			expect(source()).toContain('from "../billing/entitlements"');
+			expect(entitlementLoopBody()).toMatch(/classifyEntitlement\(value\)/);
+			// The two-branch numeric-only decision this replaces must not
+			// reappear inline in the loop.
+			expect(entitlementLoopBody()).not.toMatch(/"limit"\s*in\s*value/);
+			expect(entitlementLoopBody()).not.toMatch(/typeof value === "number"/);
+		});
+
+		it("never falls back to the raw key as a label", () => {
+			// `ENTITLEMENT_LABELS[key] || key` is exactly how "max_file_size_bytes"
+			// and "version_history_days" reached the screen as themselves.
+			expect(entitlementLoopBody()).not.toMatch(/ENTITLEMENT_LABELS\[key\]\s*\|\|\s*key/);
+			expect(entitlementLoopBody()).toMatch(/ENTITLEMENT_LABELS\[key\]/);
+		});
+
+		it("routes byte-valued keys through a set, not a single hardcoded key", () => {
+			// `key === "max_storage_bytes" ? formatBytes(...) : formatLimit(...)`
+			// is exactly the check that left max_file_size_bytes on the numeric
+			// (non-byte) formatter path.
+			expect(source()).toContain('from "../billing/entitlements"');
+			expect(entitlementLoopBody()).toMatch(/BYTE_VALUED_ENTITLEMENTS\.has\(key\)/);
+			expect(entitlementLoopBody()).not.toMatch(/key === "max_storage_bytes"/);
+		});
+
+		it("never routes a flag-shaped entitlement through formatLimit/formatBytes", () => {
+			const body = entitlementLoopBody();
+			const flagBranchStart = body.indexOf('"flag"');
+			expect(flagBranchStart).toBeGreaterThan(-1);
+			// The "flag" branch is the `{:else if}`/its body -- check the whole
+			// loop doesn't call formatLimit/formatBytes with anything but
+			// display.limit (the "limit" branch's own field).
+			expect(body).not.toMatch(/formatLimit\(display\.enabled/);
+			expect(body).not.toMatch(/formatBytes\(display\.enabled/);
+		});
+
+		it("shows a disabled flag as no row, not as an explicit off-state or a limit", () => {
+			const body = entitlementLoopBody();
+			expect(body).toMatch(/display\.kind === "flag" && display\.enabled/);
+		});
+
+		// AC#5 (#c18ef689): the USD/entire.vc lineup doesn't ship
+		// max_file_size_bytes/version_history_days/roles_enabled/
+		// closing_docs_edo_enabled today, but the fix must not be a RU-only
+		// patch -- the day any of these appear on a USD plan, they must render
+		// the same way. Asserted structurally: the entitlement loop dispatches
+		// purely on `key`/`value` shape, never on the plan's own currency or
+		// service_id.
+		it("dispatches on key/value shape only -- no currency or service_id special-casing", () => {
+			const body = entitlementLoopBody();
+			expect(body).not.toMatch(/currency/);
+			expect(body).not.toMatch(/service_id/);
+			expect(body).not.toMatch(/"USD"|"RUB"/);
+		});
 	});
 
 	describe("no English left hardcoded on the screen", () => {

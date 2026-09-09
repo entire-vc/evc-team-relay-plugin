@@ -348,6 +348,16 @@ export const englishPhrasebook = {
 	"billing.entitlement.maxMembersPerShare": "Members per share",
 	"billing.entitlement.maxWebPublished": "Web published",
 	"billing.entitlement.maxStorageBytes": "Storage",
+	"billing.entitlement.maxFileSizeBytes": "Max file size",
+	// No formatter turns a day count into a unit the way `formatBytes` does
+	// for bytes -- the unit lives in the label instead, same as "Shares"
+	// above carries its own unit with no number formatting.
+	"billing.entitlement.versionHistoryDays": "Version history, days",
+	"billing.entitlement.rolesEnabled": "Roles",
+	"billing.entitlement.closingDocsEdoEnabled": "Closing documents (EDO)",
+	// Value cell for any `{ enabled: true }` entitlement -- see
+	// `classifyEntitlement()` in `../billing/entitlements`.
+	"billing.entitlement.enabledValue": "Enabled",
 
 	"billing.planChangedNotice": "Plan changed successfully!",
 	"billing.openingCheckoutNotice": "Opening checkout in browser...",
@@ -741,6 +751,11 @@ export const ruPhrasebook = {
 	"billing.entitlement.maxMembersPerShare": "Участников на доступ",
 	"billing.entitlement.maxWebPublished": "Веб-публикации",
 	"billing.entitlement.maxStorageBytes": "Место",
+	"billing.entitlement.maxFileSizeBytes": "Максимальный размер файла",
+	"billing.entitlement.versionHistoryDays": "Хранение версий, дней",
+	"billing.entitlement.rolesEnabled": "Роли",
+	"billing.entitlement.closingDocsEdoEnabled": "Закрывающие документы (ЭДО)",
+	"billing.entitlement.enabledValue": "Включено",
 
 	"billing.planChangedNotice": "Тариф изменён!",
 	"billing.openingCheckoutNotice": "Открываю оплату в браузере...",
