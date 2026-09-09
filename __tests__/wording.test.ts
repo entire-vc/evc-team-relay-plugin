@@ -285,6 +285,34 @@ describe("billing screen phrases", () => {
 		expect(uiText("billing.usage.storage")).not.toMatch(/хранилищ/i);
 	});
 
+	// #c18ef689: the RU catalogue migration added these two numeric
+	// entitlement keys without ever adding their labels, so they rendered as
+	// their own raw snake_case key.
+	it("has ru+en labels for the two entitlement keys the RU migration added", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("billing.entitlement.maxFileSizeBytes")).toBe("Максимальный размер файла");
+		expect(uiText("billing.entitlement.versionHistoryDays")).toBe("Хранение версий, дней");
+		mockGetLanguage.mockReturnValue("en");
+		expect(uiText("billing.entitlement.maxFileSizeBytes")).toBe("Max file size");
+		expect(uiText("billing.entitlement.versionHistoryDays")).toBe("Version history, days");
+	});
+
+	// Same migration also added two `{ enabled: bool }` feature flags. Their
+	// labels plus the shared "Enabled"/"Включено" value word must exist in
+	// both languages -- BillingView's render loop hides any entitlement
+	// without a registered label (see billingCallSites.test.ts), so a missing
+	// string here would silently drop the row rather than raise.
+	it("has ru+en labels for the two boolean entitlement flags, and the shared enabled-value word", () => {
+		mockGetLanguage.mockReturnValue("ru");
+		expect(uiText("billing.entitlement.rolesEnabled")).toBe("Роли");
+		expect(uiText("billing.entitlement.closingDocsEdoEnabled")).toBe("Закрывающие документы (ЭДО)");
+		expect(uiText("billing.entitlement.enabledValue")).toBe("Включено");
+		mockGetLanguage.mockReturnValue("en");
+		expect(uiText("billing.entitlement.rolesEnabled")).toBe("Roles");
+		expect(uiText("billing.entitlement.closingDocsEdoEnabled")).toBe("Closing documents (EDO)");
+		expect(uiText("billing.entitlement.enabledValue")).toBe("Enabled");
+	});
+
 	it("substitutes the server name into the Russian subtitle", () => {
 		mockGetLanguage.mockReturnValue("ru");
 		expect(uiText("billing.onServer", { server: "Team Relay RU" })).toBe(
