@@ -1,0 +1,10 @@
+{
+  "id": "team-relay",
+  "name": "Team Relay",
+  "version": "0.0.7",
+  "minAppVersion": "1.13.0",
+  "description": "Enterprise collaboration with self-hosted relay infrastructure. Real-time editing with live cursors and secure team workspaces.",
+  "author": "EVC Team",
+  "authorUrl": "https://entire.vc",
+  "isDesktopOnly": false
+}
