@@ -289,6 +289,86 @@ export const englishPhrasebook = {
 	"createInvite.maxUsesLabel": "Max Uses (optional)",
 	"createInvite.unlimitedPlaceholder": "Unlimited",
 	"createInvite.createButton": "Create Invite Link",
+
+	// Billing & plan screen -- src/components/BillingView.svelte (#d8b4c267).
+	// Extracted from the call sites BYTE FOR BYTE, same rule as everything
+	// above: this screen's English wording is unchanged by that task, only
+	// its location. The one genuinely new English string is
+	// `billing.checkoutUnavailableNotice`, and it exists because the code it
+	// replaces had no honest branch to fall back to at all (it announced a
+	// checkout that was not opening).
+	"billing.title": "Billing & Plan",
+	"billing.onServer": "on {server}",
+	"billing.loading": "Loading billing info...",
+	"billing.notConnectedToServer": "Not connected to server",
+	"billing.notConnected": "Not connected",
+	"billing.loadFailed": "Failed to load billing data",
+	"billing.unlimited": "Unlimited",
+	"billing.freePrice": "Free",
+
+	// Period suffix on a price (`$9/mo`). Short by design -- it renders
+	// inside a price, not as a sentence.
+	"billing.period.month": "mo",
+	"billing.period.year": "yr",
+
+	// Storage sizes. Units are visible product text on this screen, so they
+	// are translated too ("3 GB" is an English word on a Russian screen), and
+	// so is the decimal mark -- Russian writes 3,0 where English writes 3.0.
+	// A one-character "phrase" is odd, but it keeps every locale-dependent
+	// glyph on this screen in the one place a reviewer reads.
+	"billing.decimalSeparator": ".",
+	"billing.bytes.gigabytes": "{value} GB",
+	"billing.bytes.megabytes": "{value} MB",
+	"billing.bytes.bytes": "{value} B",
+
+	"billing.badge.cancelling": "Cancelling",
+	"billing.badge.active": "Active",
+	"billing.badge.current": "Current",
+
+	"billing.resubscribeButton": "Resubscribe",
+	"billing.manageButton": "Manage",
+	// Deliberately NOT `shared.cancelButton`. That one dismisses a dialog
+	// ("Отмена"); this one ends a paid subscription ("Отменить"). Identical
+	// in English, different words in Russian -- collapsing them would put
+	// the wrong verb on a destructive button.
+	"billing.cancelSubscriptionButton": "Cancel",
+	"billing.currentPlanButton": "Current plan",
+	"billing.refreshButton": "Refresh",
+
+	"billing.accessUntil": "Access until {date}",
+	"billing.usageTitle": "Your Usage",
+	"billing.limitReached": "Limit reached",
+	"billing.percentUsed": "{percent}% used",
+
+	"billing.usage.shares": "Shares",
+	"billing.usage.webPublished": "Web published",
+	"billing.usage.storage": "Storage",
+
+	"billing.entitlement.maxShares": "Shares",
+	"billing.entitlement.maxMembersPerShare": "Members per share",
+	"billing.entitlement.maxWebPublished": "Web published",
+	"billing.entitlement.maxStorageBytes": "Storage",
+
+	"billing.planChangedNotice": "Plan changed successfully!",
+	"billing.openingCheckoutNotice": "Opening checkout in browser...",
+	// Shown when the server answers with something that is not an openable
+	// link -- today, stub mode. Deliberately OUR words, never the server's
+	// `message`: that reads "Billing is in stub mode. Upgrade not
+	// available.", and "stub mode" is an internal term that means nothing to
+	// a buyer and the wrong thing to a bank reviewing the product (Pavel via
+	// #d8b4c267). The framing is about us connecting something, not about
+	// the user hitting a broken feature -- a state, not a fault.
+	"billing.comingSoonButton": "Soon",
+	"billing.checkoutComingSoonNote":
+		"Card payments are being connected. You'll be able to pay here shortly.",
+	"billing.subscriptionActivatedNotice": "Subscription activated!",
+	"billing.upgradeFailedNotice": "Upgrade failed: {error}",
+	"billing.openingPortalNotice": "Opening subscription portal in browser...",
+	"billing.portalNotAvailable": "Portal not available",
+	"billing.portalFailedNotice": "Failed to open portal: {error}",
+	"billing.subscriptionCancelledNotice":
+		"Subscription cancelled. Access continues until end of billing period.",
+	"billing.cancelFailedNotice": "Cancel failed: {error}",
 } as const satisfies Record<string, string>;
 
 /** Every key the phrasebook defines -- the only valid input to `uiText()`. */
@@ -309,10 +389,16 @@ export type Phrasebook = Partial<Record<PhraseKey, string>>;
  * create invite). {name}-style placeholders are preserved verbatim, never
  * translated or reordered -- uiText.ts substitutes by name, not position.
  *
- * NOT SHIPPED to any real Russian-speaking user yet: this is the "one list,
- * one review" wording deliverable CLAUDE-workflow.md §1r.A requires BEFORE
- * new visible product text goes out -- Daedalus carries it to Pavel as a
- * single reviewable list before this MR merges past a hold/draft state.
+ * SHIPPED since 0.0.6 -- `git show 0.0.6:src/wording/phrasebook.ts` contains
+ * this dictionary, so any user whose Obsidian interface is Russian has been
+ * seeing it in a released build. The note that stood here said the opposite
+ * ("NOT SHIPPED to any real Russian-speaking user yet"); it was true while
+ * MR2 was open and was never updated when it merged. Corrected in #d8b4c267
+ * rather than left standing: a comment that says untranslated text is still
+ * behind a gate invites the next author to add strings without review.
+ * The §1r.A wording review it describes did happen and still applies to any
+ * NEW text added here -- see the billing block below, whose list went to the
+ * card as tier B.
  * Terminology anchored to the existing teamrelay.ru site copy (not invented
  * fresh here) where the site already established a term:
  *   - vault -> хранилище, member -> участник, editor/viewer role ->
@@ -602,6 +688,75 @@ export const ruPhrasebook = {
 	"createInvite.maxUsesLabel": "Максимум использований (необязательно)",
 	"createInvite.unlimitedPlaceholder": "Без ограничений",
 	"createInvite.createButton": "Создать ссылку-приглашение",
+
+	// Billing & plan screen (#d8b4c267). Terminology anchored to the already
+	// approved teamrelay.ru copy rather than invented here: тариф (not
+	// "план"), участник, оплата. "Share" stays «общий доступ», the noun MR2
+	// established for this plugin.
+	//
+	// Two judgment calls worth a reviewer's eye, both flagged on the card:
+	//   - "Storage" -> «Место», NOT «Хранилище». The site already spends
+	//     «хранилище» on *vault* ("тариф покупается на хранилище"), so using
+	//     it again for a disk quota would name two different things with one
+	//     word on a screen that shows both.
+	//   - "Cancel" (subscription) -> «Отменить», kept apart from the dialog's
+	//     «Отмена» -- see the English side's note on why these are two keys.
+	"billing.title": "Тариф и оплата",
+	"billing.onServer": "на {server}",
+	"billing.loading": "Загрузка данных о тарифе...",
+	"billing.notConnectedToServer": "Нет подключения к серверу",
+	"billing.notConnected": "Нет подключения",
+	"billing.loadFailed": "Не удалось загрузить данные о тарифе",
+	"billing.unlimited": "Без ограничений",
+	"billing.freePrice": "Бесплатно",
+
+	"billing.period.month": "мес",
+	"billing.period.year": "год",
+
+	"billing.decimalSeparator": ",",
+	"billing.bytes.gigabytes": "{value} ГБ",
+	"billing.bytes.megabytes": "{value} МБ",
+	"billing.bytes.bytes": "{value} Б",
+
+	"billing.badge.cancelling": "Отменяется",
+	"billing.badge.active": "Активен",
+	"billing.badge.current": "Текущий",
+
+	"billing.resubscribeButton": "Возобновить",
+	"billing.manageButton": "Управление",
+	"billing.cancelSubscriptionButton": "Отменить",
+	"billing.currentPlanButton": "Текущий тариф",
+	"billing.refreshButton": "Обновить",
+
+	"billing.accessUntil": "Доступ до {date}",
+	"billing.usageTitle": "Использование",
+	"billing.limitReached": "Лимит исчерпан",
+	"billing.percentUsed": "использовано {percent}%",
+
+	"billing.usage.shares": "Общие доступы",
+	"billing.usage.webPublished": "Веб-публикации",
+	"billing.usage.storage": "Место",
+
+	"billing.entitlement.maxShares": "Общие доступы",
+	"billing.entitlement.maxMembersPerShare": "Участников на доступ",
+	"billing.entitlement.maxWebPublished": "Веб-публикации",
+	"billing.entitlement.maxStorageBytes": "Место",
+
+	"billing.planChangedNotice": "Тариф изменён!",
+	"billing.openingCheckoutNotice": "Открываю оплату в браузере...",
+	"billing.comingSoonButton": "Скоро",
+	"billing.checkoutComingSoonNote":
+		"Приём платежей подключается. Оплатить можно будет в ближайшее время.",
+	"billing.subscriptionActivatedNotice": "Подписка активирована!",
+	"billing.upgradeFailedNotice": "Не удалось сменить тариф: {error}",
+	"billing.openingPortalNotice":
+		"Открываю управление подпиской в браузере...",
+	"billing.portalNotAvailable": "Управление подпиской недоступно",
+	"billing.portalFailedNotice":
+		"Не удалось открыть управление подпиской: {error}",
+	"billing.subscriptionCancelledNotice":
+		"Подписка отменена. Доступ сохраняется до конца оплаченного периода.",
+	"billing.cancelFailedNotice": "Не удалось отменить подписку: {error}",
 } satisfies Phrasebook;
 
 /**
