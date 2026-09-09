@@ -5,6 +5,7 @@
 	import type { RelayOnPremServer } from "../RelayOnPremConfig";
 	import { BillingApiError } from "../RelayOnPremShareClient";
 	import { resolveCurrentPlanId } from "../billing/currentPlan";
+	import { BYTE_VALUED_ENTITLEMENTS, classifyEntitlement } from "../billing/entitlements";
 	import { formatAmount } from "../billing/money";
 	import { isOpenableUrl } from "../billing/openableUrl";
 	import { selectDisplayPrice } from "../billing/planPrice";
@@ -109,14 +110,6 @@
 		return `${formatAmount(amount, currency)}/${formatPeriod(period)}`;
 	}
 
-	function getEntitlementLimit(value: { limit: number | null } | number | null): number | null {
-		if (value === null || value === undefined) return null;
-		if (typeof value === "object" && "limit" in value) return value.limit;
-		if (typeof value === "number") return value;
-		return null;
-	}
-
-
 	/**
 	 * Shown as the card's headline price. The three-way choice lives in
 	 * `selectDisplayPrice` (pure, unit-tested); this only puts words to it.
@@ -145,6 +138,13 @@
 		max_members_per_share: uiText("billing.entitlement.maxMembersPerShare"),
 		max_web_published: uiText("billing.entitlement.maxWebPublished"),
 		max_storage_bytes: uiText("billing.entitlement.maxStorageBytes"),
+		// Added by the RU catalogue migration (`018_teamrelay_ru_pricing`) --
+		// present on every RU tier, absent from the USD/entire.vc lineup today.
+		max_file_size_bytes: uiText("billing.entitlement.maxFileSizeBytes"),
+		version_history_days: uiText("billing.entitlement.versionHistoryDays"),
+		// `{ enabled: bool }`-shaped, RU "Командный" tier only today.
+		roles_enabled: uiText("billing.entitlement.rolesEnabled"),
+		closing_docs_edo_enabled: uiText("billing.entitlement.closingDocsEdoEnabled"),
 	};
 
 	// Non-numeric entitlements to skip in the plan feature list
@@ -170,25 +170,43 @@
 				new Notice(uiText("billing.planChangedNotice"));
 				await loadBillingData();
 			} else {
-				const result = await client.createCheckout(plan.id, priceId);
-				const checkoutUrl = result.checkout_url;
-				if (isOpenableUrl(checkoutUrl)) {
-					window.open(checkoutUrl);
-					new Notice(uiText("billing.openingCheckoutNotice"));
-				} else if (typeof checkoutUrl === "string" && checkoutUrl.trim() !== "") {
-					// The server answered with something that is not a link --
-					// today the stub marker, tomorrow anything else. Announcing
-					// a checkout that is not opening would be a lie, so switch
-					// the button to its "being connected" state instead.
-					//
-					// `result.message` is deliberately NOT surfaced: the server
-					// says "Billing is in stub mode. Upgrade not available.",
-					// and those are internal words. Our own copy ships instead.
+				// Every way `createCheckout` can fail to hand back an openable
+				// link -- a non-URL response (the stub marker) AND a thrown
+				// error (a live 422 "Invalid billing data" once the RU
+				// catalogue moved off stub mode and the payment gateway isn't
+				// active yet, #c18ef689 finding 2) -- degrades to the SAME
+				// "being connected" state. Two branches that both mean "no
+				// checkout today" must not diverge on what the user sees:
+				// that divergence is exactly how the stub-marker fix shipped
+				// tested against a scenario the real backend had already
+				// stopped producing.
+				let result: Awaited<ReturnType<typeof client.createCheckout>> | null = null;
+				try {
+					result = await client.createCheckout(plan.id, priceId);
+				} catch {
 					checkoutComingSoon = true;
 					new Notice(uiText("billing.checkoutComingSoonNote"));
-				} else {
-					new Notice(uiText("billing.subscriptionActivatedNotice"));
-					await loadBillingData();
+				}
+				if (result) {
+					const checkoutUrl = result.checkout_url;
+					if (isOpenableUrl(checkoutUrl)) {
+						window.open(checkoutUrl);
+						new Notice(uiText("billing.openingCheckoutNotice"));
+					} else if (typeof checkoutUrl === "string" && checkoutUrl.trim() !== "") {
+						// The server answered with something that is not a link --
+						// today the stub marker, tomorrow anything else. Announcing
+						// a checkout that is not opening would be a lie, so switch
+						// the button to its "being connected" state instead.
+						//
+						// `result.message` is deliberately NOT surfaced: the server
+						// says "Billing is in stub mode. Upgrade not available.",
+						// and those are internal words. Our own copy ships instead.
+						checkoutComingSoon = true;
+						new Notice(uiText("billing.checkoutComingSoonNote"));
+					} else {
+						new Notice(uiText("billing.subscriptionActivatedNotice"));
+						await loadBillingData();
+					}
 				}
 			}
 		} catch (e: unknown) {
@@ -287,14 +305,30 @@
 						<!-- Entitlements -->
 						<div class="evc-plan-features">
 							{#each Object.entries(plan.entitlements || {}) as [key, value]}
-								{#if !HIDDEN_ENTITLEMENTS.has(key)}
-									{@const limit = getEntitlementLimit(value)}
-									<div class="evc-plan-feature">
-										<span class="evc-feature-value">
-											{key === "max_storage_bytes" ? formatBytes(limit) : formatLimit(limit)}
-										</span>
-										<span class="evc-feature-label">{ENTITLEMENT_LABELS[key] || key}</span>
-									</div>
+								{#if !HIDDEN_ENTITLEMENTS.has(key) && ENTITLEMENT_LABELS[key]}
+									{@const display = classifyEntitlement(value)}
+									{#if display.kind === "limit"}
+										<div class="evc-plan-feature">
+											<span class="evc-feature-value">
+												{BYTE_VALUED_ENTITLEMENTS.has(key)
+													? formatBytes(display.limit)
+													: formatLimit(display.limit)}
+											</span>
+											<span class="evc-feature-label">{ENTITLEMENT_LABELS[key]}</span>
+										</div>
+									{:else if display.kind === "flag" && display.enabled}
+										<div class="evc-plan-feature">
+											<span class="evc-feature-value">{uiText("billing.entitlement.enabledValue")}</span>
+											<span class="evc-feature-label">{ENTITLEMENT_LABELS[key]}</span>
+										</div>
+									{/if}
+									<!-- No `|| key` fallback on the label, and no row at all for
+									     display.kind === "unknown" or a disabled flag: an entitlement
+									     key with no registered label, or a shape this screen doesn't
+									     understand, must NEVER print raw snake_case on a screen headed
+									     to a bank -- that silent-key-leak is the bug this block
+									     replaces (#c18ef689). A key ships a row only once it has both
+									     a label (this file) and a recognised shape (../billing/entitlements). -->
 								{/if}
 							{/each}
 						</div>
