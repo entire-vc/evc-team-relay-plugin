@@ -98,6 +98,7 @@ export const englishPhrasebook = {
 	"serverList.logoutButton": "Logout",
 	"serverList.testButton": "Test",
 	"serverList.sharesButton": "Shares",
+	"serverList.loginRequiredHint": "Log in to manage this",
 	"serverList.editButton": "Edit",
 	"serverList.removeButton": "Remove",
 	"serverList.removeConfirmMessage":
@@ -494,6 +495,7 @@ export const ruPhrasebook = {
 	"serverList.logoutButton": "Выйти",
 	"serverList.testButton": "Проверить",
 	"serverList.sharesButton": "Общие доступы",
+	"serverList.loginRequiredHint": "Войдите, чтобы управлять",
 	"serverList.editButton": "Изменить",
 	"serverList.removeButton": "Удалить",
 	"serverList.removeConfirmMessage":
