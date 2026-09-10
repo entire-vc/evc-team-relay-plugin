@@ -486,19 +486,32 @@
 				>
 					{testingServerId === server.id ? "..." : uiText("serverList.testButton")}
 				</button>
-				{#if authStatus.isLoggedIn}
-					<button class="relay-server-btn" on:click={() => openSharesForServer(server)}>
-						{uiText("serverList.sharesButton")}
-					</button>
-					{#if serverBillingSupport[server.id]}
-						<button class="relay-server-btn" on:click={() => dispatch('openBilling', { server })}>
-							{uiText("shell.breadcrumb.planUsage")}
-						</button>
-					{/if}
-					<button class="relay-server-btn" on:click={() => dispatch('openAgentKeys', { server })}>
-						{uiText("shell.breadcrumb.agentKeys")}
+				<button
+					class="relay-server-btn"
+					on:click={() => openSharesForServer(server)}
+					disabled={!authStatus.isLoggedIn}
+					title={authStatus.isLoggedIn ? undefined : uiText("serverList.loginRequiredHint")}
+				>
+					{uiText("serverList.sharesButton")}
+				</button>
+				{#if serverBillingSupport[server.id]}
+					<button
+						class="relay-server-btn"
+						on:click={() => dispatch('openBilling', { server })}
+						disabled={!authStatus.isLoggedIn}
+						title={authStatus.isLoggedIn ? undefined : uiText("serverList.loginRequiredHint")}
+					>
+						{uiText("shell.breadcrumb.planUsage")}
 					</button>
 				{/if}
+				<button
+					class="relay-server-btn"
+					on:click={() => dispatch('openAgentKeys', { server })}
+					disabled={!authStatus.isLoggedIn}
+					title={authStatus.isLoggedIn ? undefined : uiText("serverList.loginRequiredHint")}
+				>
+					{uiText("shell.breadcrumb.agentKeys")}
+				</button>
 				<button class="relay-server-btn" on:click={() => startEditServer(server)}>
 					{uiText("serverList.editButton")}
 				</button>
@@ -682,6 +695,11 @@
 		padding: 4px 8px;
 		font-size: 0.85em;
 		cursor: pointer;
+	}
+
+	.relay-server-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.relay-server-form {
