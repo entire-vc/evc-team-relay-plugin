@@ -43,18 +43,20 @@ You love Obsidian, but your team needs more:
 
 ## Install
 
-Team Relay is **not currently listed in the Obsidian community catalogue**, so
-install it manually:
+Team Relay is listed in the Obsidian community catalogue as **Team Relay**:
+
+1. Open *Settings → Community plugins → Browse*
+2. Search for **Team Relay** and click **Install**
+3. Enable it in *Settings → Community plugins*
+
+### Manual install (fallback)
 
 1. Download `main.js`, `manifest.json` and `styles.css` from the
    [latest release](https://github.com/entire-vc/evc-team-relay-plugin/releases)
-2. Create `<your vault>/.obsidian/plugins/evc-team-relay/` and copy the three
+2. Create `<your vault>/.obsidian/plugins/team-relay/` and copy the three
    files into it
 3. Restart Obsidian, then enable **Team Relay** in
    *Settings → Community plugins*
-
-We are working towards a catalogue listing; until then the manual route above is
-the supported one.
 
 ---
 
