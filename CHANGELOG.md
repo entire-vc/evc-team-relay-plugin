@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.8
+- Minimum Obsidian version lowered back to 1.8.7 (it had drifted up to 1.13.0 in 0.0.3). The five destructive buttons in share management now use `setWarning()` instead of the newer `setDestructive()` — same red-button look, works on older Obsidian.
+
 ## 0.0.7
 - Debug/info/warn/error console log lines are now prefixed `[Relay]` instead of a stale internal tag left over from an earlier build.
 

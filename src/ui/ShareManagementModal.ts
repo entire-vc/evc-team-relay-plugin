@@ -410,7 +410,7 @@ export class ShareManagementModal extends Modal {
 					setting.addButton((button) => {
 						button
 							.setButtonText("Remove")
-							.setDestructive()
+							.setWarning()
 							.onClick(() => this.removeMember(member.user_id));
 					});
 				} else {
@@ -500,7 +500,7 @@ export class ShareManagementModal extends Modal {
 				.addButton((button) => {
 					button
 						.setButtonText("Disconnect")
-						.setDestructive()
+						.setWarning()
 						.onClick(async () => {
 							const ok = await confirmDialog(
 								this.app,
@@ -610,7 +610,7 @@ export class ShareManagementModal extends Modal {
 			.addButton((button) => {
 				button
 					.setButtonText("Delete")
-					.setDestructive()
+					.setWarning()
 					.onClick(() => this.deleteShare());
 			});
 	}
@@ -1280,7 +1280,7 @@ export class ShareManagementModal extends Modal {
 					.addButton((button) => {
 						button
 							.setButtonText("Revoke")
-							.setDestructive()
+							.setWarning()
 							.onClick(() => { void this.revokeInvite(invite.id); });
 					});
 
@@ -1335,7 +1335,7 @@ export class ShareManagementModal extends Modal {
 					.addButton((button) => {
 						button
 							.setButtonText("Revoke")
-							.setDestructive()
+							.setWarning()
 							.onClick(() => void this.revokeShareAgentKey(key.id));
 					});
 			});
