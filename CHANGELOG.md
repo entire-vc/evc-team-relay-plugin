@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.9
+- Fixed a race in the credential cache that could hand a reconnecting WebSocket a token with only seconds left before expiry, causing an `invalid_token` auth failure on the handshake. The cache now honors the same renewal margin the periodic refresh sweep already used, instead of only checking literal expiry.
+
 ## 0.0.8
 - Minimum Obsidian version lowered back to 1.8.7 (it had drifted up to 1.13.0 in 0.0.3). The five destructive buttons in share management now use `setWarning()` instead of the newer `setDestructive()` — same red-button look, works on older Obsidian.
 
