@@ -54,4 +54,29 @@ describe("CredentialCache renewal margin vs token TTL (#75491f2f)", () => {
 		// re-issues on effectively every single tick (~19-20 times).
 		expect(sweepRefreshes).toBeLessThanOrEqual(8);
 	});
+
+	// #cde2a0b7: acquireToken() used to gate its cache-hit on tokenIsValid()
+	// alone -- a literal-expiry check that a token with 1ms left on its clock
+	// still passes. A reconnect landing inside the renewal margin (the same
+	// up-to-60s gap the periodic sweep can leave before it next runs) got
+	// served that almost-dead token straight from cache, no network call, and
+	// then lost the race against expiry mid-handshake -- a plausible source of
+	// the residual invalid_token failures the #75491f2f closure never
+	// actually explained.
+	test("acquireToken refreses rather than serving a token inside the renewal margin", async () => {
+		const clock = new MockClock();
+		const counter = { count: 0 };
+		const store = buildStore(clock, counter);
+
+		await store.acquireToken("doc1", "doc1", () => undefined);
+		expect(counter.count).toBe(1);
+
+		// Advance to just inside the 1-minute renewal margin (TTL 5min - 30s
+		// left), well short of literal expiry -- tokenIsValid() alone would
+		// say "still fine".
+		clock.setTime(clock.now() + TTL_MS - 30 * 1000);
+
+		await store.acquireToken("doc1", "doc1", () => undefined);
+		expect(counter.count).toBe(2); // refreshed, not served stale from cache
+	});
 });
