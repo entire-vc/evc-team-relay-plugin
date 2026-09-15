@@ -331,7 +331,17 @@ export class CredentialCache<TokenType extends TokenBearing> {
 		}
 
 		const tokenInfo = this.tokenEntries.get(documentId);
-		if (tokenInfo?.token && this.tokenIsValid(tokenInfo)) {
+		// #cde2a0b7: `tokenIsValid` alone is a literal-expiry check -- a token
+		// with 1s left on its clock still passes it. A reconnect (bringOnline())
+		// racing that boundary would get served this almost-dead token, dial
+		// the WS handshake with it, and lose the race against expiry in
+		// transit -- exactly the residual invalid_token failures #75491f2f's
+		// resolved-self closure never actually explained (Daedalus's untested
+		// throttle-saturation hypothesis). `needsRefresh` is the same margin
+		// the sweep uses to refresh proactively; honoring it here too means a
+		// caller never gets handed a token the sweep would already consider
+		// due for renewal, even in the up-to-60s gap before the next sweep tick.
+		if (tokenInfo?.token && this.tokenIsValid(tokenInfo) && !this.needsRefresh(tokenInfo)) {
 			this.subscriberCallbacks.set(documentId, callback);
 			tokenInfo.friendlyName = friendlyName;
 			callback(tokenInfo.token);
