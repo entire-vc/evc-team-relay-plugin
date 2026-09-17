@@ -209,6 +209,59 @@ describe("RelayOnPremTokenProvider.requestToken write->read fallback", () => {
 });
 
 /**
+ * Tests for client_version being attached to /tokens/relay requests (#75491f2f
+ * recurrence diagnosis, 2026-09-17): the only signal that lets the control-plane
+ * attribute a given token issuance to a specific plugin release. User-Agent
+ * alone can't do this — it carries the Obsidian/Electron app version, not the
+ * plugin's.
+ */
+describe("RelayOnPremTokenProvider.requestToken client_version", () => {
+	beforeEach(() => {
+		jest.useFakeTimers();
+		mockFetch.mockClear();
+	});
+
+	afterEach(() => {
+		jest.useRealTimers();
+	});
+
+	test("sends client_version when the provider was constructed with one", async () => {
+		mockFetch.mockImplementation(() => mockFetchResponse(TOKEN_RESPONSE));
+
+		const provider = new RelayOnPremTokenProvider({
+			controlPlaneUrl: "https://relay.example.com",
+			authProvider: makeAuthProvider(),
+			clientVersion: "0.0.9",
+		});
+
+		const request = provider.requestToken("relay1", "folder1", "doc1");
+		await jest.advanceTimersByTimeAsync(0);
+		await request;
+
+		const [, init] = mockFetch.mock.calls[0];
+		const body = JSON.parse((init as RequestInit).body as string);
+		expect(body.client_version).toBe("0.0.9");
+	});
+
+	test("omits client_version entirely when the provider wasn't given one", async () => {
+		mockFetch.mockImplementation(() => mockFetchResponse(TOKEN_RESPONSE));
+
+		const provider = new RelayOnPremTokenProvider({
+			controlPlaneUrl: "https://relay.example.com",
+			authProvider: makeAuthProvider(),
+		});
+
+		const request = provider.requestToken("relay1", "folder1", "doc1");
+		await jest.advanceTimersByTimeAsync(0);
+		await request;
+
+		const [, init] = mockFetch.mock.calls[0];
+		const body = JSON.parse((init as RequestInit).body as string);
+		expect("client_version" in body).toBe(false);
+	});
+});
+
+/**
  * Tests for requestFileToken (TR-09) — the attachment (BlobClient) presigned-URL
  * token flow, wired into RelayCredentialCache.fetchFileTokenFromApi's relay-onprem
  * branch. Hits POST /shares/{id}/file-token, distinct from requestToken's
