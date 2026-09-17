@@ -16,6 +16,7 @@ export interface RelayTokenRequest {
 	mode: "read" | "write";
 	password?: string;
 	file_path?: string; // For folder shares: path of file within folder
+	client_version?: string; // Plugin manifest version — see RelayOnPremTokenConfig.clientVersion
 }
 
 export interface RelayTokenResponse {
@@ -40,6 +41,15 @@ export interface FileTokenApiResponse {
 export interface RelayOnPremTokenConfig {
 	controlPlaneUrl: string;
 	authProvider: IAuthProvider;
+	/**
+	 * Plugin manifest version (this.manifest.version), sent to the control-plane
+	 * with every token request so it can attribute a given auth outcome to a
+	 * specific release. User-Agent alone can't do this — it carries the
+	 * Obsidian/Electron app version, not the plugin's (#75491f2f recurrence
+	 * diagnosis, 2026-09-17). Optional so callers that don't have a manifest
+	 * handy (e.g. tests) still compile.
+	 */
+	clientVersion?: string;
 }
 
 /**
@@ -175,6 +185,10 @@ export class RelayOnPremTokenProvider {
 		// Include file_path for folder shares if provided
 		if (filePath) {
 			request.file_path = filePath;
+		}
+
+		if (this.config.clientVersion) {
+			request.client_version = this.config.clientVersion;
 		}
 
 		// Wait for our slot in the throttle queue before hitting the network
