@@ -52,6 +52,13 @@ export class FolderIndex extends Notifier<FolderIndex> {
 	private flatIdMap: Y.Map<string>;
 	/** Canonical path -> metadata map, Y-backed. */
 	private records: Y.Map<ItemRecord>;
+	/**
+	 * Paths explicitly deleted by a collaborator.  Keeping this in the shared
+	 * root document is essential: an offline client otherwise cannot tell a
+	 * remote delete from "a brand-new local file that should be uploaded" and
+	 * resurrects the deleted entry when it reconnects.
+	 */
+	private deletions: Y.Map<number>;
 	/** Staged writes not yet flushed into `records` (see applyStaged()). */
 	stagedWrites: Map<string, ItemRecord>;
 	/** Staged deletions not yet flushed into `records` (see applyStaged()). */
@@ -69,6 +76,7 @@ export class FolderIndex extends Notifier<FolderIndex> {
 		super();
 		this.flatIdMap = this.crdt.getMap("docs");
 		this.records = this.crdt.getMap("filemeta_v0");
+		this.deletions = this.crdt.getMap("deleted_v0");
 		this.stagedWrites = new Map();
 		this.aliases = new Map();
 		this.stagedDeletes = new Set();
@@ -145,6 +153,9 @@ export class FolderIndex extends Notifier<FolderIndex> {
 
 	new(vpath: string): string {
 		this.requireVirtualPath(vpath);
+		if (this.isDeleted(vpath)) {
+			throw new Error("cannot mint a guid for a deleted path before reviving it: " + vpath);
+		}
 		const guid = uuidv4();
 		this.mintedGuids.set(vpath, guid);
 		return guid;
@@ -184,21 +195,21 @@ export class FolderIndex extends Notifier<FolderIndex> {
 	 * as opposed to just being in mintedGuids or stagedWrites.
 	 */
 	hasYMapEntry(vpath: string): boolean {
-		return this.records.has(vpath);
+		return !this.isDeleted(vpath) && this.records.has(vpath);
 	}
 
 	eachRecord(callbackFn: (meta: ItemRecord, path: string) => void): void {
 		for (const [path, meta] of this.records.entries()) {
-			if (!this.stagedDeletes.has(path)) callbackFn(meta, path);
+			if (!this.stagedDeletes.has(path) && !this.isDeleted(path)) callbackFn(meta, path);
 		}
 		for (const [path, meta] of this.stagedWrites.entries()) {
-			if (!this.stagedDeletes.has(path)) callbackFn(meta, path);
+			if (!this.stagedDeletes.has(path) && !this.isDeleted(path)) callbackFn(meta, path);
 		}
 	}
 
 	tracks(path: string): boolean {
 		const resolved = this.aliases.get(path) ?? path;
-		if (this.stagedDeletes.has(resolved)) return false;
+		if (this.stagedDeletes.has(resolved) || this.isDeleted(resolved)) return false;
 		return (
 			this.records.has(resolved) ||
 			this.flatIdMap.has(resolved) ||
@@ -227,6 +238,10 @@ export class FolderIndex extends Notifier<FolderIndex> {
 
 	put(vpath: string, meta: ItemRecord): void {
 		this.requireVirtualPath(vpath);
+		if (this.isDeleted(vpath)) {
+			this.log("ignoring metadata write for deleted path", vpath);
+			return;
+		}
 		if (isDocumentRecord(meta) && this.flatIdMap.get(vpath) !== meta.id) {
 			this.flatIdMap.set(vpath, meta.id);
 		}
@@ -300,8 +315,11 @@ export class FolderIndex extends Notifier<FolderIndex> {
 
 		this.flatIdMap.observe(legacyListener);
 		this.records.observe(syncFileObserver);
+		const deletionListener = () => this.notifySubscribers();
+		this.deletions.observe(deletionListener);
 		this.unsubscribes.push(() => this.flatIdMap.unobserve(legacyListener));
 		this.unsubscribes.push(() => this.records.unobserve(syncFileObserver));
+		this.unsubscribes.push(() => this.deletions.unobserve(deletionListener));
 		this.unsubscribes.push(
 			this.kinds.subscribe(() => {
 				this.log("type registry updated");
@@ -338,7 +356,7 @@ export class FolderIndex extends Notifier<FolderIndex> {
 	guidFor(vpath: string): string | undefined {
 		this.requireVirtualPath(vpath);
 		const resolved = this.aliases.get(vpath) ?? vpath;
-		if (this.stagedDeletes.has(resolved)) return undefined;
+		if (this.stagedDeletes.has(resolved) || this.isDeleted(resolved)) return undefined;
 
 		const pending = this.mintedGuids.get(resolved);
 		if (pending) return pending;
@@ -349,7 +367,7 @@ export class FolderIndex extends Notifier<FolderIndex> {
 	recordFor(vpath: string): ItemRecord | undefined {
 		this.requireVirtualPath(vpath);
 		const resolved = this.aliases.get(vpath) ?? vpath;
-		if (this.stagedDeletes.has(resolved)) return undefined;
+		if (this.stagedDeletes.has(resolved) || this.isDeleted(resolved)) return undefined;
 
 		const existing = this.records.get(resolved) ?? this.stagedWrites.get(resolved);
 		if (existing) {
@@ -373,10 +391,39 @@ export class FolderIndex extends Notifier<FolderIndex> {
 		return undefined;
 	}
 
-	delete(vpath: string) {
+	/** True when this path (or a deleted ancestor folder) has a shared tombstone. */
+	isDeleted(vpath: string): boolean {
+		this.requireVirtualPath(vpath);
+		if (this.deletions.has(vpath)) return true;
+		const parts = vpath.split(sep);
+		for (let i = parts.length - 1; i > 0; i--) {
+			if (this.deletions.has(parts.slice(0, i).join(sep))) return true;
+		}
+		return false;
+	}
+
+	/** Remove a tombstone only for an explicit, post-bootstrap local recreate. */
+	revive(vpath: string): void {
 		this.requireVirtualPath(vpath);
 		this.flatIdMap.delete(vpath);
+		this.records.delete(vpath);
 		this.mintedGuids.delete(vpath);
+		this.stagedWrites.delete(vpath);
+		this.stagedDeletes.delete(vpath);
+		this.deletions.delete(vpath);
+	}
+
+	/**
+	 * Delete metadata and publish a durable tombstone.  This intentionally
+	 * records a tombstone even when this replica has not received the path's
+	 * metadata yet; the deletion still has to win once the missing state lands.
+	 */
+	delete(vpath: string, deletedAt = Date.now()) {
+		this.requireVirtualPath(vpath);
+		this.deletions.set(vpath, deletedAt);
+		this.flatIdMap.delete(vpath);
+		this.mintedGuids.delete(vpath);
+		this.stagedWrites.delete(vpath);
 		return this.records.delete(vpath);
 	}
 
@@ -418,6 +465,12 @@ export class FolderIndex extends Notifier<FolderIndex> {
 		const renamedDirectories = new Map<string, string>();
 
 		for (const [newPath, guid] of this.flatIdMap) {
+			try {
+				this.requireVirtualPath(newPath);
+			} catch {
+				continue;
+			}
+			if (this.isDeleted(newPath)) continue;
 			let previousPath: string | undefined;
 			for (const [path, meta] of this.records) {
 				if (meta.type === ItemKind.Document && meta.id === guid && path !== newPath) {
@@ -495,6 +548,7 @@ export class FolderIndex extends Notifier<FolderIndex> {
 			this.warn(`upgradeEntry: skipping invalid vpath "${vpath}"`);
 			return;
 		}
+		if (this.isDeleted(vpath)) return;
 
 		if (this.records.get(vpath)?.id === guid) return;
 
@@ -531,5 +585,6 @@ export class FolderIndex extends Notifier<FolderIndex> {
 		this.aliases.clear();
 		this.flatIdMap = null as unknown as Y.Map<string>;
 		this.records = null as unknown as Y.Map<ItemRecord>;
+		this.deletions = null as unknown as Y.Map<number>;
 	}
 }

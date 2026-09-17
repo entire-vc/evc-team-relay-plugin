@@ -493,6 +493,33 @@ describe("FolderIndex", () => {
 			expect(store.tracks(path)).toBeFalsy();
 			expect(store.recordFor(path)).toBeUndefined();
 		});
+
+		test("a deletion tombstone blocks stale metadata and staged writes", () => {
+			const path = "deleted.md";
+			const guid = store.new(path);
+			store.recordUpload(path, makeDocumentRecord(guid));
+			internal(store).stagedWrites.set(path, makeDocumentRecord("late-guid"));
+
+			store.delete(path, 1234);
+			store.recordUpload(path, makeDocumentRecord("stale-guid"));
+			store.upgradeEntry("legacy-guid", path);
+			store.applyStaged();
+
+			expect(store.isDeleted(path)).toBe(true);
+			expect(store.guidFor(path)).toBeUndefined();
+			expect(store.recordFor(path)).toBeUndefined();
+			expect(internal(store).stagedWrites.has(path)).toBe(false);
+		});
+
+		test("a deleted folder tombstones all descendants until explicitly revived", () => {
+			store.delete("folder", 1234);
+
+			expect(store.isDeleted("folder/nested/file.md")).toBe(true);
+			expect(() => store.new("folder/nested/file.md")).toThrow(/deleted path/);
+
+			store.revive("folder");
+			expect(store.isDeleted("folder/nested/file.md")).toBe(false);
+		});
 	});
 
 	describe("Delete Set functionality", () => {

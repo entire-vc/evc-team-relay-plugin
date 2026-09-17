@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.16
+- Fixed self-hosted shared-folder bootstrap and recovery so existing files, nested folders, and attachments are published and downloaded reliably by every participant.
+- File and folder deletions now propagate through a durable shared tombstone. Offline peers can no longer upload an old local copy and resurrect an item after reconnecting.
+- Late upload completions are rejected when their path was deleted or reassigned, closing a race that could restore a file immediately after deletion.
+
 ## 0.0.9
 - Fixed a race in the credential cache that could hand a reconnecting WebSocket a token with only seconds left before expiry, causing an `invalid_token` auth failure on the handshake. The cache now honors the same renewal margin the periodic refresh sweep already used, instead of only checking literal expiry.
 

@@ -73,6 +73,7 @@ import {
 	awaitVpathClaimSettled,
 	wonVpathClaim,
 } from "./uploadClaim";
+import { waitForBufferFlush } from "./websocketFlush";
 
 export interface VaultShareSettings {
 	guid: string;
@@ -189,6 +190,8 @@ export class VaultShare extends ProviderBacked {
 	private syncedValue: LazyValue<void> | null = null;
 	private localDbLoaded: boolean = false;
 	private localDbTimedOut: boolean = false;
+	/** True only after the startup file events and first remote reconciliation are complete. */
+	public initialReconciliationComplete: boolean = false;
 	private _localDb: LocalDocumentStore;
 
 	// -- Collaborators --
@@ -405,7 +408,8 @@ export class VaultShare extends ProviderBacked {
 			// contains locally-present tracked entries and the upload path performs
 			// the normal relay reconciliation before writing anything.
 			this.transfers.enqueueShareUpload(this);
-			void this.scanFileTree(this.folderIndex);
+			await this.scanFileTree(this.folderIndex);
+			this.initialReconciliationComplete = true;
 		}
 	}
 
@@ -450,6 +454,12 @@ export class VaultShare extends ProviderBacked {
 	 */
 	private adoptLocalFiles = async (allowMint = true) => {
 		let syncTFiles = this.vaultFilesInScope();
+		// A shared deletion tombstone is authoritative.  In particular, an
+		// offline peer reconnecting with the old file still on disk must not
+		// interpret the missing metadata as a brand-new file and upload it again.
+		syncTFiles = syncTFiles.filter(
+			(tfile) => !this.folderIndex.isDeleted(this.toVirtualPath(tfile.path)),
+		);
 		if (!allowMint) {
 			const { known, unknown } = partitionByKnownGuid(
 				syncTFiles,
@@ -1467,12 +1477,6 @@ export class VaultShare extends ProviderBacked {
 			allRemotePaths.add(path);
 		});
 
-		// Safety: if remote state is empty, this is likely a first sync —
-		// do NOT delete local files (they should be uploaded to remote instead)
-		if (allRemotePaths.size === 0) {
-			return [];
-		}
-
 		// Additional safety: require provider+persistence to be synced
 		const synced = this._liveProvider?.synced && this._localDb?.synced;
 		if (!synced) {
@@ -1505,7 +1509,20 @@ export class VaultShare extends ProviderBacked {
 		const vpath = this.toVirtualPath(file.path);
 		const fileInMap = allRemotePaths.has(vpath);
 		const filePending = this.uploadClaims.has(vpath);
-		if (!(fileInFolder && isSyncableFile && !fileInMap && !filePending)) {
+		const tombstoned = this.folderIndex.isDeleted(vpath);
+		// An empty remote map is ambiguous for old shares, so absence alone is
+		// not enough to prune the final file.  A tombstone is explicit and makes
+		// deleting the last item in a share safe.
+		const deletionConfirmed = allRemotePaths.size > 0 || tombstoned;
+		if (
+			!(
+				fileInFolder &&
+				isSyncableFile &&
+				!fileInMap &&
+				(!filePending || tombstoned) &&
+				deletionConfirmed
+			)
+		) {
 			return null;
 		}
 
@@ -2014,12 +2031,24 @@ export class VaultShare extends ProviderBacked {
 			return;
 		}
 		try {
-			if (this.folderIndex.wouldChange(file.entryPath, meta)) {
-				this.log("new meta", file.entryPath, meta);
-				this.crdtDoc.transact(() => {
+			this.crdtDoc.transact(() => {
+				const currentGuid = this.folderIndex.guidFor(file.entryPath);
+				// A bootstrap/upload may finish after the user deleted the file.
+				// Validate both the current path->guid mapping and the live wrapper
+				// identity at commit time so that stale async work cannot resurrect it.
+				if (
+					this.isDeletePending(file.entryPath) ||
+					currentGuid !== file.entityGuid ||
+					this.trackedEntries.get(file.entityGuid) !== file
+				) {
+					this.log("ignored stale metadata commit", file.entryPath, file.entityGuid);
+					return;
+				}
+				if (this.folderIndex.wouldChange(file.entryPath, meta)) {
+					this.log("new meta", file.entryPath, meta);
 					this.folderIndex.recordUpload(file.entryPath, meta);
-				}, this);
-			}
+				}
+			}, this);
 		} catch (e: unknown) {
 			this.warn(`noteUploaded failed for ${file.entryPath}`, e);
 		}
@@ -2521,8 +2550,20 @@ export class VaultShare extends ProviderBacked {
 	 * discover a brand-new shared vpath at once" scenario, just triggered by
 	 * a different Obsidian event (TR-15-follow-up, #7c14871a).
 	 */
-	async claimAndUploadFile(tfile: TAbstractFile): Promise<void> {
+	async claimAndUploadFile(
+		tfile: TAbstractFile,
+		allowDeletedPathRevive = false,
+	): Promise<void> {
 		const vpath = this.toVirtualPath(tfile.path);
+		await this.awaitReady();
+		if (this.folderIndex.isDeleted(vpath)) {
+			if (!allowDeletedPathRevive) {
+				this.log("won't upload a path deleted by a collaborator:", vpath);
+				void this.scanFileTree(this.folderIndex);
+				return;
+			}
+			this.crdtDoc.transact(() => this.folderIndex.revive(vpath), this);
+		}
 		const newDocs = this.claimPaths([tfile]);
 		if (newDocs.length === 0) {
 			// Already known -- ordinary existing-file path, unchanged.
@@ -2562,29 +2603,64 @@ export class VaultShare extends ProviderBacked {
 	}
 
 	isDeletePending(vpath: string): boolean {
-		return this.awaitingDelete.has(vpath);
+		if (this.awaitingDelete.has(vpath)) return true;
+		for (const pending of this.awaitingDelete) {
+			if (vpath.startsWith(pending + sep)) return true;
+		}
+		return false;
 	}
 
 	removeEntry(vpath: string) {
-		const guid = this.folderIndex?.guidFor(vpath);
-		if (!guid) {
-			return;
-		}
-		const doc = this.trackedEntries.get(guid);
-		this.crdtDoc.transact(() => {
-			this.folderIndex.delete(vpath);
-			if (doc) {
-				void doc.dispose();
-				this.pathSet.delete(doc);
+		const affected = new Map<string, string | undefined>();
+		this.folderIndex.eachRecord((meta, path) => {
+			if (path === vpath || path.startsWith(vpath + sep)) {
+				affected.set(path, meta.id);
 			}
-			this.trackedEntries.delete(guid);
+		});
+		if (!affected.has(vpath)) {
+			affected.set(vpath, this.folderIndex?.guidFor(vpath));
+		}
+		const docs: SyncableEntry[] = [];
+		this.crdtDoc.transact(() => {
+			for (const [path, guid] of affected) {
+				this.uploadClaims.delete(path);
+				this.folderIndex.delete(path);
+				const doc = guid ? this.trackedEntries.get(guid) : undefined;
+				if (doc) {
+					void doc.dispose();
+					this.pathSet.delete(doc);
+					docs.push(doc);
+				}
+				if (guid) this.trackedEntries.delete(guid);
+			}
 		}, this);
 		// Fully tear down the Document/CanvasDocument after removing from folderIndex:
 		// cancel pending debounced saves, disconnect WebSocket, destroy Y.Doc.
 		// Without this, a stale scheduleSave debounce can re-create the file
 		// on disk after clearDeletePending runs.
-		if (doc) {
+		for (const doc of docs) {
 			this._teardownDeletedFile(doc);
+		}
+	}
+
+	/** Persist a local deletion in the shared root doc and flush it to the relay. */
+	async removeEntryAndSync(vpath: string): Promise<void> {
+		this.markDeletePending(vpath);
+		try {
+			await this.awaitReady();
+			// Publish the tombstone immediately.  It is also stored in IndexedDB,
+			// so a temporary network outage cannot turn the delete back into an add.
+			this.removeEntry(vpath);
+			const connecting = await this.bringOnline();
+			if (connecting) {
+				await Promise.race([
+					this.onceFreshlySynced(),
+					new Promise<void>((resolve) => window.setTimeout(resolve, 10_000)),
+				]);
+				await waitForBufferFlush(this._liveProvider.ws);
+			}
+		} finally {
+			this.clearDeletePending(vpath);
 		}
 	}
 

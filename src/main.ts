@@ -1953,12 +1953,16 @@ export default class TeamRelayPlugin extends Plugin {
 				// NOTE: Obsidian fires this for every existing file on vault load too.
 				const folder = this.shareRegistry.shareFor(tfile.path);
 				if (folder) {
+					// Capture readiness at event time. Startup's synthetic create events
+					// must not clear a collaborator's deletion tombstone; a genuine
+					// create after the first reconciliation may intentionally reuse it.
+					const allowDeletedPathRevive = folder.initialReconciliationComplete;
 					// claimAndUploadFile() runs the same upload-claim protection
 					// adoptLocalFiles() has (TR-15-follow-up, #7c14871a) -- this event
 					// fires for pre-existing files too, so it can race a second
 					// client discovering the SAME brand-new vpath at once, same as
 					// the initial-sync path.
-					void folder.claimAndUploadFile(tfile);
+					void folder.claimAndUploadFile(tfile, allowDeletedPathRevive);
 				}
 				// Update web_folder_items for auto-sync folder shares
 				if (this.webSyncManager && tfile instanceof TFile) {
@@ -1982,12 +1986,7 @@ export default class TeamRelayPlugin extends Plugin {
 				if (folder) {
 					vaultLog("Delete", file.path);
 					const vpath = folder.toVirtualPath(file.path);
-					folder.markDeletePending(vpath);
-					void folder.awaitReady().then((folder) => {
-						folder.rootRelative.removeEntry(file.path);
-					}).finally(() => {
-						folder.clearDeletePending(vpath);
-					});
+					void folder.removeEntryAndSync(vpath);
 				}
 				// Update web_folder_items for auto-sync folder shares
 				void this.webSyncManager?.onFileDeleted(file.path);
