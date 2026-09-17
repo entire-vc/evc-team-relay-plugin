@@ -722,6 +722,7 @@ export default class TeamRelayPlugin extends Plugin {
 					new RelayOnPremTokenProvider({
 						controlPlaneUrl: server.controlPlaneUrl,
 						authProvider: buildLazyAuthProviderForServer(server.id),
+						clientVersion: this.manifest.version,
 					}),
 				);
 			}
@@ -906,6 +907,7 @@ export default class TeamRelayPlugin extends Plugin {
 							new RelayOnPremTokenProvider({
 								controlPlaneUrl: server.controlPlaneUrl,
 								authProvider: buildLazyAuthProviderForServer(server.id),
+								clientVersion: this.manifest.version,
 							}),
 						);
 					}
@@ -931,6 +933,7 @@ export default class TeamRelayPlugin extends Plugin {
 							new RelayOnPremTokenProvider({
 								controlPlaneUrl: server.controlPlaneUrl,
 								authProvider: buildLazyAuthProviderForServer(server.id),
+								clientVersion: this.manifest.version,
 							}),
 						);
 					}
