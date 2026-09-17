@@ -492,7 +492,26 @@ export class AttachmentFile
 		try {
 			const content = await this.vaultShare.blobs.pullFile(this);
 			const diskPath = this.vaultShare.absolutePath(this.path);
-			await this.vault.adapter.writeBinary(diskPath, content);
+			const existing = this.vault.getAbstractFileByPath(diskPath);
+			if (existing instanceof TFile) {
+				await this.vault.modifyBinary(existing, content);
+			} else if (existing) {
+				throw new Error(`can't write ${diskPath}: a folder exists at that path`);
+			} else {
+				try {
+					await this.vault.createBinary(diskPath, content);
+				} catch (error: unknown) {
+					// Older builds could leave an on-disk file outside Obsidian's
+					// in-memory index. Preserve that file and update it in place; a vault
+					// reload will index the legacy artifact, while all new downloads use
+					// createBinary() and become visible immediately.
+					if (await this.vault.adapter.exists(diskPath)) {
+						await this.vault.adapter.writeBinary(diskPath, content);
+					} else {
+						throw error;
+					}
+				}
+			}
 			await this.contentAddressedCache.resolveHash();
 		} catch (e: unknown) {
 			this.log(e);

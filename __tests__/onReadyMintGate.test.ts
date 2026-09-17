@@ -35,9 +35,14 @@ function makeFakeVaultShare(overrides: Record<string, unknown> = {}) {
 		adoptLocalFiles: jest.fn(async () => {}),
 		scanFileTree: jest.fn(async () => {}),
 		folderIndex: {},
+		transfers: { enqueueShareUpload: jest.fn() },
 		...overrides,
 	});
-	return fake as VaultShare & { adoptLocalFiles: jest.Mock; onceFreshlySynced: jest.Mock };
+	return fake as VaultShare & {
+		adoptLocalFiles: jest.Mock;
+		onceFreshlySynced: jest.Mock;
+		transfers: { enqueueShareUpload: jest.Mock };
+	};
 }
 
 describe("VaultShare._onReady() sync-timeout gate", () => {
@@ -58,6 +63,7 @@ describe("VaultShare._onReady() sync-timeout gate", () => {
 
 		expect(fake.adoptLocalFiles).toHaveBeenCalledTimes(1);
 		expect(fake.adoptLocalFiles).toHaveBeenCalledWith(true);
+		expect(fake.transfers.enqueueShareUpload).toHaveBeenCalledWith(fake);
 	});
 
 	test("RED shape -- sync never confirms: adoptLocalFiles() MUST be called with allowMint=false, not with mint left implicitly allowed", async () => {
@@ -76,6 +82,7 @@ describe("VaultShare._onReady() sync-timeout gate", () => {
 		// if sync had succeeded. Asserting the explicit `false` here fails
 		// on that shape.
 		expect(fake.adoptLocalFiles).toHaveBeenCalledWith(false);
+		expect(fake.transfers.enqueueShareUpload).toHaveBeenCalledWith(fake);
 	});
 
 	test("wantsConnection=false skips the sync wait entirely and still allows minting (unaffected by this fix)", async () => {
@@ -89,5 +96,6 @@ describe("VaultShare._onReady() sync-timeout gate", () => {
 		await (fake as unknown as { _onReady(): Promise<void> })._onReady();
 
 		expect(fake.adoptLocalFiles).toHaveBeenCalledWith(true);
+		expect(fake.transfers.enqueueShareUpload).toHaveBeenCalledWith(fake);
 	});
 });

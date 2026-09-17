@@ -188,6 +188,7 @@ export class VaultShare extends ProviderBacked {
 	private readyValue: LazyValue<VaultShare> | null = null;
 	private syncedValue: LazyValue<void> | null = null;
 	private localDbLoaded: boolean = false;
+	private localDbTimedOut: boolean = false;
 	private _localDb: LocalDocumentStore;
 
 	// -- Collaborators --
@@ -399,6 +400,11 @@ export class VaultShare extends ProviderBacked {
 				`[VaultShare] isPrepared to syncNow: path=${this.path}, synced=${this.isSynced}, isAuthority=${this.isAuthority}`,
 			);
 			await this.adoptLocalFiles(freshlySynced);
+			// Recover paths whose root metadata was published by an older client
+			// build but whose child document upload was skipped. The batch only
+			// contains locally-present tracked entries and the upload path performs
+			// the normal relay reconciliation before writing anything.
+			this.transfers.enqueueShareUpload(this);
 			void this.scanFileTree(this.folderIndex);
 		}
 	}
@@ -520,10 +526,14 @@ export class VaultShare extends ProviderBacked {
 		lostPaths: Set<string>,
 	): Promise<SyncableEntry | null> {
 		const vpath = this.toVirtualPath(tfile.path);
-		const upload = newPaths.contains(vpath) && !lostPaths.has(vpath);
+		const freshlyMinted = newPaths.includes(vpath);
+		const upload = freshlyMinted && !lostPaths.has(vpath);
 
-		// Check if file already exists with correct type based on metadata
-		const existingFile = this.entryFor(tfile, false);
+		// A path minted during this pass must go through the explicit publish/adopt
+		// branch below. ensureFileMetadata() has already written its root metadata,
+		// which makes entryFor() able to build a wrapper, but that does not mean the
+		// child document itself has been uploaded to the relay yet.
+		const existingFile = freshlyMinted ? null : this.entryFor(tfile, false);
 		if (existingFile) {
 			return existingFile;
 		}
@@ -912,16 +922,76 @@ export class VaultShare extends ProviderBacked {
 		// session and is now being manually re-synced, adoptLocalFiles() below
 		// can run before this reconnect's own metadata has landed, minting a
 		// disjoint guid for an already-shared file (#272f5be4).
-		await this.onceFreshlySynced();
+		let freshlySynced = true;
+		try {
+			await Promise.race([
+				this.onceFreshlySynced(),
+				new Promise<void>((_, reject) =>
+					window.setTimeout(
+						() => reject(new Error("provider sync timeout")),
+						10000,
+					),
+				),
+			]);
+		} catch (e: unknown) {
+			freshlySynced = false;
+			console.warn(
+				`[VaultShare] ${this.path}: ${e instanceof Error ? e.message : String(e)}, retrying already-known pending uploads only`,
+			);
+		}
 		// Must complete before scanFileTree: scanFileTree reads folderIndex's
 		// Y.Map metadata to compute remotePaths, then calls
 		// pruneUntrackedFiles() against it. If adoptLocalFiles (which
 		// registers newly-added local files into that same metadata) hasn't
 		// finished, scanFileTree can read it mid-registration and delete
 		// files adoptLocalFiles was still in the process of adding.
-		await this.adoptLocalFiles();
+		await this.adoptLocalFiles(freshlySynced);
 		await this.scanFileTree(this.folderIndex);
 		this.transfers.enqueueShareUpload(this);
+	}
+
+	/**
+	 * Recovery path for folders affected by the 0.0.9 initial-publish bug:
+	 * root metadata exists, but one or more child documents were never opened
+	 * against the relay. This deliberately bypasses TransferQueue's parent-online
+	 * filter and lets each entry's normal upload routine establish its own
+	 * connection. Local files remain the source input; no local delete/write path
+	 * is used here.
+	 */
+	async repairKnownLocalUploads(): Promise<{ total: number; completed: number }> {
+		await this.bringOnline();
+		if (!this.isOnline) {
+			await Promise.race([
+				this.onceOnline(),
+				new Promise<void>((resolve) => window.setTimeout(resolve, 10000)),
+			]);
+		}
+		await this.adoptLocalFiles(true);
+
+		const entries = [...this.trackedEntries.values()].filter(
+			(entry): entry is Document | CanvasDocument | AttachmentFile =>
+				isDocument(entry) || isCanvasDocument(entry) || isAttachmentFile(entry),
+		);
+		let cursor = 0;
+		let completed = 0;
+		const worker = async () => {
+			while (cursor < entries.length) {
+				const entry = entries[cursor++];
+				const upload = isAttachmentFile(entry)
+					? this.isOnline
+						? entry.pushToRemote(true).then(() => !entry.lastUploadError)
+						: Promise.resolve(false)
+					: this.transfers.uploadDocumentViaSocket(entry, { skipPersistenceWait: true });
+				const result = await Promise.race([
+					upload,
+					new Promise<false>((resolve) => window.setTimeout(() => resolve(false), 45000)),
+				]);
+				if (result !== false) completed++;
+			}
+		};
+
+		await Promise.all(Array.from({ length: Math.min(8, entries.length) }, () => worker()));
+		return { total: entries.length, completed };
 	}
 
 	public get config(): VaultShareSettings {
@@ -1039,6 +1109,13 @@ export class VaultShare extends ProviderBacked {
 
 	async hasPendingUpdates(): Promise<boolean> {
 		await this.awaitSynced();
+		// IndexedDB is only a local cache. If Chromium never completes opening
+		// it, force a relay-first bootstrap instead of blocking the entire shared
+		// folder forever. Owners already have the authoritative files on disk;
+		// members must wait for the relay snapshot before adopting local files.
+		if (this.localDbTimedOut) {
+			return !this.isAuthority;
+		}
 		const hasLocal = this.hasLocalDb();
 		const serverSynced = await this.readServerSynced();
 		console.debug(
@@ -1116,12 +1193,26 @@ export class VaultShare extends ProviderBacked {
 				return;
 			}
 
-			return new Promise<void>((resolve) => {
-				this._localDb.once("synced", () => {
-					this.localDbLoaded = true;
-					resolve();
-				});
-			});
+			const loaded = await Promise.race([
+				new Promise<true>((resolve) => {
+					this._localDb.once("synced", () => {
+						this.localDbLoaded = true;
+						this.localDbTimedOut = false;
+						resolve(true);
+					});
+				}),
+				new Promise<false>((resolve) =>
+					window.setTimeout(() => resolve(false), 5000),
+				),
+			]);
+
+			this.localDbLoaded = true;
+			this.localDbTimedOut = !loaded;
+			if (!loaded) {
+				this.warn(
+					"Local folder-index persistence did not report ready; continuing with relay state",
+				);
+			}
 		};
 
 		this.syncedValue = VaultShare.getOrInitDependency(
@@ -1164,6 +1255,13 @@ export class VaultShare extends ProviderBacked {
 		diffLog?: string[],
 	): Promise<void> {
 		const dir = dirname(vpath);
+		// path-browserify returns "." for an entry that lives directly in the
+		// shared-folder root (for example "README.md" or "00_Главная").  That is
+		// a sentinel, not a real child directory.  Passing it through to
+		// makeFolder() produces "Shared/."; Obsidian does not consistently resolve
+		// that path through its Vault cache and the resulting createFolder failure
+		// aborts the entire inbound tree scan before any remote files are opened.
+		if (dir === "." || dir === "") return;
 		if (!this.hasFileSync(dir)) {
 			await this.makeFolder(dir);
 			diffLog?.push(`made missing parent directory ${dir}`);
@@ -1189,6 +1287,7 @@ export class VaultShare extends ProviderBacked {
 				return this.pullCanvas(vpath, false);
 			case ItemKind.Folder:
 				diffLog?.push(`mirrored new linked folder ${vpath} locally`);
+				await this.makeFolder(vpath);
 				return this.folderAt(vpath, false);
 			default:
 				if (this.folderIndex.isSyncable(vpath)) {
@@ -1707,14 +1806,42 @@ export class VaultShare extends ProviderBacked {
 		return this.vaultApi.adapter.exists(normalizePath(this.absolutePath(doc.entryPath)));
 	}
 
-	writeContents(doc: SyncableEntry, content: string): Promise<void> {
+	async writeContents(doc: SyncableEntry, content: string): Promise<void> {
 		if (this.isDeletePending(doc.entryPath)) {
 			this.log("skipping write for pending delete", doc.entryPath);
-			return Promise.resolve();
+			return;
 		}
 		const vaultPath = normalizePath(this.absolutePath(doc.entryPath));
 		this.log("writing to ", vaultPath);
-		return this.vaultApi.adapter.write(vaultPath, content);
+
+		// DataAdapter.write() changes the bytes on disk but does not reliably
+		// register a newly-created file in Obsidian's Vault cache. A freshly
+		// joined member could therefore receive every relay document correctly
+		// while the file explorer kept showing an empty shared folder until the
+		// whole app was restarted. Use the Vault API for both create and modify so
+		// Obsidian emits its normal create/modify events immediately.
+		const existing = this.vaultApi.getAbstractFileByPath(vaultPath);
+		if (existing instanceof TFile) {
+			await this.vaultApi.modify(existing, content);
+			return;
+		}
+		if (existing) {
+			throw new Error(`can't write ${vaultPath}: a folder exists at that path`);
+		}
+
+		try {
+			await this.vaultApi.create(vaultPath, content);
+		} catch (error: unknown) {
+			// A file written by an older plugin build may already exist physically
+			// while still being absent from Obsidian's cache. Preserve it and let the
+			// adapter update its bytes; the next vault reload will index it. New files
+			// always take the event-producing Vault.create() path above.
+			if (await this.vaultApi.adapter.exists(vaultPath)) {
+				await this.vaultApi.adapter.write(vaultPath, content);
+				return;
+			}
+			throw error;
+		}
 	}
 
 	/**
@@ -1744,8 +1871,21 @@ export class VaultShare extends ProviderBacked {
 		}
 	}
 
-	makeFolder(path: string): Promise<void> {
-		return this.vaultApi.adapter.mkdir(normalizePath(this.absolutePath(path)));
+	async makeFolder(path: string): Promise<void> {
+		const vaultPath = normalizePath(this.absolutePath(path));
+		const existing = this.vaultApi.getAbstractFileByPath(vaultPath);
+		if (existing instanceof TFolder) return;
+		if (existing) {
+			throw new Error(`can't create folder ${vaultPath}: a file exists at that path`);
+		}
+		try {
+			await this.vaultApi.createFolder(vaultPath);
+		} catch (error: unknown) {
+			// Compatibility with directories created on disk by an older build but
+			// not yet indexed by Obsidian. Never remove or replace user data here.
+			if (await this.vaultApi.adapter.exists(vaultPath)) return;
+			throw error;
+		}
 	}
 
 	containsPath(path: string): boolean {

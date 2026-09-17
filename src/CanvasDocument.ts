@@ -58,6 +58,7 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 	private _indexeddbPersistence: LocalDocumentStore;
 	firstSyncPromise: LazyValue<void> | null = null;
 	isLocallyPersisted: boolean = false;
+	private localDbTimedOut = false;
 	syncedPromise?: LazyValue<CanvasDocument>;
 	entryPath: string;
 	_obsidianFile: TFile | null;
@@ -128,6 +129,7 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 	}
 
 	private recordPersistenceMetadata(): void {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return;
 		try {
 			void this._indexeddbPersistence.set("path", this.entryPath);
 			void this._indexeddbPersistence.set("relay", this.vaultShare.workspaceId || "");
@@ -215,10 +217,12 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 	}
 
 	async markServerAcked(): Promise<void> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return;
 		await this._indexeddbPersistence.rememberServerSync();
 	}
 
 	async getServerAcked(): Promise<boolean> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return false;
 		return this._indexeddbPersistence.loadServerSyncFlag();
 	}
 
@@ -246,7 +250,7 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 
 
 	public get synced(): boolean {
-		return this._indexeddbPersistence.canRender(super.isSynced);
+		return super.isSynced || this._indexeddbPersistence.canRender(false);
 	}
 
 	hasLocalPersistence(): boolean {
@@ -255,7 +259,10 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 
 	async hasPendingCrdtUpdate(): Promise<boolean> {
 		await this.awaitFirstSync();
-		await this.getServerAcked();
+		await Promise.race([
+			this.getServerAcked(),
+			new Promise<boolean>((resolve) => window.setTimeout(() => resolve(false), 5000)),
+		]);
 		if (!this._hasPendingCrdtUpdate) {
 			return false;
 		}
@@ -282,7 +289,12 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 
 	awaitFirstSync(): Promise<void> {
 		const promiseFn = async (): Promise<void> => {
-			await this.vaultShare.awaitSynced();
+			// Do not let a stale parent LocalDocumentStore gate this canvas forever;
+			// its own persistence replay immediately below is still mandatory.
+			await Promise.race([
+				this.vaultShare.awaitSynced(),
+				new Promise<void>((resolve) => window.setTimeout(resolve, 5000)),
+			]);
 
 			// Check if already synced first
 			if (this._indexeddbPersistence.synced && !this.isLocallyPersisted) {
@@ -290,19 +302,18 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 				return;
 			}
 
-			return new Promise<void>((resolve) => {
-				if (this.isLocallyPersisted) {
-					resolve();
-				}
-				// Registered unconditionally (even if the branch above just
-				// resolved already) — matches the pre-rewrite behavior; this
-				// is a `.once` handler so it's a harmless dangling listener
-				// in the already-synced case, not a second resolution path.
-				this._indexeddbPersistence.once("synced", () => {
-					this.isLocallyPersisted = true;
-					resolve();
-				});
-			});
+			if (this.isLocallyPersisted) return;
+			const loaded = await Promise.race([
+				this._indexeddbPersistence.whenSynced.then(() => true),
+				new Promise<false>((resolve) => window.setTimeout(() => resolve(false), 5000)),
+			]);
+			this.isLocallyPersisted = true;
+			if (!loaded) {
+				this.localDbTimedOut = true;
+				this.warn("Local canvas persistence did not report ready; continuing with relay state");
+			} else {
+				this.localDbTimedOut = false;
+			}
 		};
 
 		this.firstSyncPromise ??= new LazyValue<void>(promiseFn, () => [
@@ -340,10 +351,12 @@ export class CanvasDocument extends ProviderBacked implements SyncableEntry, Mim
 	}
 
 	async markSyncOrigin(origin: "local" | "remote"): Promise<void> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return;
 		await this._indexeddbPersistence.rememberOrigin(origin);
 	}
 
 	async getSyncOrigin(): Promise<"local" | "remote" | undefined> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return undefined;
 		return this._indexeddbPersistence.loadOrigin();
 	}
 

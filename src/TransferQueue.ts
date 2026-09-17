@@ -637,7 +637,10 @@ export class TransferQueue extends Loggable {
 	 * or a provider-sync timeout. Callers treat `false` as "left as-is, will
 	 * be retried later", not as an error.
 	 */
-	async uploadDocumentViaSocket(doc: Document | CanvasDocument): Promise<boolean> {
+	async uploadDocumentViaSocket(
+		doc: Document | CanvasDocument,
+		options: { skipPersistenceWait?: boolean } = {},
+	): Promise<boolean> {
 		// Wait for this item's OWN local persistence (IndexedDB) to finish
 		// loading before trusting anything read off its Y.Doc below. Without
 		// this, `doc.content`/exported canvas data can read as empty for a doc
@@ -651,10 +654,12 @@ export class TransferQueue extends Loggable {
 		// merging with a seed insert that was made under a false premise).
 		// Once both land in the same Y.Doc, Yjs concatenates them: the file
 		// ends up with its own content duplicated back-to-back (P0 #832dd563).
-		if (isDocument(doc)) {
-			await doc.awaitFirstSync();
-		} else {
-			await doc.awaitFirstSync();
+		if (!options.skipPersistenceWait) {
+			if (isDocument(doc)) {
+				await doc.awaitFirstSync();
+			} else {
+				await doc.awaitFirstSync();
+			}
 		}
 
 		const synced = this.readSyncedContent(doc);

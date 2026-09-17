@@ -33,7 +33,7 @@ if you want to view the source, please visit the github repository of this plugi
 // failing there is correct and the strictness below is kept intact. When git is
 // unavailable altogether the version comes from manifest.json, which the tarball
 // already ships.
-const gitTag = (() => {
+const gitTag = process.env.EVC_BUILD_VERSION || (() => {
 	try {
 		return execSync("git describe --tags", {
 			encoding: "utf8",

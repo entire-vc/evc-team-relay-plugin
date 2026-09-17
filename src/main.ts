@@ -631,6 +631,30 @@ export default class TeamRelayPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "repair-shared-folders",
+			name: "Repair and sync all shared folders",
+			callback: () => {
+				void (async () => {
+					const shares = this.shareRegistry?.toArray() ?? [];
+					if (shares.length === 0) {
+						new Notice("Team Relay: no locally connected shared folders found");
+						return;
+					}
+					new Notice(`Team Relay: syncing ${shares.length} shared folder(s)`);
+					let total = 0;
+					let completed = 0;
+					for (const share of shares) {
+						share.wantsConnection = true;
+						const result = await share.repairKnownLocalUploads();
+						total += result.total;
+						completed += result.completed;
+					}
+					new Notice(`Team Relay: repaired ${completed}/${total} item(s)`, 10000);
+				})();
+			},
+		});
+
+		this.addCommand({
 			id: "open-settings",
 			name: "Open settings",
 			callback: () => {

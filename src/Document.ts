@@ -37,6 +37,7 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 	private _indexeddbPersistence: LocalDocumentStore;
 	firstSyncPromise: LazyValue<void> | null = null;
 	isLocallyPersisted: boolean = false;
+	private localDbTimedOut = false;
 	_hasPendingCrdtUpdate?: boolean;
 	syncedPromise?: LazyValue<Document>;
 	entryPath: string;
@@ -154,6 +155,7 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 	}
 
 	private recordPersistenceMetadata(): void {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return;
 		try {
 			void this._indexeddbPersistence.set("path", this.entryPath);
 			void this._indexeddbPersistence.set("relay", this.vaultShare.workspaceId || "");
@@ -352,7 +354,7 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 	}
 
 	public get synced(): boolean {
-		return this._indexeddbPersistence.canRender(super.isSynced);
+		return super.isSynced || this._indexeddbPersistence.canRender(false);
 	}
 
 	hasLocalPersistence(): boolean {
@@ -361,7 +363,10 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 
 	async hasPendingCrdtUpdate(): Promise<boolean> {
 		await this.awaitFirstSync();
-		await this.getServerAcked();
+		await Promise.race([
+			this.getServerAcked(),
+			new Promise<boolean>((resolve) => window.setTimeout(() => resolve(false), 5000)),
+		]);
 		if (!this._hasPendingCrdtUpdate) {
 			return false;
 		}
@@ -388,16 +393,27 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 
 	awaitFirstSync(): Promise<void> {
 		const promiseFn = async (): Promise<void> => {
-			await this.vaultShare.awaitSynced();
-			if (this.isLocallyPersisted) {
-				return;
+			// Parent-folder persistence is useful for metadata ordering, but it
+			// must not permanently block this document's own IndexedDB replay.
+			// Some restored vaults keep the root LocalDocumentStore open while its
+			// `synced` event never reaches this new wrapper; the child store below
+			// remains the authoritative safety gate for reading this Y.Doc.
+			await Promise.race([
+				this.vaultShare.awaitSynced(),
+				new Promise<void>((resolve) => window.setTimeout(resolve, 5000)),
+			]);
+			if (this.isLocallyPersisted) return;
+			const loaded = await Promise.race([
+				this._indexeddbPersistence.whenSynced.then(() => true),
+				new Promise<false>((resolve) => window.setTimeout(() => resolve(false), 5000)),
+			]);
+			this.isLocallyPersisted = true;
+			if (!loaded) {
+				this.localDbTimedOut = true;
+				this.warn("Local document persistence did not report ready; continuing with relay state");
+			} else {
+				this.localDbTimedOut = false;
 			}
-			return new Promise<void>((resolve) => {
-				this._indexeddbPersistence.once("synced", () => {
-					this.isLocallyPersisted = true;
-					resolve();
-				});
-			});
 		};
 		this.firstSyncPromise ??= new LazyValue<void>(promiseFn, () => [
 			this.isLocallyPersisted,
@@ -430,18 +446,22 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 	scheduleSave = debounce(() => this.syncToVault(), 2000);
 
 	async markSyncOrigin(origin: "local" | "remote"): Promise<void> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return;
 		await this._indexeddbPersistence.rememberOrigin(origin);
 	}
 
 	async getSyncOrigin(): Promise<"local" | "remote" | undefined> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return undefined;
 		return this._indexeddbPersistence.loadOrigin();
 	}
 
 	async markServerAcked(): Promise<void> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return;
 		await this._indexeddbPersistence.rememberServerSync();
 	}
 
 	async getServerAcked(): Promise<boolean> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return false;
 		return this._indexeddbPersistence.loadServerSyncFlag();
 	}
 
@@ -461,11 +481,16 @@ export class Document extends ProviderBacked implements SyncableEntry, MimeTyped
 	 * doc with no live editor binding, unlike an in-memory field would.
 	 */
 	async getSyncBase(): Promise<string | undefined> {
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return undefined;
 		const stored: unknown = await this._indexeddbPersistence.get(Document.SYNC_BASE_KEY);
 		return typeof stored === "string" ? stored : undefined;
 	}
 
 	async setSyncBase(text: string): Promise<void> {
+		// A blocked IndexedDB open must not hold the network download lane forever.
+		// awaitFirstSync() has already given the store a bounded opportunity to
+		// recover; the relay remains authoritative for this session when it cannot.
+		if (this.localDbTimedOut && !this._indexeddbPersistence.synced) return;
 		await this._indexeddbPersistence.set(Document.SYNC_BASE_KEY, text);
 	}
 
