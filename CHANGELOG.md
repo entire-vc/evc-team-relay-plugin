@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.10
+- Client now sends its own plugin version (`manifest.version`) with every relay token request. The control-plane records it in the token-issuance audit log — previously the only version signal available was the Obsidian/Electron app version from User-Agent, not the plugin's, making it impossible to tell which release issued a given token during an auth-failure investigation (#75491f2f follow-up).
+
 ## 0.0.9
 - Fixed a race in the credential cache that could hand a reconnecting WebSocket a token with only seconds left before expiry, causing an `invalid_token` auth failure on the handshake. The cache now honors the same renewal margin the periodic refresh sweep already used, instead of only checking literal expiry.
 
