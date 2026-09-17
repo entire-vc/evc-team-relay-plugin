@@ -55,7 +55,7 @@ In scope:
 - Its interaction with the Team Relay control plane / relay server
 
 Out of scope:
-- The relay server itself (report at [entire-vc/evc-relay-server](https://github.com/entire-vc/evc-relay-server/security/advisories/new) or [entire-vc/evc-team-relay](https://github.com/entire-vc/evc-team-relay/security/advisories/new))
+- The relay server itself, whose sources live in `apps/relay-server/` of the Team Relay repository (report at [entire-vc/evc-team-relay](https://github.com/entire-vc/evc-team-relay/security/advisories/new))
 - Third-party integrations
 - User-modified deployments
 - Social engineering attacks
