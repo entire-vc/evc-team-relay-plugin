@@ -100,7 +100,7 @@ export default tseslint.config(
     },
     {
         // Test and build files need Node.js built-ins and have different conventions
-        files: ["__tests__/**/*", "esbuild.config.mjs", "version-bump.mjs", "debug-tools/**/*"],
+        files: ["__tests__/**/*", "esbuild.config.mjs", "version-bump.mjs", "debug-tools/**/*", "scripts/**/*"],
         rules: {
             "no-restricted-imports": "off",
             "@typescript-eslint/no-unused-vars": "warn",
