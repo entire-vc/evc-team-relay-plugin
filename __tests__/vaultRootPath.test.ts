@@ -11,12 +11,13 @@
  */
 
 import { describe, test, expect } from "@jest/globals";
-import { TFolder } from "./mocks/obsidian";
+import { TFile, TFolder } from "./mocks/obsidian";
 import {
 	OBSIDIAN_VAULT_ROOT_PATH,
 	isRootSharePath,
 	toSharePath,
 	resolveShareFolder,
+	collectWebFolderItems,
 } from "../src/vaultRootPath";
 
 describe("isRootSharePath", () => {
@@ -85,5 +86,70 @@ describe("resolveShareFolder", () => {
 		};
 		const resolved = resolveShareFolder(vault as any, "notes.md");
 		expect(resolved).toBeNull();
+	});
+});
+
+describe("collectWebFolderItems", () => {
+	test("root share (folderPath '') -- top-level item path is NOT off-by-one", () => {
+		// Real Obsidian: vault root TFolder.path is "/", but top-level
+		// children's own `.path` has no leading slash at all ("readme.md",
+		// not "/readme.md") -- this is exactly the case that a blind
+		// `child.path.substring(folderPath.length + 1)` (folderPath="")
+		// mishandles, chopping the first character off.
+		const readme = new TFile("readme.md");
+		const root = new TFolder(OBSIDIAN_VAULT_ROOT_PATH, [readme]);
+
+		const items = collectWebFolderItems(root as any, "");
+
+		expect(items).toEqual([{ path: "readme.md", name: "readme", type: "doc" }]);
+	});
+
+	test("root share -- nested file gets its full relative path, subfolder listed too", () => {
+		const nested = new TFile("sub/note.md");
+		const sub = new TFolder("sub", [nested]);
+		const root = new TFolder(OBSIDIAN_VAULT_ROOT_PATH, [sub]);
+
+		const items = collectWebFolderItems(root as any, "");
+
+		expect(items).toEqual([
+			{ path: "sub", name: "sub", type: "folder" },
+			{ path: "sub/note.md", name: "note", type: "doc" },
+		]);
+	});
+
+	test("non-root share -- unchanged: '<folderPath>/' prefix is stripped as before", () => {
+		const child = new TFile("notes/a.md");
+		const notes = new TFolder("notes", [child]);
+
+		const items = collectWebFolderItems(notes as any, "notes");
+
+		expect(items).toEqual([{ path: "a.md", name: "a", type: "doc" }]);
+	});
+
+	test("non-root share -- nested subfolder path is relative to the share, not the vault root", () => {
+		const grandchild = new TFile("notes/sub/b.md");
+		const sub = new TFolder("notes/sub", [grandchild]);
+		const notes = new TFolder("notes", [sub]);
+
+		const items = collectWebFolderItems(notes as any, "notes");
+
+		expect(items).toEqual([
+			{ path: "sub", name: "sub", type: "folder" },
+			{ path: "sub/b.md", name: "b", type: "doc" },
+		]);
+	});
+
+	test("canvas files are typed 'canvas', non-md/canvas files are skipped, folders always included", () => {
+		const canvas = new TFile("board.canvas");
+		const image = new TFile("photo.png");
+		const empty = new TFolder("empty-sub");
+		const root = new TFolder(OBSIDIAN_VAULT_ROOT_PATH, [canvas, image, empty]);
+
+		const items = collectWebFolderItems(root as any, "");
+
+		expect(items).toEqual([
+			{ path: "board.canvas", name: "board", type: "canvas" },
+			{ path: "empty-sub", name: "empty-sub", type: "folder" },
+		]);
 	});
 });

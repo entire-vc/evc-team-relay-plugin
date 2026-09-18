@@ -5,7 +5,7 @@
  * Supports multi-server mode with smart server selection
  */
 
-import { App, Modal, Notice, Setting, TFile, TFolder } from "obsidian";
+import { App, Modal, Notice, Setting, TFile } from "obsidian";
 import type TeamRelayPlugin from "../main";
 import { RelayOnPremShareClient, type RelayOnPremShare, type ShareMember, type Invite, type WebFolderEntry, type AgentKey, type CreateAgentKeyResponse } from "../RelayOnPremShareClient";
 import { RelayOnPremShareClientManager, type ShareWithServer } from "../RelayOnPremShareClientManager";
@@ -13,7 +13,7 @@ import { FolderPathPickerModal } from "./FolderPathPickerModal";
 import { getDefaultServer, type RelayOnPremServer } from "../RelayOnPremConfig";
 import { confirmDialog, promptDialog } from "./dialogs";
 import { withOutboundSyncGuard } from "../WebSyncManager";
-import { isRootSharePath, resolveShareFolder, toSharePath } from "../vaultRootPath";
+import { collectWebFolderItems, resolveShareFolder, toSharePath } from "../vaultRootPath";
 
 export class ShareManagementModal extends Modal {
 	private shares: ShareWithServer[] = [];
@@ -1105,50 +1105,7 @@ export class ShareManagementModal extends Modal {
 			if (!folder) {
 				return [];
 			}
-
-			// For a root share, `folderPath` is `""` (the wire convention) --
-			// there's no `"<folderPath>/"` prefix on disk to strip, `child.path`
-			// IS already the relative path. Stripping `folderPath.length + 1`
-			// unconditionally would chop the first character off every
-			// top-level item's path instead (e.g. "readme.md" -> "eadme.md").
-			const isRoot = isRootSharePath(folderPath);
-			const items: WebFolderEntry[] = [];
-
-			// Recursively get all files in folder
-			const processFolder = (currentFolder: TFolder, basePath: string) => {
-				for (const child of currentFolder.children) {
-					const relativePath = isRoot
-						? child.path
-						: child.path.substring(folderPath.length + 1);
-
-					if (child instanceof TFile) {
-						let itemType: "doc" | "canvas" = "doc";
-						if (child.extension === "canvas") {
-							itemType = "canvas";
-						} else if (child.extension !== "md") {
-							// Skip non-markdown, non-canvas files
-							continue;
-						}
-
-						items.push({
-							path: relativePath,
-							name: child.basename,
-							type: itemType
-						});
-					} else if (child instanceof TFolder) {
-						items.push({
-							path: relativePath,
-							name: child.name,
-							type: "folder"
-						});
-						// Recursively process subfolders
-						processFolder(child, relativePath);
-					}
-				}
-			};
-
-			processFolder(folder, "");
-			return items;
+			return collectWebFolderItems(folder, folderPath);
 		} catch (error: unknown) {
 			console.error("Failed to get folder items:", error);
 			return [];

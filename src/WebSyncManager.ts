@@ -4,11 +4,11 @@
  * Handles automatic synchronization of documents to web when shares have auto-sync enabled.
  */
 
-import { Notice, TFile, TFolder, Vault, debounce } from "obsidian";
+import { Notice, TFile, Vault, debounce } from "obsidian";
 import { RelayOnPremShareClientManager } from "./RelayOnPremShareClientManager";
 import type { WebFolderEntry } from "./RelayOnPremShareClient";
 import { namedLogger } from "./logging";
-import { isRootSharePath, resolveShareFolder } from "./vaultRootPath";
+import { collectWebFolderItems, resolveShareFolder } from "./vaultRootPath";
 
 const log = namedLogger("[WebSyncManager]");
 
@@ -562,31 +562,7 @@ export class WebSyncManager {
 	private getFolderItems(folderPath: string): WebFolderEntry[] {
 		const folder = resolveShareFolder(this.vault, folderPath);
 		if (!folder) return [];
-
-		// For a root share, `folderPath` is `""` (the wire convention) --
-		// there's no `"<folderPath>/"` prefix on disk to strip, `child.path`
-		// IS already the relative path. Stripping `folderPath.length + 1`
-		// unconditionally would chop the first character off every top-level
-		// item's path instead (e.g. "readme.md" -> "eadme.md").
-		const isRoot = isRootSharePath(folderPath);
-		const items: WebFolderEntry[] = [];
-		const process = (f: TFolder) => {
-			for (const child of f.children) {
-				const rel = isRoot ? child.path : child.path.substring(folderPath.length + 1);
-				if (child instanceof TFile) {
-					if (child.extension === "canvas") {
-						items.push({ path: rel, name: child.basename, type: "canvas" });
-					} else if (child.extension === "md") {
-						items.push({ path: rel, name: child.basename, type: "doc" });
-					}
-				} else if (child instanceof TFolder) {
-					items.push({ path: rel, name: child.name, type: "folder" });
-					process(child);
-				}
-			}
-		};
-		process(folder);
-		return items;
+		return collectWebFolderItems(folder, folderPath);
 	}
 
 	/**
