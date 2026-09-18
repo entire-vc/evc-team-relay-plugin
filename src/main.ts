@@ -119,13 +119,13 @@ import {
 	diffRelayOnPremServers,
 } from "./relay/reconcileRelayOnPremServers";
 import type { IAuthProvider } from "./auth/IAuthProvider";
-import { RelayOnPremShareClient, type WebFolderEntry } from "./RelayOnPremShareClient";
+import { RelayOnPremShareClient } from "./RelayOnPremShareClient";
 import { RelayOnPremShareClientManager, type ShareWithServer } from "./RelayOnPremShareClientManager";
 import { dedupeFolderSharesByPath } from "./dedupeFolderSharesByPath";
 import { QuickShareModal } from "./ui/QuickShareModal";
 import { confirmDialog } from "./ui/dialogs";
 import { VaultScopedMap } from "./VaultScopedMap";
-import { isRootSharePath, resolveShareFolder } from "./vaultRootPath";
+import { collectWebFolderItems, isRootSharePath, resolveShareFolder } from "./vaultRootPath";
 
 interface LoggingSettings {
 	debugging: boolean;
@@ -1603,7 +1603,7 @@ export default class TeamRelayPlugin extends Plugin {
 							const folderAbs = resolveShareFolder(this.pluginVault, share.path);
 							if (folderAbs) {
 								// 1. Build recursive folder items and PATCH structure
-								const items = this.getFolderItemsRecursive(folderAbs);
+								const items = collectWebFolderItems(folderAbs, share.path);
 								await this.shareClientManager!.updateShare(share.serverId, share.id, {
 									web_folder_items: items,
 								});
@@ -1657,7 +1657,7 @@ export default class TeamRelayPlugin extends Plugin {
 						this.logInfo("Folder not in vault, skipping initial full-sync", share.path);
 						continue;
 					}
-					const items = this.getFolderItemsRecursive(folderAbs);
+					const items = collectWebFolderItems(folderAbs, share.path);
 					await this.shareClientManager!.updateShare(share.serverId, share.id, {
 						web_folder_items: items,
 					});
@@ -1756,31 +1756,6 @@ export default class TeamRelayPlugin extends Plugin {
 		} catch (error: unknown) {
 			new Notice(`Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`);
 		}
-	}
-
-	/**
-	 * Recursively build folder items for web publishing
-	 */
-	private getFolderItemsRecursive(folder: TFolder): WebFolderEntry[] {
-		const items: WebFolderEntry[] = [];
-		const basePath = folder.path;
-		const process = (f: TFolder) => {
-			for (const child of f.children) {
-				const rel = child.path.substring(basePath.length + 1);
-				if (child instanceof TFile) {
-					if (child.extension === "canvas") {
-						items.push({ path: rel, name: child.basename, type: "canvas" });
-					} else if (child.extension === "md") {
-						items.push({ path: rel, name: child.basename, type: "doc" });
-					}
-				} else if (child instanceof TFolder) {
-					items.push({ path: rel, name: child.name, type: "folder" });
-					process(child);
-				}
-			}
-		};
-		process(folder);
-		return items;
 	}
 
 	private _handleAuthLogout() {
