@@ -249,14 +249,16 @@ describe("joinFolderPath", () => {
 });
 
 describe("joinFolderPath feeding vault.getAbstractFileByPath (the getDocumentContent(join(...)) pattern used by content-sync call sites)", () => {
-	// ShareDetailView.svelte's syncWebContent() ("Sync now") and the other
-	// content-push call sites all do the same two-step thing: join a
+	// ShareDetailView.svelte's syncWebContent() ("Sync now"), ShareManagementModal.ts's
+	// syncFolderItems() (getDocumentContent(filePath) -> vault.getAbstractFileByPath),
+	// and the other content-push call sites all do the same two-step thing: join a
 	// share's folderPath with an item's relative path, then look that up
-	// via vault.getAbstractFileByPath. The .svelte component itself has no
-	// jest transform in this repo (see pushFolderContentToServer.ts's own
-	// comment on this), so this composes the two real steps against a fake
-	// vault to pin the call-site behavior directly, not just the join in
-	// isolation.
+	// via vault.getAbstractFileByPath. Neither ShareManagementModal (a
+	// Modal subclass with heavy Obsidian UI deps) nor the .svelte component
+	// (no jest transform in this repo -- see pushFolderContentToServer.ts's
+	// own comment on this) is practical to instantiate directly, so this
+	// composes the two real steps against a fake vault to pin the call-site
+	// behavior directly, not just the join in isolation.
 	test("root share -- the joined path resolves against the vault; a naive join would not", () => {
 		const file = new TFile("readme.md");
 		const vault = {
@@ -281,5 +283,19 @@ describe("joinFolderPath feeding vault.getAbstractFileByPath (the getDocumentCon
 		const resolved = vault.getAbstractFileByPath(joinFolderPath("notes", "a.md"));
 
 		expect(resolved).toBe(file);
+	});
+
+	test("ShareManagementModal.syncFolderItems' filePath -- root share resolves, matching the fixed call site", () => {
+		// Pins ShareManagementModal.ts:909's fix: `joinFolderPath(this.selectedShare.path, item.path)`
+		// feeding getDocumentContent(filePath) -> vault.getAbstractFileByPath(filePath).
+		const file = new TFile("readme.md");
+		const vault = {
+			getAbstractFileByPath: (path: string) => (path === "readme.md" ? file : null),
+		};
+		const selectedSharePath = ""; // wire convention for a root share
+
+		const filePath = joinFolderPath(selectedSharePath, "readme.md");
+
+		expect(vault.getAbstractFileByPath(filePath)).toBe(file);
 	});
 });

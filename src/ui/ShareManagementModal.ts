@@ -13,7 +13,7 @@ import { FolderPathPickerModal } from "./FolderPathPickerModal";
 import { getDefaultServer, type RelayOnPremServer } from "../RelayOnPremConfig";
 import { confirmDialog, promptDialog } from "./dialogs";
 import { withOutboundSyncGuard } from "../WebSyncManager";
-import { collectWebFolderItems, resolveShareFolder, toSharePath } from "../vaultRootPath";
+import { collectWebFolderItems, joinFolderPath, resolveShareFolder, toSharePath } from "../vaultRootPath";
 
 export class ShareManagementModal extends Modal {
 	private shares: ShareWithServer[] = [];
@@ -906,7 +906,7 @@ export class ShareManagementModal extends Modal {
 				for (const item of items) {
 					if (item.type === "doc") {
 						try {
-							const filePath = `${this.selectedShare.path}/${item.path}`;
+							const filePath = joinFolderPath(this.selectedShare.path, item.path);
 							console.debug("[WebSync] Reading content from:", filePath);
 							const content = await this.getDocumentContent(filePath);
 							console.debug("[WebSync] Content for", item.path, ":", content ? `${content.length} chars` : "NULL");
