@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.11
+- You can now share your vault's root folder, not just subfolders — previously this silently failed to sync anything (#1).
+
 ## 0.0.10
 - Client now sends its own plugin version (`manifest.version`) with every relay token request. The control-plane records it in the token-issuance audit log — previously the only version signal available was the Obsidian/Electron app version from User-Agent, not the plugin's, making it impossible to tell which release issued a given token during an auth-failure investigation (#75491f2f follow-up).
 
