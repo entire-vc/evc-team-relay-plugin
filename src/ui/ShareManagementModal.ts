@@ -5,7 +5,7 @@
  * Supports multi-server mode with smart server selection
  */
 
-import { App, Modal, Notice, Setting, TFile, TFolder } from "obsidian";
+import { App, Modal, Notice, Setting, TFile } from "obsidian";
 import type TeamRelayPlugin from "../main";
 import { RelayOnPremShareClient, type RelayOnPremShare, type ShareMember, type Invite, type WebFolderEntry, type AgentKey, type CreateAgentKeyResponse } from "../RelayOnPremShareClient";
 import { RelayOnPremShareClientManager, type ShareWithServer } from "../RelayOnPremShareClientManager";
@@ -13,6 +13,7 @@ import { FolderPathPickerModal } from "./FolderPathPickerModal";
 import { getDefaultServer, type RelayOnPremServer } from "../RelayOnPremConfig";
 import { confirmDialog, promptDialog } from "./dialogs";
 import { withOutboundSyncGuard } from "../WebSyncManager";
+import { collectWebFolderItems, resolveShareFolder, toSharePath } from "../vaultRootPath";
 
 export class ShareManagementModal extends Modal {
 	private shares: ShareWithServer[] = [];
@@ -540,7 +541,7 @@ export class ShareManagementModal extends Modal {
 								// named method, matching e.g. the .onClick(() => { void this.showCreateShareForm(); })
 								// pattern elsewhere in this file.
 								(folderPath: string) => {
-									void this.connectLocalFolder(folderPath);
+									void this.connectLocalFolder(toSharePath(folderPath));
 								},
 							);
 							modal.open();
@@ -1100,46 +1101,11 @@ export class ShareManagementModal extends Modal {
 	 */
 	private getFolderItems(folderPath: string): WebFolderEntry[] {
 		try {
-			const folder = this.app.vault.getAbstractFileByPath(folderPath);
-			if (!folder || !(folder instanceof TFolder)) {
+			const folder = resolveShareFolder(this.app.vault, folderPath);
+			if (!folder) {
 				return [];
 			}
-
-			const items: WebFolderEntry[] = [];
-
-			// Recursively get all files in folder
-			const processFolder = (currentFolder: TFolder, basePath: string) => {
-				for (const child of currentFolder.children) {
-					const relativePath = child.path.substring(folderPath.length + 1);
-
-					if (child instanceof TFile) {
-						let itemType: "doc" | "canvas" = "doc";
-						if (child.extension === "canvas") {
-							itemType = "canvas";
-						} else if (child.extension !== "md") {
-							// Skip non-markdown, non-canvas files
-							continue;
-						}
-
-						items.push({
-							path: relativePath,
-							name: child.basename,
-							type: itemType
-						});
-					} else if (child instanceof TFolder) {
-						items.push({
-							path: relativePath,
-							name: child.name,
-							type: "folder"
-						});
-						// Recursively process subfolders
-						processFolder(child, relativePath);
-					}
-				}
-			};
-
-			processFolder(folder, "");
-			return items;
+			return collectWebFolderItems(folder, folderPath);
 		} catch (error: unknown) {
 			console.error("Failed to get folder items:", error);
 			return [];
@@ -1808,7 +1774,11 @@ export class ShareManagementModal extends Modal {
 				.setButtonText("Create share")
 				.setCta()
 				.onClick(async () => {
-					const path = selectedPath.trim();
+					// Obsidian reports the vault root's own path as "/" -- the
+					// server's wire convention for "the whole vault" is ""
+					// (see vaultRootPath.ts). The button keeps showing "/";
+					// only the value sent over the wire changes.
+					const path = toSharePath(selectedPath.trim());
 					const kind = kindSelect.value as "doc" | "folder";
 					const visibility = visibilitySelect.value as "private" | "public" | "protected";
 					const password = passwordInput?.value?.trim();

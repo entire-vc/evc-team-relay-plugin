@@ -119,12 +119,13 @@ import {
 	diffRelayOnPremServers,
 } from "./relay/reconcileRelayOnPremServers";
 import type { IAuthProvider } from "./auth/IAuthProvider";
-import { RelayOnPremShareClient, type WebFolderEntry } from "./RelayOnPremShareClient";
+import { RelayOnPremShareClient } from "./RelayOnPremShareClient";
 import { RelayOnPremShareClientManager, type ShareWithServer } from "./RelayOnPremShareClientManager";
 import { dedupeFolderSharesByPath } from "./dedupeFolderSharesByPath";
 import { QuickShareModal } from "./ui/QuickShareModal";
 import { confirmDialog } from "./ui/dialogs";
 import { VaultScopedMap } from "./VaultScopedMap";
+import { collectWebFolderItems, isRootSharePath, joinFolderPath, resolveShareFolder } from "./vaultRootPath";
 
 interface LoggingSettings {
 	debugging: boolean;
@@ -1313,8 +1314,8 @@ export default class TeamRelayPlugin extends Plugin {
 							}
 						} else if (!existing) {
 							// Only auto-create if the folder exists locally in vault
-							const vaultFolder = this.app.vault.getAbstractFileByPath(share.path);
-							if (vaultFolder && vaultFolder instanceof TFolder) {
+							const vaultFolder = resolveShareFolder(this.app.vault, share.path);
+							if (vaultFolder) {
 								const vaultShare = this.shareRegistry.new(
 									share.path,
 									share.id,
@@ -1410,8 +1411,8 @@ export default class TeamRelayPlugin extends Plugin {
 							}
 						} else if (!existing) {
 							// Only auto-create if the folder exists locally in vault
-							const vaultFolder = this.app.vault.getAbstractFileByPath(share.path);
-							if (vaultFolder && vaultFolder instanceof TFolder) {
+							const vaultFolder = resolveShareFolder(this.app.vault, share.path);
+							if (vaultFolder) {
 								const vaultShare = this.shareRegistry.new(
 									share.path,
 									share.id,
@@ -1599,10 +1600,10 @@ export default class TeamRelayPlugin extends Plugin {
 								webSynced++;
 							}
 						} else if (share.kind === "folder") {
-							const folderAbs = this.pluginVault.getAbstractFileByPath(share.path);
-							if (folderAbs instanceof TFolder) {
+							const folderAbs = resolveShareFolder(this.pluginVault, share.path);
+							if (folderAbs) {
 								// 1. Build recursive folder items and PATCH structure
-								const items = this.getFolderItemsRecursive(folderAbs);
+								const items = collectWebFolderItems(folderAbs, share.path);
 								await this.shareClientManager!.updateShare(share.serverId, share.id, {
 									web_folder_items: items,
 								});
@@ -1611,7 +1612,7 @@ export default class TeamRelayPlugin extends Plugin {
 									for (const item of items) {
 										if (item.type === "doc" || item.type === "canvas") {
 											try {
-												const filePath = `${share.path}/${item.path}`;
+												const filePath = joinFolderPath(share.path, item.path);
 												const f = this.pluginVault.getAbstractFileByPath(filePath);
 												if (f instanceof TFile) {
 													const content = await this.pluginVault.read(f);
@@ -1651,12 +1652,12 @@ export default class TeamRelayPlugin extends Plugin {
 		await withOutboundSyncGuard(this.webSyncManager, async () => {
 			for (const share of shares) {
 				try {
-					const folderAbs = this.pluginVault.getAbstractFileByPath(share.path);
-					if (!(folderAbs instanceof TFolder)) {
+					const folderAbs = resolveShareFolder(this.pluginVault, share.path);
+					if (!folderAbs) {
 						this.logInfo("Folder not in vault, skipping initial full-sync", share.path);
 						continue;
 					}
-					const items = this.getFolderItemsRecursive(folderAbs);
+					const items = collectWebFolderItems(folderAbs, share.path);
 					await this.shareClientManager!.updateShare(share.serverId, share.id, {
 						web_folder_items: items,
 					});
@@ -1665,7 +1666,7 @@ export default class TeamRelayPlugin extends Plugin {
 						for (const item of items) {
 							if (item.type === "doc" || item.type === "canvas") {
 								try {
-									const f = this.pluginVault.getAbstractFileByPath(`${share.path}/${item.path}`);
+									const f = this.pluginVault.getAbstractFileByPath(joinFolderPath(share.path, item.path));
 									if (f instanceof TFile) {
 										const content = await this.pluginVault.read(f);
 										if (!content) {
@@ -1730,14 +1731,19 @@ export default class TeamRelayPlugin extends Plugin {
 					return;
 				}
 
-				// Check if file is inside a folder share
+				// Check if file is inside a folder share. A root share
+				// (path === "") contains every file unconditionally -- the
+				// generic `path + "/"` prefix match is always false for it,
+				// since real vault paths never start with a separator.
 				const folderShare = shares.find(s =>
 					s.kind === "folder" && s.web_published && s.web_slug &&
-					activeFile.path.startsWith(s.path + "/")
+					(isRootSharePath(s.path) || activeFile.path.startsWith(s.path + "/"))
 				);
 				if (folderShare && folderShare.web_slug) {
 					const content = await this.pluginVault.read(activeFile);
-					const relativePath = activeFile.path.substring(folderShare.path.length + 1);
+					const relativePath = isRootSharePath(folderShare.path)
+						? activeFile.path
+						: activeFile.path.substring(folderShare.path.length + 1);
 					await this.shareClientManager!.syncFolderFileContent(
 						folderShare.serverId, folderShare.web_slug, relativePath, content
 					);
@@ -1750,31 +1756,6 @@ export default class TeamRelayPlugin extends Plugin {
 		} catch (error: unknown) {
 			new Notice(`Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`);
 		}
-	}
-
-	/**
-	 * Recursively build folder items for web publishing
-	 */
-	private getFolderItemsRecursive(folder: TFolder): WebFolderEntry[] {
-		const items: WebFolderEntry[] = [];
-		const basePath = folder.path;
-		const process = (f: TFolder) => {
-			for (const child of f.children) {
-				const rel = child.path.substring(basePath.length + 1);
-				if (child instanceof TFile) {
-					if (child.extension === "canvas") {
-						items.push({ path: rel, name: child.basename, type: "canvas" });
-					} else if (child.extension === "md") {
-						items.push({ path: rel, name: child.basename, type: "doc" });
-					}
-				} else if (child instanceof TFolder) {
-					items.push({ path: rel, name: child.name, type: "folder" });
-					process(child);
-				}
-			}
-		};
-		process(folder);
-		return items;
 	}
 
 	private _handleAuthLogout() {

@@ -4,10 +4,16 @@
  * Handles automatic synchronization of documents to web when shares have auto-sync enabled.
  */
 
-import { Notice, TFile, TFolder, Vault, debounce } from "obsidian";
+import { Notice, TFile, Vault, debounce } from "obsidian";
 import { RelayOnPremShareClientManager } from "./RelayOnPremShareClientManager";
 import type { WebFolderEntry } from "./RelayOnPremShareClient";
 import { namedLogger } from "./logging";
+import {
+	collectWebFolderItems,
+	isPathWithinFolder,
+	resolveShareFolder,
+	toFolderRelativePath,
+} from "./vaultRootPath";
 
 const log = namedLogger("[WebSyncManager]");
 
@@ -130,7 +136,7 @@ export class WebSyncManager {
 		this.autoSyncShares.delete(filePath);
 		this.debouncedSyncMap.delete(filePath);
 		for (const key of Array.from(this.debouncedFolderFileSyncMap.keys())) {
-			if (key === filePath || key.startsWith(filePath + "/")) {
+			if (key === filePath || isPathWithinFolder(key, filePath)) {
 				this.debouncedFolderFileSyncMap.delete(key);
 			}
 		}
@@ -147,7 +153,7 @@ export class WebSyncManager {
 		// If no direct match, check if file is inside a folder share
 		if (!shareInfo) {
 			for (const [folderPath, info] of this.autoSyncShares.entries()) {
-				if (info.kind === "folder" && file.path.startsWith(folderPath + "/")) {
+				if (info.kind === "folder" && isPathWithinFolder(file.path, folderPath)) {
 					shareInfo = info;
 					matchedPath = folderPath;
 					log("File is inside auto-sync folder", { filePath: file.path, folderPath });
@@ -264,16 +270,20 @@ export class WebSyncManager {
 		try {
 			const content = await this.vault.read(file);
 
-			// Find the relative path within the folder
+			// Find the relative path within the folder. A root share's folderPath
+			// is "" (the wire convention) -- an empty string is falsy in JS, so a
+			// bare `if (!folderPath)` would wrongly treat a found-but-root match
+			// the same as "no match found" and bail before ever syncing. Check
+			// against `undefined` (what `.find()` returns on no match) instead.
 			const folderPath = Array.from(this.autoSyncShares.entries())
 				.find(([_, info]) => info === shareInfo)?.[0];
 
-			if (!folderPath) {
+			if (folderPath === undefined) {
 				log("Could not find folder path for share info");
 				return;
 			}
 
-			const relativePath = file.path.substring(folderPath.length + 1); // +1 for the "/"
+			const relativePath = toFolderRelativePath(file.path, folderPath);
 
 			log("Syncing folder file", {
 				folderPath,
@@ -376,7 +386,7 @@ export class WebSyncManager {
 	async onFileCreated(file: TFile): Promise<void> {
 		for (const [folderPath, shareInfo] of this.autoSyncShares.entries()) {
 			if (shareInfo.kind !== "folder") continue;
-			if (!file.path.startsWith(folderPath + "/")) continue;
+			if (!isPathWithinFolder(file.path, folderPath)) continue;
 
 			log("File created in auto-sync folder, updating web_folder_items", {
 				filePath: file.path,
@@ -413,8 +423,8 @@ export class WebSyncManager {
 			if (shareInfo.kind !== "folder") continue;
 			// File moved into, out of, or within this folder
 			if (
-				!newPath.startsWith(folderPath + "/") &&
-				!oldPath.startsWith(folderPath + "/")
+				!isPathWithinFolder(newPath, folderPath) &&
+				!isPathWithinFolder(oldPath, folderPath)
 			) continue;
 
 			log("File renamed in auto-sync folder, updating web_folder_items", {
@@ -473,7 +483,7 @@ export class WebSyncManager {
 	async onFileDeleted(filePath: string): Promise<void> {
 		for (const [folderPath, shareInfo] of this.autoSyncShares.entries()) {
 			if (shareInfo.kind !== "folder") continue;
-			if (!filePath.startsWith(folderPath + "/")) continue;
+			if (!isPathWithinFolder(filePath, folderPath)) continue;
 
 			log("File deleted from auto-sync folder, updating web_folder_items", {
 				filePath,
@@ -559,27 +569,9 @@ export class WebSyncManager {
 	 * Scan folder for current items (md/canvas files and subfolders)
 	 */
 	private getFolderItems(folderPath: string): WebFolderEntry[] {
-		const folder = this.vault.getAbstractFileByPath(folderPath);
-		if (!folder || !(folder instanceof TFolder)) return [];
-
-		const items: WebFolderEntry[] = [];
-		const process = (f: TFolder) => {
-			for (const child of f.children) {
-				const rel = child.path.substring(folderPath.length + 1);
-				if (child instanceof TFile) {
-					if (child.extension === "canvas") {
-						items.push({ path: rel, name: child.basename, type: "canvas" });
-					} else if (child.extension === "md") {
-						items.push({ path: rel, name: child.basename, type: "doc" });
-					}
-				} else if (child instanceof TFolder) {
-					items.push({ path: rel, name: child.name, type: "folder" });
-					process(child);
-				}
-			}
-		};
-		process(folder);
-		return items;
+		const folder = resolveShareFolder(this.vault, folderPath);
+		if (!folder) return [];
+		return collectWebFolderItems(folder, folderPath);
 	}
 
 	/**

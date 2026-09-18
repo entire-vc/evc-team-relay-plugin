@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { Notice, Setting, TFile, TFolder } from "obsidian";
+	import { Notice, Setting, TFile } from "obsidian";
 	import { createEventDispatcher } from "svelte";
 	import type TeamRelayPlugin from "../main";
 	import type { RelayOnPremServer } from "../RelayOnPremConfig";
@@ -12,6 +12,7 @@
 	import { withOutboundSyncGuard } from "../WebSyncManager";
 	import { pushFolderContentToServer as pushFolderContentToServerCore } from "../webPublish/pushFolderContentToServer";
 	import { uiText } from "../wording/uiText";
+	import { collectWebFolderItems, resolveShareFolder, toSharePath } from "../vaultRootPath";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -564,26 +565,9 @@
 
 	async function getFolderItems(folderPath: string): Promise<WebFolderEntry[]> {
 		try {
-			const folder = live.app.vault.getAbstractFileByPath(folderPath);
-			if (!folder || !(folder instanceof TFolder)) return [];
-			const items: WebFolderEntry[] = [];
-			const process = (f: TFolder) => {
-				for (const child of f.children) {
-					const rel = child.path.substring(folderPath.length + 1);
-					if (child instanceof TFile) {
-						if (child.extension === "canvas") {
-							items.push({ path: rel, name: child.basename, type: "canvas" });
-						} else if (child.extension === "md") {
-							items.push({ path: rel, name: child.basename, type: "doc" });
-						}
-					} else if (child instanceof TFolder) {
-						items.push({ path: rel, name: child.name, type: "folder" });
-						process(child);
-					}
-				}
-			};
-			process(folder);
-			return items;
+			const folder = resolveShareFolder(live.app.vault, folderPath);
+			if (!folder) return [];
+			return collectWebFolderItems(folder, folderPath);
 		} catch { return []; }
 	}
 
@@ -634,7 +618,7 @@
 			live.shareRegistry,
 			async (folderPath: string) => {
 				try {
-					const vaultShare = live.shareRegistry.new(folderPath, share.id, "relay-onprem", true);
+					const vaultShare = live.shareRegistry.new(toSharePath(folderPath), share.id, "relay-onprem", true);
 					if (vaultShare) {
 						await vaultShare.setOnpremServerId(share.serverId);
 						// onpremServerId is set AFTER construction, so the constructor's

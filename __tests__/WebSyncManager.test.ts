@@ -150,6 +150,63 @@ describe("WebSyncManager.onFileModified — auto-sync folder binary filter", () 
 	});
 });
 
+describe("WebSyncManager.onFileModified — root-share (vault-wide) live auto-sync", () => {
+	// A root share is registered with folderPath === "" (the wire convention,
+	// see vaultRootPath.ts). Before this fix, onFileModified()'s containment
+	// check was a bare `file.path.startsWith(folderPath + "/")`, which for
+	// folderPath === "" becomes `startsWith("/")` -- always false for a real
+	// Obsidian path -- so a root share's live auto-sync silently never fired
+	// for ANY edited file, top-level or nested.
+	test("editing a file at the vault TOP LEVEL fires the live auto-sync (root share)", async () => {
+		const vault = makeVault({ "readme.md": "hello vault" });
+		const clientManager = makeClientManager();
+		const manager = new WebSyncManager(vault, clientManager);
+		registerFolderShare(manager, "");
+
+		await manager.onFileModified(new TFile("readme.md"));
+
+		expect(vault.read).toHaveBeenCalled();
+		// Also guards the relative-path computation: a root share has no
+		// "<folderPath>/" prefix to strip, so the pushed path must be
+		// "readme.md" unchanged, not "eadme.md" (the sibling off-by-one bug
+		// fixed alongside this one).
+		expect(clientManager.syncFolderFileContent).toHaveBeenCalledWith(
+			"srv1",
+			"my-slug",
+			"readme.md",
+			"hello vault",
+		);
+	});
+
+	test("editing a NESTED file also fires the live auto-sync (root share), with the correct relative path", async () => {
+		const vault = makeVault({ "sub/deep/note.md": "nested content" });
+		const clientManager = makeClientManager();
+		const manager = new WebSyncManager(vault, clientManager);
+		registerFolderShare(manager, "");
+
+		await manager.onFileModified(new TFile("sub/deep/note.md"));
+
+		expect(clientManager.syncFolderFileContent).toHaveBeenCalledWith(
+			"srv1",
+			"my-slug",
+			"sub/deep/note.md",
+			"nested content",
+		);
+	});
+
+	test("no regression: a NON-root folder share still only syncs files inside it", async () => {
+		const vault = makeVault({ "notes/note.md": "hi" });
+		const clientManager = makeClientManager();
+		const manager = new WebSyncManager(vault, clientManager);
+		registerFolderShare(manager, "notes");
+
+		await manager.onFileModified(new TFile("outside/note.md"));
+
+		expect(vault.read).not.toHaveBeenCalled();
+		expect(clientManager.syncFolderFileContent).not.toHaveBeenCalled();
+	});
+});
+
 describe("WebSyncManager.onFileModified — folder-share rate-limited edit retry (TR-23, #37e7b1e4)", () => {
 	beforeEach(() => {
 		jest.useFakeTimers();

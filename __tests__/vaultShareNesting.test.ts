@@ -53,4 +53,25 @@ describe("findNestingConflictPath", () => {
 	test("checks against every existing share, not just the first", () => {
 		expect(findNestingConflictPath("X/Y", ["A", "X"], SEP)).toBe("X");
 	});
+
+	describe("vault root (represented as \"\")", () => {
+		test("sharing root when a sub-folder share already exists is a conflict", () => {
+			// Root created AFTER an existing sub-folder share -- root would
+			// contain it.
+			expect(findNestingConflictPath("", ["A"], SEP)).toBe("A");
+		});
+
+		test("sharing a sub-folder when a root share already exists is a conflict", () => {
+			// Root created FIRST -- any later share nests inside it.
+			expect(findNestingConflictPath("A", [""], SEP)).toBe("");
+		});
+
+		test("sharing root when no other shares exist is safe", () => {
+			expect(findNestingConflictPath("", [], SEP)).toBeNull();
+		});
+
+		test("root does not conflict with itself (samePath handled separately)", () => {
+			expect(findNestingConflictPath("", [""], SEP)).toBeNull();
+		});
+	});
 });

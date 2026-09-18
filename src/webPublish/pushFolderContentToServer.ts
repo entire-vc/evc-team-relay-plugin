@@ -1,5 +1,6 @@
 import { sha256Hex } from "../contentDigest";
 import type { WebFolderEntry } from "../RelayOnPremShareClient";
+import { joinFolderPath } from "../vaultRootPath";
 
 /** The true external boundary this function talks to: the relay server's
  * sync-write protocol. Extracted as an interface so tests can fake exactly
@@ -53,7 +54,7 @@ export async function pushFolderContentToServer(
 
 	const skipped: string[] = [];
 	for (const item of syncable) {
-		const content = await deps.getDocumentContent(`${folderPath}/${item.path}`);
+		const content = await deps.getDocumentContent(joinFolderPath(folderPath, item.path));
 		if (content === null) continue; // file vanished between listing and read -- skip, not fatal
 		const localSha = await sha256Hex(new TextEncoder().encode(content).buffer as ArrayBuffer);
 		const remoteSha = indexed.get(item.path);
