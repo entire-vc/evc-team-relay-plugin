@@ -247,3 +247,39 @@ describe("joinFolderPath", () => {
 		}
 	});
 });
+
+describe("joinFolderPath feeding vault.getAbstractFileByPath (the getDocumentContent(join(...)) pattern used by content-sync call sites)", () => {
+	// ShareDetailView.svelte's syncWebContent() ("Sync now") and the other
+	// content-push call sites all do the same two-step thing: join a
+	// share's folderPath with an item's relative path, then look that up
+	// via vault.getAbstractFileByPath. The .svelte component itself has no
+	// jest transform in this repo (see pushFolderContentToServer.ts's own
+	// comment on this), so this composes the two real steps against a fake
+	// vault to pin the call-site behavior directly, not just the join in
+	// isolation.
+	test("root share -- the joined path resolves against the vault; a naive join would not", () => {
+		const file = new TFile("readme.md");
+		const vault = {
+			getAbstractFileByPath: (path: string) => (path === "readme.md" ? file : null),
+		};
+
+		const resolved = vault.getAbstractFileByPath(joinFolderPath("", "readme.md"));
+
+		expect(resolved).toBe(file);
+		// The bug this guards against: a naive `${folderPath}/${item.path}`
+		// join for a root share produces "/readme.md", which this same
+		// fake vault would resolve to null.
+		expect(vault.getAbstractFileByPath("/readme.md")).toBeNull();
+	});
+
+	test("non-root share -- unaffected, still resolves via the folderPath-prefixed path", () => {
+		const file = new TFile("notes/a.md");
+		const vault = {
+			getAbstractFileByPath: (path: string) => (path === "notes/a.md" ? file : null),
+		};
+
+		const resolved = vault.getAbstractFileByPath(joinFolderPath("notes", "a.md"));
+
+		expect(resolved).toBe(file);
+	});
+});

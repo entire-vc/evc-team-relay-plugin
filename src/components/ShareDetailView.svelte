@@ -12,7 +12,7 @@
 	import { withOutboundSyncGuard } from "../WebSyncManager";
 	import { pushFolderContentToServer as pushFolderContentToServerCore } from "../webPublish/pushFolderContentToServer";
 	import { uiText } from "../wording/uiText";
-	import { collectWebFolderItems, resolveShareFolder, toSharePath } from "../vaultRootPath";
+	import { collectWebFolderItems, joinFolderPath, resolveShareFolder, toSharePath } from "../vaultRootPath";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -458,7 +458,7 @@
 					for (const item of items) {
 						if (item.type === "doc") {
 							try {
-								const content = await getDocumentContent(`${currentShare.path}/${item.path}`);
+								const content = await getDocumentContent(joinFolderPath(currentShare.path, item.path));
 								if (content) {
 									if (live.shareClientManager) {
 										const clientManager = live.shareClientManager;
