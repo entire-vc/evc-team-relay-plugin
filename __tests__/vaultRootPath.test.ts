@@ -19,6 +19,8 @@ import {
 	resolveShareFolder,
 	collectWebFolderItems,
 	isPathWithinFolder,
+	toFolderRelativePath,
+	joinFolderPath,
 } from "../src/vaultRootPath";
 
 describe("isRootSharePath", () => {
@@ -220,5 +222,28 @@ describe("isPathWithinFolder", () => {
 		// helper replaces: exact-match-on-itself is the caller's job (several
 		// call sites in WebSyncManager.ts explicitly OR this in separately).
 		expect(isPathWithinFolder("notes", "notes")).toBe(false);
+	});
+});
+
+describe("joinFolderPath", () => {
+	test("root share (folderPath '') -- relativePath is returned unchanged, no leading slash prepended", () => {
+		// The bug this fixes: a naive `${folderPath}/${relativePath}` join
+		// produces "/readme.md" for a root share, which
+		// vault.getAbstractFileByPath never resolves (no real Obsidian path
+		// starts with a separator).
+		expect(joinFolderPath("", "readme.md")).toBe("readme.md");
+		expect(joinFolderPath("", "sub/note.md")).toBe("sub/note.md");
+	});
+
+	test("non-root share -- unchanged: folderPath and relativePath are joined with '/'", () => {
+		expect(joinFolderPath("notes", "a.md")).toBe("notes/a.md");
+		expect(joinFolderPath("notes", "sub/b.md")).toBe("notes/sub/b.md");
+	});
+
+	test("is the exact inverse of toFolderRelativePath for both root and non-root shares", () => {
+		for (const [folderPath, relativePath] of [["", "readme.md"], ["notes", "a.md"]] as const) {
+			const absolute = joinFolderPath(folderPath, relativePath);
+			expect(toFolderRelativePath(absolute, folderPath)).toBe(relativePath);
+		}
 	});
 });
