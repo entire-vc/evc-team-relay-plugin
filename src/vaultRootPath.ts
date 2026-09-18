@@ -76,6 +76,19 @@ export function toFolderRelativePath(path: string, folderPath: string): string {
 }
 
 /**
+ * Joins a folder share's path with a path already relative to it -- the
+ * inverse of `toFolderRelativePath` -- honoring the vault-root convention:
+ * for a root share there's no `folderPath` segment to prepend,
+ * `relativePath` IS already the full vault path. Prepending `"" + "/"`
+ * unconditionally would produce a leading-slash path (e.g. "/readme.md")
+ * that `vault.getAbstractFileByPath` never resolves, since no real
+ * Obsidian path starts with a separator.
+ */
+export function joinFolderPath(folderPath: string, relativePath: string): string {
+	return isRootSharePath(folderPath) ? relativePath : `${folderPath}/${relativePath}`;
+}
+
+/**
  * Recursively lists a share folder's contents (md/canvas files + subfolders)
  * as `WebFolderEntry[]` for `web_folder_items`, honoring the vault-root path
  * convention.

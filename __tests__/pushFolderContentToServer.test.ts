@@ -112,6 +112,27 @@ describe("pushFolderContentToServer", () => {
 		expect(deps.getFilesIndex).not.toHaveBeenCalled();
 	});
 
+	test("root share (folderPath '') -- content is read from the real vault path, not a leading-slash one", async () => {
+		// `folderPath=""` is the wire convention for "whole vault" (a root
+		// share). A naive `${folderPath}/${item.path}` join would produce
+		// "/good-one.md" here, which `vault.getAbstractFileByPath` never
+		// resolves -- no real Obsidian path starts with a separator. This
+		// pins the fix (`joinFolderPath`, which special-cases the root
+		// share to return `item.path` unchanged, no prepended slash).
+		const requestedPaths: string[] = [];
+		const deps = makeDeps({
+			getDocumentContent: jest.fn(async (path: string) => {
+				requestedPaths.push(path);
+				return `content of ${path}`;
+			}),
+		});
+
+		const skipped = await pushFolderContentToServer("", [items[0]], deps);
+
+		expect(requestedPaths).toEqual(["good-one.md"]);
+		expect(skipped).toEqual([]);
+	});
+
 	test("a missing files-index (fresh share) is treated as no-prior-sync, not fatal", async () => {
 		const writes: string[] = [];
 		const deps = makeDeps({

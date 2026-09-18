@@ -125,7 +125,7 @@ import { dedupeFolderSharesByPath } from "./dedupeFolderSharesByPath";
 import { QuickShareModal } from "./ui/QuickShareModal";
 import { confirmDialog } from "./ui/dialogs";
 import { VaultScopedMap } from "./VaultScopedMap";
-import { collectWebFolderItems, isRootSharePath, resolveShareFolder } from "./vaultRootPath";
+import { collectWebFolderItems, isRootSharePath, joinFolderPath, resolveShareFolder } from "./vaultRootPath";
 
 interface LoggingSettings {
 	debugging: boolean;
@@ -1612,7 +1612,7 @@ export default class TeamRelayPlugin extends Plugin {
 									for (const item of items) {
 										if (item.type === "doc" || item.type === "canvas") {
 											try {
-												const filePath = `${share.path}/${item.path}`;
+												const filePath = joinFolderPath(share.path, item.path);
 												const f = this.pluginVault.getAbstractFileByPath(filePath);
 												if (f instanceof TFile) {
 													const content = await this.pluginVault.read(f);
@@ -1666,7 +1666,7 @@ export default class TeamRelayPlugin extends Plugin {
 						for (const item of items) {
 							if (item.type === "doc" || item.type === "canvas") {
 								try {
-									const f = this.pluginVault.getAbstractFileByPath(`${share.path}/${item.path}`);
+									const f = this.pluginVault.getAbstractFileByPath(joinFolderPath(share.path, item.path));
 									if (f instanceof TFile) {
 										const content = await this.pluginVault.read(f);
 										if (!content) {
