@@ -60,6 +60,7 @@ import { BlobClient } from "./BlobClient";
 import { AttachmentSyncSettings, type AttachmentToggles } from "./AttachmentSyncSettings";
 import { currentToggles } from "./featureToggleState";
 import { findNestingConflictPath } from "./vaultShareNesting";
+import { isRootSharePath, resolveShareFolder } from "./vaultRootPath";
 import { buildConflictCopyPath } from "./conflictCopyPath";
 import { partitionByKnownGuid } from "./mintGate";
 import {
@@ -850,9 +851,9 @@ export class VaultShare extends ProviderBacked {
 	}
 
 	private lookupTFolder(errorMessage: string): TFolder {
-		const abstractFile = this.vaultApi.getAbstractFileByPath(this.path);
-		if (abstractFile instanceof TFolder) {
-			return abstractFile;
+		const folder = resolveShareFolder(this.vaultApi, this.path);
+		if (folder) {
+			return folder;
 		}
 		throw new Error(errorMessage);
 	}
@@ -1749,11 +1750,22 @@ export class VaultShare extends ProviderBacked {
 	}
 
 	containsPath(path: string): boolean {
+		// A root share (path === "") has no prefix to check against -- it
+		// contains every real vault path unconditionally. The generic
+		// `path.startsWith(this.path + sep)` math would otherwise test
+		// `path.startsWith(sep)`, which is always false: real Obsidian
+		// paths never start with a separator.
+		if (isRootSharePath(this.path)) return true;
 		return path.startsWith(this.path + sep);
 	}
 
 	toVirtualPath(path: string): string {
 		this.requirePath(path);
+
+		// A root share has no folder prefix to strip -- `path` is already
+		// vault-relative. Falling through to the generic slice below would
+		// chop off `path`'s own first character instead.
+		if (isRootSharePath(this.path)) return path;
 
 		// Slice past the folder path AND the separator (e.g., "Folder/file.md" -> "file.md")
 		// Without +1, we'd get "/file.md" which starts with slash
@@ -2737,7 +2749,7 @@ export class ShareRegistry extends NotifierSet<VaultShare> {
 				);
 				return;
 			}
-			const tFolder = this.vaultApi.getFolderByPath(folder.path);
+			const tFolder = resolveShareFolder(this.vaultApi, folder.path);
 			if (!tFolder) {
 				this.warn(`settings reference a path that doesn't exist: ${folder.path}`);
 				return;

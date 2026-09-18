@@ -12,6 +12,7 @@
 	import { withOutboundSyncGuard } from "../WebSyncManager";
 	import { pushFolderContentToServer as pushFolderContentToServerCore } from "../webPublish/pushFolderContentToServer";
 	import { uiText } from "../wording/uiText";
+	import { toSharePath } from "../vaultRootPath";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -634,7 +635,7 @@
 			live.shareRegistry,
 			async (folderPath: string) => {
 				try {
-					const vaultShare = live.shareRegistry.new(folderPath, share.id, "relay-onprem", true);
+					const vaultShare = live.shareRegistry.new(toSharePath(folderPath), share.id, "relay-onprem", true);
 					if (vaultShare) {
 						await vaultShare.setOnpremServerId(share.serverId);
 						// onpremServerId is set AFTER construction, so the constructor's
