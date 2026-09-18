@@ -155,6 +155,46 @@ describe("collectWebFolderItems", () => {
 	});
 });
 
+describe("resolveShareFolder + collectWebFolderItems composed (main.ts syncAllShares/_initialFullSync call-site pattern)", () => {
+	// main.ts's syncAllShares()/_initialFullSync() build a share's
+	// web_folder_items by calling `resolveShareFolder(vault, share.path)`
+	// then feeding the resolved TFolder into the folder-listing helper --
+	// exactly the two-step pattern WebSyncManager/ShareManagementModal/
+	// ShareDetailView.svelte already use. Before this fix, main.ts had its
+	// own fourth hand-rolled copy of the listing step that derived
+	// `basePath` from `folder.path` (`"/"` for a root share) instead of the
+	// wire-convention `share.path` (`""`), stripping 2 characters instead
+	// of 1 off every top-level item. Composing the two real exported
+	// functions here (not a stand-in) pins the call-site behavior, not just
+	// the helper in isolation.
+	test("root share -- top-level item path is the real filename, not truncated by 1 or 2 chars", () => {
+		const readme = new TFile("readme.md");
+		const root = new TFolder(OBSIDIAN_VAULT_ROOT_PATH, [readme]);
+		const vault = fakeVault({ root });
+		const sharePath = ""; // wire convention for "whole vault"
+
+		const folderAbs = resolveShareFolder(vault as any, sharePath);
+		expect(folderAbs).toBe(root);
+		const items = collectWebFolderItems(folderAbs as any, sharePath);
+
+		expect(items).toEqual([{ path: "readme.md", name: "readme", type: "doc" }]);
+	});
+
+	test("non-root share -- regression check, unaffected by the root-share fix", () => {
+		const child = new TFile("notes/a.md");
+		const notes = new TFolder("notes", [child]);
+		const root = new TFolder(OBSIDIAN_VAULT_ROOT_PATH);
+		const vault = fakeVault({ root, byPath: new Map([["notes", notes]]) });
+		const sharePath = "notes";
+
+		const folderAbs = resolveShareFolder(vault as any, sharePath);
+		expect(folderAbs).toBe(notes);
+		const items = collectWebFolderItems(folderAbs as any, sharePath);
+
+		expect(items).toEqual([{ path: "a.md", name: "a", type: "doc" }]);
+	});
+});
+
 describe("isPathWithinFolder", () => {
 	test("root share (folderPath '') -- every real vault path is contained", () => {
 		expect(isPathWithinFolder("readme.md", "")).toBe(true);
