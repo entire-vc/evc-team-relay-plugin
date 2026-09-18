@@ -9,6 +9,7 @@
 	import { FolderPathPickerModal } from "../ui/FolderPathPickerModal";
 	import { ResourceAddress } from "../ResourceAddress";
 	import { uiText } from "../wording/uiText";
+	import { toSharePath } from "../vaultRootPath";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -50,7 +51,11 @@
 		creating = true;
 		try {
 			const createRequest = {
-				path: selectedPath.trim(),
+				// Obsidian reports the vault root's own path as "/" -- the
+				// server's wire convention for "the whole vault" is "" (see
+				// vaultRootPath.ts). selectedPath keeps showing "/" in the
+				// picker button; only the value sent over the wire changes.
+				path: toSharePath(selectedPath.trim()),
 				kind,
 				visibility,
 				...(password.trim() && { password: password.trim() }),

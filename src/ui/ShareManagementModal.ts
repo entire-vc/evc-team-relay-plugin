@@ -13,6 +13,7 @@ import { FolderPathPickerModal } from "./FolderPathPickerModal";
 import { getDefaultServer, type RelayOnPremServer } from "../RelayOnPremConfig";
 import { confirmDialog, promptDialog } from "./dialogs";
 import { withOutboundSyncGuard } from "../WebSyncManager";
+import { isRootSharePath, resolveShareFolder, toSharePath } from "../vaultRootPath";
 
 export class ShareManagementModal extends Modal {
 	private shares: ShareWithServer[] = [];
@@ -540,7 +541,7 @@ export class ShareManagementModal extends Modal {
 								// named method, matching e.g. the .onClick(() => { void this.showCreateShareForm(); })
 								// pattern elsewhere in this file.
 								(folderPath: string) => {
-									void this.connectLocalFolder(folderPath);
+									void this.connectLocalFolder(toSharePath(folderPath));
 								},
 							);
 							modal.open();
@@ -1100,17 +1101,25 @@ export class ShareManagementModal extends Modal {
 	 */
 	private getFolderItems(folderPath: string): WebFolderEntry[] {
 		try {
-			const folder = this.app.vault.getAbstractFileByPath(folderPath);
-			if (!folder || !(folder instanceof TFolder)) {
+			const folder = resolveShareFolder(this.app.vault, folderPath);
+			if (!folder) {
 				return [];
 			}
 
+			// For a root share, `folderPath` is `""` (the wire convention) --
+			// there's no `"<folderPath>/"` prefix on disk to strip, `child.path`
+			// IS already the relative path. Stripping `folderPath.length + 1`
+			// unconditionally would chop the first character off every
+			// top-level item's path instead (e.g. "readme.md" -> "eadme.md").
+			const isRoot = isRootSharePath(folderPath);
 			const items: WebFolderEntry[] = [];
 
 			// Recursively get all files in folder
 			const processFolder = (currentFolder: TFolder, basePath: string) => {
 				for (const child of currentFolder.children) {
-					const relativePath = child.path.substring(folderPath.length + 1);
+					const relativePath = isRoot
+						? child.path
+						: child.path.substring(folderPath.length + 1);
 
 					if (child instanceof TFile) {
 						let itemType: "doc" | "canvas" = "doc";
@@ -1808,7 +1817,11 @@ export class ShareManagementModal extends Modal {
 				.setButtonText("Create share")
 				.setCta()
 				.onClick(async () => {
-					const path = selectedPath.trim();
+					// Obsidian reports the vault root's own path as "/" -- the
+					// server's wire convention for "the whole vault" is ""
+					// (see vaultRootPath.ts). The button keeps showing "/";
+					// only the value sent over the wire changes.
+					const path = toSharePath(selectedPath.trim());
 					const kind = kindSelect.value as "doc" | "folder";
 					const visibility = visibilitySelect.value as "private" | "public" | "protected";
 					const password = passwordInput?.value?.trim();

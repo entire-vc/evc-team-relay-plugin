@@ -6,6 +6,7 @@
 // bodies inline.
 import { TFile, TFolder } from "obsidian";
 import { VaultShare } from "../VaultShare";
+import { OBSIDIAN_VAULT_ROOT_PATH, isRootSharePath } from "../vaultRootPath";
 import type { ConnectionState } from "src/ProviderBacked";
 import { Document } from "src/Document";
 import SyncStatusBadge from "src/components/SyncStatusBadge.svelte";
@@ -20,6 +21,17 @@ import { namedLogger } from "src/logging";
 import { SiblingAppearanceObserver } from "./SiblingWatcher";
 import { NoopVisitor, toggleDecoration } from "./treeVisitor";
 import type { Disposable, ExplorerFileRow, ExplorerFolderRow, TeardownFn } from "./treeVisitor";
+
+// A VaultShare's own row is the explorer row for the TFolder it shares. For
+// every folder but the vault root this is a plain path match -- but a root
+// share's `.path` is `""` (see vaultRootPath.ts) while Obsidian's root
+// TFolder itself reports `.path === "/"`, so the two conventions need an
+// explicit bridge instead of `===`.
+function isShareFolderRow(vaultShare: VaultShare | undefined, folder: TFolder): boolean {
+	if (!vaultShare) return false;
+	if (isRootSharePath(vaultShare.path)) return folder.path === OBSIDIAN_VAULT_ROOT_PATH;
+	return vaultShare.path === folder.path;
+}
 
 // Marks the row directly under a shared folder's own row as "live" --
 // Obsidian renders that row (the folder's file/subfolder list) as a sibling
@@ -58,10 +70,7 @@ export class FolderLiveIndicatorVisitor extends NoopVisitor<FolderLiveIndicator>
 		storage?: FolderLiveIndicator,
 		vaultShare?: VaultShare,
 	): FolderLiveIndicator | null {
-		const target =
-			vaultShare && vaultShare.path === folder.path
-				? vaultShare
-				: undefined;
+		const target = isShareFolderRow(vaultShare, folder) ? vaultShare : undefined;
 		return toggleDecoration(target, storage, (sf) =>
 			new FolderLiveIndicator(item.selfEl, sf),
 		);
@@ -135,10 +144,7 @@ export class FolderStatusPillVisitor extends NoopVisitor<FolderStatusPill> {
 		storage?: FolderStatusPill,
 		vaultShare?: VaultShare,
 	): FolderStatusPill | null {
-		const target =
-			vaultShare && vaultShare.path === folder.path
-				? vaultShare
-				: undefined;
+		const target = isShareFolderRow(vaultShare, folder) ? vaultShare : undefined;
 		return toggleDecoration(target, storage, (sf) =>
 			new FolderStatusPill(item.selfEl, sf),
 		);

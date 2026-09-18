@@ -24,10 +24,20 @@
 
 import { describe, test, expect, jest } from "@jest/globals";
 import { ShareRegistry, type VaultShareSettings } from "../src/VaultShare";
+import { TFolder } from "./mocks/obsidian";
 
+// _restoreFrom() resolves each entry's folder via resolveShareFolder(), which
+// calls vault.getAbstractFileByPath() (or getRoot() for a root share's `""`
+// path) -- not getFolderByPath() directly, and does a real `instanceof
+// TFolder` check, so the fixtures need actual TFolder instances, not
+// duck-typed plain objects. None of these fixtures use a root path, so
+// getRoot() is never exercised here (see vaultRootPath.test.ts for that);
+// it's still provided so a real Vault-shaped object is passed.
 function makeVault(existingPaths: string[]) {
 	return {
-		getFolderByPath: (path: string) => (existingPaths.includes(path) ? { path } : null),
+		getAbstractFileByPath: (path: string) =>
+			existingPaths.includes(path) ? new TFolder(path) : null,
+		getRoot: () => new TFolder("/"),
 	};
 }
 

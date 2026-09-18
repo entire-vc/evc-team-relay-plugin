@@ -125,6 +125,7 @@ import { dedupeFolderSharesByPath } from "./dedupeFolderSharesByPath";
 import { QuickShareModal } from "./ui/QuickShareModal";
 import { confirmDialog } from "./ui/dialogs";
 import { VaultScopedMap } from "./VaultScopedMap";
+import { isRootSharePath, resolveShareFolder } from "./vaultRootPath";
 
 interface LoggingSettings {
 	debugging: boolean;
@@ -1313,8 +1314,8 @@ export default class TeamRelayPlugin extends Plugin {
 							}
 						} else if (!existing) {
 							// Only auto-create if the folder exists locally in vault
-							const vaultFolder = this.app.vault.getAbstractFileByPath(share.path);
-							if (vaultFolder && vaultFolder instanceof TFolder) {
+							const vaultFolder = resolveShareFolder(this.app.vault, share.path);
+							if (vaultFolder) {
 								const vaultShare = this.shareRegistry.new(
 									share.path,
 									share.id,
@@ -1410,8 +1411,8 @@ export default class TeamRelayPlugin extends Plugin {
 							}
 						} else if (!existing) {
 							// Only auto-create if the folder exists locally in vault
-							const vaultFolder = this.app.vault.getAbstractFileByPath(share.path);
-							if (vaultFolder && vaultFolder instanceof TFolder) {
+							const vaultFolder = resolveShareFolder(this.app.vault, share.path);
+							if (vaultFolder) {
 								const vaultShare = this.shareRegistry.new(
 									share.path,
 									share.id,
@@ -1599,8 +1600,8 @@ export default class TeamRelayPlugin extends Plugin {
 								webSynced++;
 							}
 						} else if (share.kind === "folder") {
-							const folderAbs = this.pluginVault.getAbstractFileByPath(share.path);
-							if (folderAbs instanceof TFolder) {
+							const folderAbs = resolveShareFolder(this.pluginVault, share.path);
+							if (folderAbs) {
 								// 1. Build recursive folder items and PATCH structure
 								const items = this.getFolderItemsRecursive(folderAbs);
 								await this.shareClientManager!.updateShare(share.serverId, share.id, {
@@ -1651,8 +1652,8 @@ export default class TeamRelayPlugin extends Plugin {
 		await withOutboundSyncGuard(this.webSyncManager, async () => {
 			for (const share of shares) {
 				try {
-					const folderAbs = this.pluginVault.getAbstractFileByPath(share.path);
-					if (!(folderAbs instanceof TFolder)) {
+					const folderAbs = resolveShareFolder(this.pluginVault, share.path);
+					if (!folderAbs) {
 						this.logInfo("Folder not in vault, skipping initial full-sync", share.path);
 						continue;
 					}
@@ -1730,14 +1731,19 @@ export default class TeamRelayPlugin extends Plugin {
 					return;
 				}
 
-				// Check if file is inside a folder share
+				// Check if file is inside a folder share. A root share
+				// (path === "") contains every file unconditionally -- the
+				// generic `path + "/"` prefix match is always false for it,
+				// since real vault paths never start with a separator.
 				const folderShare = shares.find(s =>
 					s.kind === "folder" && s.web_published && s.web_slug &&
-					activeFile.path.startsWith(s.path + "/")
+					(isRootSharePath(s.path) || activeFile.path.startsWith(s.path + "/"))
 				);
 				if (folderShare && folderShare.web_slug) {
 					const content = await this.pluginVault.read(activeFile);
-					const relativePath = activeFile.path.substring(folderShare.path.length + 1);
+					const relativePath = isRootSharePath(folderShare.path)
+						? activeFile.path
+						: activeFile.path.substring(folderShare.path.length + 1);
 					await this.shareClientManager!.syncFolderFileContent(
 						folderShare.serverId, folderShare.web_slug, relativePath, content
 					);
