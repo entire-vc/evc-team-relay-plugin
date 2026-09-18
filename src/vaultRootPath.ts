@@ -52,15 +52,33 @@ export function resolveShareFolder(vault: Vault, sharePath: string): TFolder | n
 }
 
 /**
+ * True if `path` lies within the folder share rooted at `folderPath`,
+ * honoring the vault-root convention: for a root share (`folderPath === ""`)
+ * every real vault path is contained, since there's no `"<folderPath>/"`
+ * prefix to check for -- no real Obsidian path ever starts with `/`, so a
+ * bare `path.startsWith(folderPath + "/")` is always false for a root share
+ * and silently treats every file as outside it.
+ */
+export function isPathWithinFolder(path: string, folderPath: string): boolean {
+	return isRootSharePath(folderPath) || path.startsWith(folderPath + "/");
+}
+
+/**
+ * Converts a path known to lie within the folder share rooted at `folderPath`
+ * (see `isPathWithinFolder`) to its path relative to that share, honoring the
+ * vault-root convention: for a root share there's no `"<folderPath>/"`
+ * prefix on disk to strip, `path` IS already the relative path. Stripping
+ * `folderPath.length + 1` unconditionally would chop the first character off
+ * every top-level item's path instead (e.g. "readme.md" -> "eadme.md").
+ */
+export function toFolderRelativePath(path: string, folderPath: string): string {
+	return isRootSharePath(folderPath) ? path : path.substring(folderPath.length + 1);
+}
+
+/**
  * Recursively lists a share folder's contents (md/canvas files + subfolders)
  * as `WebFolderEntry[]` for `web_folder_items`, honoring the vault-root path
  * convention.
- *
- * For a root share, `folderPath` is `""` (the wire convention) -- there's no
- * `"<folderPath>/"` prefix on disk to strip, `child.path` IS already the
- * relative path. Stripping `folderPath.length + 1` unconditionally would
- * chop the first character off every top-level item's path instead (e.g.
- * "readme.md" -> "eadme.md").
  *
  * Single implementation shared by every `getFolderItems()` call site
  * (previously duplicated three times -- WebSyncManager, ShareManagementModal,
@@ -69,11 +87,10 @@ export function resolveShareFolder(vault: Vault, sharePath: string): TFolder | n
  * can't reappear in a fourth copy.
  */
 export function collectWebFolderItems(folder: TFolder, folderPath: string): WebFolderEntry[] {
-	const isRoot = isRootSharePath(folderPath);
 	const items: WebFolderEntry[] = [];
 	const process = (f: TFolder) => {
 		for (const child of f.children) {
-			const rel = isRoot ? child.path : child.path.substring(folderPath.length + 1);
+			const rel = toFolderRelativePath(child.path, folderPath);
 			if (child instanceof TFile) {
 				if (child.extension === "canvas") {
 					items.push({ path: rel, name: child.basename, type: "canvas" });

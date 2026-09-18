@@ -18,6 +18,7 @@ import {
 	toSharePath,
 	resolveShareFolder,
 	collectWebFolderItems,
+	isPathWithinFolder,
 } from "../src/vaultRootPath";
 
 describe("isRootSharePath", () => {
@@ -151,5 +152,33 @@ describe("collectWebFolderItems", () => {
 			{ path: "board.canvas", name: "board", type: "canvas" },
 			{ path: "empty-sub", name: "empty-sub", type: "folder" },
 		]);
+	});
+});
+
+describe("isPathWithinFolder", () => {
+	test("root share (folderPath '') -- every real vault path is contained", () => {
+		expect(isPathWithinFolder("readme.md", "")).toBe(true);
+		expect(isPathWithinFolder("sub/deep/note.md", "")).toBe(true);
+	});
+
+	test("root share -- even a path that looks unrelated is still contained (root has no boundary)", () => {
+		expect(isPathWithinFolder("unrelated-top-level-file.md", "")).toBe(true);
+	});
+
+	test("non-root share -- unchanged: a nested path is contained", () => {
+		expect(isPathWithinFolder("notes/a.md", "notes")).toBe(true);
+		expect(isPathWithinFolder("notes/sub/b.md", "notes")).toBe(true);
+	});
+
+	test("non-root share -- a sibling or unrelated path is NOT contained", () => {
+		expect(isPathWithinFolder("other/a.md", "notes")).toBe(false);
+		expect(isPathWithinFolder("notes-but-not-really/a.md", "notes")).toBe(false);
+	});
+
+	test("non-root share -- the folder's own path (no trailing segment) is NOT contained by this check", () => {
+		// Matches the pre-existing `startsWith(folderPath + "/")` semantics this
+		// helper replaces: exact-match-on-itself is the caller's job (several
+		// call sites in WebSyncManager.ts explicitly OR this in separately).
+		expect(isPathWithinFolder("notes", "notes")).toBe(false);
 	});
 });
