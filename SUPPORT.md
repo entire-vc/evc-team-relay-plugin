@@ -44,8 +44,8 @@ the thread than go quiet.
 
 This repository holds the Obsidian plugin. Some things live elsewhere:
 
-- **The relay server (the Rust sync core)** — [evc-relay-server](https://github.com/entire-vc/evc-relay-server).
-- **The hosted control plane, accounts, and web publishing** — [evc-team-relay](https://github.com/entire-vc/evc-team-relay),
+- **The relay server (the Rust sync core, under `apps/relay-server/`), the hosted control plane,
+  accounts, and web publishing** — [evc-team-relay](https://github.com/entire-vc/evc-team-relay),
   or email <support@entire.vc>.
 
 If you are not sure which one broke, open the issue here. Routing it is our job, not yours.
