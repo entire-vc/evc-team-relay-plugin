@@ -95,9 +95,8 @@ export function joinFolderPath(folderPath: string, relativePath: string): string
  *
  * Single implementation shared by every `getFolderItems()` call site
  * (previously duplicated three times -- WebSyncManager, ShareManagementModal,
- * ShareDetailView.svelte -- with this exact bug fixed in the first two by
- * MR !62 and left behind in the third, Mesh #e2fc07bd) so this bug class
- * can't reappear in a fourth copy.
+ * ShareDetailView.svelte -- with this exact bug fixed in the first two but
+ * left behind in the third) so this bug class can't reappear in a fourth copy.
  */
 export function collectWebFolderItems(folder: TFolder, folderPath: string): WebFolderEntry[] {
 	const items: WebFolderEntry[] = [];
