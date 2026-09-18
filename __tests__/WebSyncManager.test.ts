@@ -150,7 +150,7 @@ describe("WebSyncManager.onFileModified — auto-sync folder binary filter", () 
 	});
 });
 
-describe("WebSyncManager.onFileModified — root-share (vault-wide) live auto-sync (Mesh #fee65f97)", () => {
+describe("WebSyncManager.onFileModified — root-share (vault-wide) live auto-sync", () => {
 	// A root share is registered with folderPath === "" (the wire convention,
 	// see vaultRootPath.ts). Before this fix, onFileModified()'s containment
 	// check was a bare `file.path.startsWith(folderPath + "/")`, which for
@@ -169,7 +169,7 @@ describe("WebSyncManager.onFileModified — root-share (vault-wide) live auto-sy
 		// Also guards the relative-path computation: a root share has no
 		// "<folderPath>/" prefix to strip, so the pushed path must be
 		// "readme.md" unchanged, not "eadme.md" (the sibling off-by-one bug
-		// fixed alongside this one, Mesh #e2fc07bd).
+		// fixed alongside this one).
 		expect(clientManager.syncFolderFileContent).toHaveBeenCalledWith(
 			"srv1",
 			"my-slug",

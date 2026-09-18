@@ -1,6 +1,6 @@
 /**
  * Tests for the vault-root path convention translation and the TFolder
- * resolver built on top of it (Mesh #2f616525 follow-up).
+ * resolver built on top of it.
  *
  * `isRootSharePath`/`toSharePath` cover the wire-convention translation.
  * `resolveShareFolder` covers the actual bug this follow-up fixes: a plain
