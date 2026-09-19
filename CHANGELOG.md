@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.16
+- Fixed: every edit to an existing note that arrived from another device created an extra "note (relay conflict …).md" copy next to it, and the copies spread to all participants of the share. The delivered text is now recorded as the last synced state, so only a real two-sided conflict produces a copy. Copies that already exist are ordinary files and are not removed; on the first delivered edit of each document after updating, one more copy can still appear.
+
 ## 0.0.15
 - Improved: while Obsidian waits for you to sign in through the browser, the server card now shows a status line with "Cancel" and "Sign in with password" buttons, instead of only a short notification. Choosing the password option opens the password form right away.
 
