@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.14
+- Fixed: an edit to an existing note could revert on your own device a few seconds after you made it, shortly after Obsidian was restarted on another device, and never reach that device. The edit is now kept and uploaded.
+
 ## 0.0.13
 - Fixed: after restarting Obsidian, a shared folder could stay stuck loading on the second device, so files created on the other device never appeared there. A leftover user record in the shared document no longer breaks loading of the local copy.
 
