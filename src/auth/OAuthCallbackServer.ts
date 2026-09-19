@@ -7,6 +7,7 @@
  */
 
 import { Platform } from "obsidian";
+import { OAuthCancelledError } from "./OAuthCancelledError";
 import { namedLogger } from "../logging";
 
 const log = namedLogger("[OAuthCallbackServer]");
@@ -150,10 +151,18 @@ export class OAuthCallbackServer {
 	 * @param timeoutMs - Maximum time to wait for callback (default 5 minutes)
 	 * @returns OAuth callback result with code and state
 	 */
-	async waitForCallback(expectedState: string, timeoutMs: number = 300000): Promise<OAuthCallbackResult> {
+	async waitForCallback(
+		expectedState: string,
+		timeoutMs: number = 300000,
+		signal?: AbortSignal,
+	): Promise<OAuthCallbackResult> {
 		return new Promise((resolve, reject) => {
 			if (!this.server) {
 				reject(new Error("Server not started"));
+				return;
+			}
+			if (signal?.aborted) {
+				reject(new OAuthCancelledError());
 				return;
 			}
 
@@ -161,6 +170,18 @@ export class OAuthCallbackServer {
 				log("OAuth callback timeout");
 				reject(new Error("OAuth callback timeout - no response received"));
 			}, timeoutMs);
+
+			// The user gave up waiting: stop the timer and settle now, instead of
+			// leaving the loopback server open until the timeout fires.
+			signal?.addEventListener(
+				"abort",
+				() => {
+					log("OAuth callback wait cancelled");
+					window.clearTimeout(timeout);
+					reject(new OAuthCancelledError());
+				},
+				{ once: true },
+			);
 
 			// Override the request handler to capture callback
 			this.server.removeAllListeners("request");

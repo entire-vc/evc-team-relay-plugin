@@ -48,11 +48,12 @@ export async function loginWithEmailPassword(
 export async function loginWithOAuth2(
 	authProvider: IAuthProvider,
 	provider: string,
+	signal?: AbortSignal,
 ): Promise<Account> {
 	log(`Logging in with OAuth2 provider: ${provider}`);
 
 	try {
-		const authResponse = await authProvider.loginWithOAuth2(provider);
+		const authResponse = await authProvider.loginWithOAuth2(provider, signal);
 
 		const user = new Account(
 			authResponse.user.id,

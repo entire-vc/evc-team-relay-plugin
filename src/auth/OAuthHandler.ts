@@ -8,6 +8,7 @@
 import { namedLogger } from "../logging";
 import { platformFetch } from "../platformFetch";
 import { OAuthCallbackServer } from "./OAuthCallbackServer";
+import { OAuthCancelledError } from "./OAuthCancelledError";
 import type { AuthResponse } from "./IAuthProvider";
 
 interface OAuthAuthorizeApiResponse {
@@ -118,6 +119,7 @@ export class OAuthHandler {
 	async waitForCallbackAndExchange(
 		provider: string,
 		timeoutMs: number = 300000,
+		signal?: AbortSignal,
 	): Promise<AuthResponse> {
 		if (!this.callbackServer || !this.expectedState) {
 			throw new Error("Callback server not started - call prepareOAuthFlow first");
@@ -128,7 +130,7 @@ export class OAuthHandler {
 
 			// Wait for callback with code and state, rejecting anything that doesn't carry
 			// the state token we were issued for this flow (TR-21)
-			const { code, state } = await this.callbackServer.waitForCallback(this.expectedState, timeoutMs);
+			const { code, state } = await this.callbackServer.waitForCallback(this.expectedState, timeoutMs, signal);
 
 			log(`Received callback with code and state`);
 
@@ -182,18 +184,26 @@ export class OAuthHandler {
 	async completeOAuthFlow(
 		provider: string,
 		openBrowser: (url: string) => void,
+		signal?: AbortSignal,
 	): Promise<AuthResponse> {
 		log(`Starting complete OAuth flow for provider: ${provider}`);
 
 		// Prepare OAuth flow
 		const { authorizeUrl } = await this.prepareOAuthFlow(provider);
 
+		// Cancelled while the authorize URL was being fetched: don't open a
+		// browser window for a login the user already abandoned.
+		if (signal?.aborted) {
+			this.stopCallbackServer();
+			throw new OAuthCancelledError();
+		}
+
 		// Open browser to authorize URL
 		log(`Opening browser to: ${authorizeUrl}`);
 		openBrowser(authorizeUrl);
 
 		// Wait for callback and exchange
-		return await this.waitForCallbackAndExchange(provider);
+		return await this.waitForCallbackAndExchange(provider, undefined, signal);
 	}
 
 	/**

@@ -14,6 +14,7 @@
 		crossServerAccountNote,
 	} from "../RelayOnPremConfig";
 	import { RelayOnPremLoginModal } from "../ui/RelayOnPremLoginModal";
+	import { OAuthCancelledError } from "../auth/OAuthCancelledError";
 	import { platformFetch } from "../platformFetch";
 	import { confirmDialog } from "../ui/dialogs";
 	import evcLogo from "../assets/evc-logo.png";
@@ -48,6 +49,27 @@
 
 	// Testing state
 	let testingServerId: string | null = null;
+
+	// Browser (OAuth) sign-in in progress, per server. While an entry exists the card shows a
+	// persistent status row with Cancel / "Sign in with password" instead of relying on a
+	// short-lived toast (the wait can last up to 5 minutes).
+	let oauthWaiting: Record<string, { controller: AbortController; toPassword: boolean } | undefined> = {};
+
+	function endOAuthWait(serverId: string) {
+		const { [serverId]: _done, ...rest } = oauthWaiting;
+		oauthWaiting = rest;
+	}
+
+	function cancelOAuth(serverId: string) {
+		oauthWaiting[serverId]?.controller.abort();
+	}
+
+	function usePasswordInstead(serverId: string) {
+		const entry = oauthWaiting[serverId];
+		if (!entry) return;
+		entry.toPassword = true;
+		entry.controller.abort();
+	}
 
 	// Track which servers support billing (enterprise + billing_enabled)
 	let serverBillingSupport: Record<string, boolean> = {};
@@ -335,6 +357,9 @@
 	}
 
 	async function loginToServer(server: RelayOnPremServer) {
+		// A browser sign-in is already being waited for on this card.
+		if (oauthWaiting[server.id]) return;
+
 		// First, fetch server info to check if OAuth is enabled
 		const serverInfo = await fetchServerInfo(server.controlPlaneUrl);
 		console.log("[RelayOnPrem] Server info:", serverInfo);
@@ -361,24 +386,43 @@
 			console.log("[RelayOnPrem] Auth provider for server:", server.id, "exists:", !!authProvider);
 
 			if (authProvider) {
+				const wait = { controller: new AbortController(), toPassword: false };
+				oauthWaiting = { ...oauthWaiting, [server.id]: wait };
 				try {
 					new Notice(uiText("serverList.oauthStartingNotice", { provider: serverInfo.features.oauth_provider }));
 					// Route through AuthSession (not the authProvider directly) so
 					// this.user gets set and notifySubscribers() fires — see TR-10,
 					// #e7bca9fb — otherwise main.ts's post-login hook never runs and
 					// shares/live-sync don't start until the plugin is reloaded.
-					await live.authSession.loginWithOAuth2(serverInfo.features.oauth_provider, server.id);
+					await live.authSession.loginWithOAuth2(
+						serverInfo.features.oauth_provider,
+						server.id,
+						wait.controller.signal,
+					);
 					new Notice(uiText("serverList.loggedInNotice", { name: server.name }));
 					refreshAuthStatus();
 					return;
 				} catch (error: unknown) {
-					// OAuth failed, fall back to password login
-					console.error("[RelayOnPrem] OAuth login failed:", error);
-					new Notice(
-						uiText("serverList.oauthFailedNotice", {
-							error: error instanceof Error ? error.message : uiText("shared.unknownError"),
-						})
-					);
+					// A cancel that lands while the authorize URL is still being fetched can surface
+					// as a plain fetch error; the user's intent (abort) still wins.
+					if (error instanceof OAuthCancelledError || wait.controller.signal.aborted) {
+						// The user chose to stop waiting: either drop the attempt quietly, or
+						// go straight to the password form ("Sign in with password").
+						if (!wait.toPassword) {
+							new Notice(uiText("serverList.oauthCancelledNotice"));
+							return;
+						}
+					} else {
+						// OAuth failed, fall back to password login
+						console.error("[RelayOnPrem] OAuth login failed:", error);
+						new Notice(
+							uiText("serverList.oauthFailedNotice", {
+								error: error instanceof Error ? error.message : uiText("shared.unknownError"),
+							})
+						);
+					}
+				} finally {
+					endOAuthWait(server.id);
 				}
 			} else {
 				console.warn("[RelayOnPrem] No auth provider found for server:", server.id);
@@ -468,6 +512,19 @@
 				{#if authStatus.isLoggedIn && authStatus.email}
 					<div class="relay-server-user">{uiText("serverList.loggedInAs", { email: authStatus.email })}</div>
 				{/if}
+				{#if oauthWaiting[server.id]}
+					<div class="relay-server-oauth-wait" role="status">
+						<span>{uiText("serverList.oauthWaitingStatus")}</span>
+						<span class="relay-server-oauth-wait-actions">
+							<button class="relay-server-btn" on:click={() => cancelOAuth(server.id)}>
+								{uiText("serverList.oauthCancelButton")}
+							</button>
+							<button class="relay-server-btn" on:click={() => usePasswordInstead(server.id)}>
+								{uiText("serverList.oauthUsePasswordButton")}
+							</button>
+						</span>
+					</div>
+				{/if}
 			</div>
 			<div class="relay-server-actions">
 				{#if authStatus.isLoggedIn}
@@ -475,7 +532,11 @@
 						{uiText("serverList.logoutButton")}
 					</button>
 				{:else}
-					<button class="relay-server-btn mod-cta" on:click={() => loginToServer(server)}>
+					<button
+						class="relay-server-btn mod-cta"
+						on:click={() => loginToServer(server)}
+						disabled={!!oauthWaiting[server.id]}
+					>
 						{uiText("connect.login.loginButton")}
 					</button>
 				{/if}
@@ -683,6 +744,21 @@
 		font-size: 0.85em;
 		color: var(--text-muted);
 		margin-top: 2px;
+	}
+
+	.relay-server-oauth-wait {
+		margin-top: 6px;
+		font-size: 0.85em;
+		color: var(--text-muted);
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.relay-server-oauth-wait-actions {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
 	}
 
 	.relay-server-actions {

@@ -44,7 +44,7 @@ describe("loginWithOAuth2", () => {
 
 		const user = await loginWithOAuth2(authProvider, "github");
 
-		expect(authProvider.loginWithOAuth2).toHaveBeenCalledWith("github");
+		expect(authProvider.loginWithOAuth2).toHaveBeenCalledWith("github", undefined);
 		expect(user.accountId).toBe("u1");
 		expect(user.fullName).toBe("Dev Account");
 		expect(user.emailAddress).toBe("dev@example.com");

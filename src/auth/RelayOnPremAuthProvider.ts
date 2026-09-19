@@ -379,7 +379,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 		}
 	}
 
-	async loginWithOAuth2(provider: string): Promise<AuthResponse> {
+	async loginWithOAuth2(provider: string, signal?: AbortSignal): Promise<AuthResponse> {
 		// Same reasoning as loginWithPassword above: don't clear a
 		// pre-existing valid session just because a re-authentication
 		// attempt (e.g. re-triggering OAuth for some other reason, or the
@@ -409,7 +409,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 				} else {
 					throw new Error("Cannot open browser - window.open not available");
 				}
-			});
+			}, signal);
 
 			// Store auth data
 			this.user = authResponse.user;
