@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.13
+- Fixed: after restarting Obsidian, a shared folder could stay stuck loading on the second device, so files created on the other device never appeared there. A leftover user record in the shared document no longer breaks loading of the local copy.
+
 ## 0.0.12
 - Fixed: a folder share you had just created never synced its content. The local storage layer did not finish loading, so files in the folder were never picked up and nothing reached the server.
 - Fixed: the file selected when creating a share could be left unsynced if the first sync took longer than expected.
