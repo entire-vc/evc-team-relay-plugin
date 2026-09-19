@@ -15,6 +15,7 @@
 	} from "../RelayOnPremConfig";
 	import { RelayOnPremLoginModal } from "../ui/RelayOnPremLoginModal";
 	import { OAuthCancelledError } from "../auth/OAuthCancelledError";
+	import { InFlightGuard } from "../inFlightGuard";
 	import { platformFetch } from "../platformFetch";
 	import { confirmDialog } from "../ui/dialogs";
 	import evcLogo from "../assets/evc-logo.png";
@@ -356,7 +357,16 @@
 		new Notice(uiText("serverList.serverRemovedNotice", { name: server.name }));
 	}
 
+	// Taken synchronously on the first click: `oauthWaiting` is only set after the
+	// server-info fetch below, so on its own it lets a fast double click start two
+	// browser sign-ins, one of which can no longer be cancelled (#8c21130a).
+	const loginInFlight = new InFlightGuard<string>();
+
 	async function loginToServer(server: RelayOnPremServer) {
+		await loginInFlight.run(server.id, () => startLogin(server));
+	}
+
+	async function startLogin(server: RelayOnPremServer) {
 		// A browser sign-in is already being waited for on this card.
 		if (oauthWaiting[server.id]) return;
 
