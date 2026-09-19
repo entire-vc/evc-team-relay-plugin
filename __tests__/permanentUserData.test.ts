@@ -120,7 +120,7 @@ describe("LocalDocumentStore replay with identity seeded first (#ed867d6e)", () 
 		expect(store.synced).toBe(true);
 	});
 
-	// Pins the upstream defect this guard works around. If this starts failing
+	// Pins the Yjs defect this guard works around. If this starts failing
 	// because the store DOES sync with the raw class, Yjs fixed it and the guard
 	// (src/permanentUserData.ts) can go.
 	test("control: the unguarded Y.PermanentUserData wedges the same reopen", async () => {
