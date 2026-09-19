@@ -15,6 +15,7 @@ import type { DocumentGrant } from "./relay/TokenShapes";
 import { ResourceAddress, type ResourceAddressType } from "./ResourceAddress";
 import { currentToggles } from "./featureToggleState";
 import { computeReconnectDelay } from "./reconnectThrottle";
+import { createPermanentUserData } from "./permanentUserData";
 
 const EMPTY_TOKEN: DocumentGrant = {
 	token: "",
@@ -54,7 +55,7 @@ function seedDocIdentity(ydoc: Y.Doc, user?: Account): void {
 	if (!user) {
 		return;
 	}
-	const permanentUserData = new Y.PermanentUserData(ydoc);
+	const permanentUserData = createPermanentUserData(ydoc);
 	permanentUserData.setUserMapping(ydoc, ydoc.clientID, user.accountId);
 }
 
