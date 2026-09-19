@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.15
+- Improved: while Obsidian waits for you to sign in through the browser, the server card now shows a status line with "Cancel" and "Sign in with password" buttons, instead of only a short notification. Choosing the password option opens the password form right away.
+
 ## 0.0.14
 - Fixed: an edit to an existing note could revert on your own device a few seconds after you made it, shortly after Obsidian was restarted on another device, and never reach that device. The edit is now kept and uploaded.
 
