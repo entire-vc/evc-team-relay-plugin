@@ -76,10 +76,19 @@ interface FakeDocOptions {
 }
 
 function makeFakeDoc(opts: FakeDocOptions) {
+	// Mutable, so a sequence of pulls sees what the previous one left behind.
+	const state = { vault: opts.vaultContents, remote: opts.remoteText, syncBase: opts.syncBase };
 	const writeConflictCopy = jest
 		.fn<(doc: unknown, content: string, label: string) => Promise<string>>()
 		.mockResolvedValue("note (relay conflict TIMESTAMP).md");
-	const writeContents = jest.fn<(doc: unknown, content: string) => Promise<void>>().mockResolvedValue(undefined);
+	const writeContents = jest
+		.fn<(doc: unknown, content: string) => Promise<void>>()
+		.mockImplementation(async (_doc, content) => {
+			state.vault = content;
+		});
+	const setSyncBase = jest.fn<(text: string) => Promise<void>>().mockImplementation(async (text) => {
+		state.syncBase = text;
+	});
 
 	const fakeDoc = Object.create(Document.prototype) as Document;
 	Object.defineProperty(fakeDoc, "entryPath", { value: "note.md" });
@@ -87,15 +96,16 @@ function makeFakeDoc(opts: FakeDocOptions) {
 	Object.defineProperty(fakeDoc, "editLock", { value: false });
 	Object.defineProperty(fakeDoc, "resourceAddress", { value: {} });
 	Object.defineProperty(fakeDoc, "awaitFirstSync", { value: async () => {} });
-	Object.defineProperty(fakeDoc, "content", { get: () => opts.remoteText });
+	Object.defineProperty(fakeDoc, "content", { get: () => state.remote });
 	Object.defineProperty(fakeDoc, "connectionIntent", { get: () => "disconnected" });
 	Object.defineProperty(fakeDoc, "bringOnline", { value: async () => true });
 	Object.defineProperty(fakeDoc, "onceOnline", { value: async () => {} });
 	Object.defineProperty(fakeDoc, "goOffline", { value: () => {} });
-	Object.defineProperty(fakeDoc, "getSyncBase", { value: async () => opts.syncBase });
+	Object.defineProperty(fakeDoc, "getSyncBase", { value: async () => state.syncBase });
+	Object.defineProperty(fakeDoc, "setSyncBase", { value: setSyncBase });
 	Object.defineProperty(fakeDoc, "vaultShare", {
 		value: {
-			readContents: async () => opts.vaultContents,
+			readContents: async () => state.vault,
 			writeConflictCopy,
 			writeContents,
 			folderIndex: { tracks: () => opts.tracked ?? true },
@@ -103,7 +113,7 @@ function makeFakeDoc(opts: FakeDocOptions) {
 		},
 	});
 
-	return { fakeDoc, writeConflictCopy, writeContents };
+	return { fakeDoc, writeConflictCopy, writeContents, setSyncBase, state };
 }
 
 function makeQueue(): TransferQueue {
@@ -228,5 +238,48 @@ describe("pullIfUnchanged — sync-base gates the overwrite, never silently disc
 
 		expect(writeConflictCopy).not.toHaveBeenCalled();
 		expect(writeContents).not.toHaveBeenCalled();
+	});
+
+	test("#b100b6a9: a delivered edit becomes the new sync base -- the NEXT delivered edit is not read as a local edit and produces no conflict copy", async () => {
+		// The receiver (B) is fed edit after edit by the author. Each pull
+		// overwrites the file with the relay text. Before the fix the base
+		// stayed at the initial content, so from the second edit on the file
+		// (our own previous delivery) differed from the base and was copied
+		// out as a "relay conflict" file -- one per edit, on every participant.
+		const { fakeDoc, writeConflictCopy, writeContents, state } = makeFakeDoc({
+			vaultContents: "v0",
+			remoteText: "edit1",
+			syncBase: "v0",
+		});
+		const queue = makeQueue();
+		for (let i = 1; i <= 10; i++) {
+			state.remote = `edit${i}`;
+			await queue.pullIfUnchanged(fakeDoc);
+			expect(state.vault).toBe(`edit${i}`);
+			expect(state.syncBase).toBe(`edit${i}`);
+		}
+		expect(writeContents).toHaveBeenCalledTimes(10);
+		expect(writeConflictCopy).not.toHaveBeenCalled();
+	});
+
+	test("#b100b6a9: a real two-sided divergence AFTER a delivery still yields exactly one conflict copy", async () => {
+		const { fakeDoc, writeConflictCopy, state } = makeFakeDoc({
+			vaultContents: "v0",
+			remoteText: "edit1",
+			syncBase: "v0",
+		});
+		const queue = makeQueue();
+		await queue.pullIfUnchanged(fakeDoc); // edit1 delivered, base = edit1
+		state.vault = "LOCAL-EDIT-NOT-UPLOADED"; // this client edits the same version
+		state.remote = "edit2"; // the peer edits it too
+		await queue.pullIfUnchanged(fakeDoc);
+
+		expect(writeConflictCopy).toHaveBeenCalledTimes(1);
+		expect(writeConflictCopy).toHaveBeenCalledWith(
+			fakeDoc,
+			"LOCAL-EDIT-NOT-UPLOADED",
+			expect.stringMatching(/^relay conflict /),
+		);
+		expect(state.vault).toBe("edit2");
 	});
 });
