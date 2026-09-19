@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.19
+- Changed: the plugin description shown in the plugin directory no longer names the host application; the rest of the text is unchanged.
+
 ## 0.0.18
 - Fixed: after your computer slept or the connection dropped silently, a shared folder could keep retrying with a login token that had already expired, and the reconnect kept being rejected. The plugin now gets a fresh token before reconnecting.
 
