@@ -420,6 +420,37 @@ legal-naming:
     - bash scripts/check-naming.sh --max-work 0
   allow_failure: false
 
+# Showcase-publisher content gate (#c268f8f8). The public showcase is cut from
+# this repository by a publisher whose own content gate is fail-closed: a
+# forbidden pattern in what it is about to publish makes it publish NOTHING,
+# silently. On 2026-09-19 that held release 0.0.13 back ~40 min -- the MR
+# pipeline was green, the merge clean, and the refusal was visible only in the
+# publisher, after the merge. This job runs the same check in the MR.
+#
+# It scans the tracked files that pass the publisher's allow-list (src/,
+# __tests__/, ISSUE_TEMPLATE, a short list of root files), their paths and
+# their lines, against the publisher's patterns. Files outside the allow-list
+# (scripts/, this file) are never published and never scanned.
+#
+# The patterns are a COPY of the publisher's (it lives outside this repo), so
+# the copy can drift into a false green. `scripts/check-showcase-gate.py
+# --compare-with <publisher>` diffs them; it cannot run here, so whoever
+# changes the publisher (or that copy) runs it by hand -- see the script's
+# header. `--self-test` runs first and is itself a gate: every pattern must go
+# red on its own canary and the clean text must stay green, so a broken regex
+# reads as a failure, never as "no findings".
+showcase-gate:
+  stage: check
+  image: python:3.12-alpine
+  cache: {}
+  before_script:
+    # git is not in python:*-alpine; the script lists tracked files with it.
+    - apk add --no-cache git
+  script:
+    - python3 scripts/check-showcase-gate.py --self-test
+    - python3 scripts/check-showcase-gate.py
+  allow_failure: false
+
 # ── build ───────────────────────────────────────────────────────────────────
 build:
   stage: build
