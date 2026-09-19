@@ -884,6 +884,15 @@ export class TransferQueue extends Loggable {
 			// fast-paths (#3f81b101). The log line below also asserts the flush
 			// already happened, which would be a lie without the await.
 			await doc.vaultShare.writeContents(doc, remoteText);
+			// The file now holds exactly what the relay holds, so THIS is the
+			// new last-agreed content. Without recording it the base stays at
+			// whatever the last upload cycle left, and the next pull of the
+			// same file reads our own just-delivered text as "differs from the
+			// base" -- a genuine unsynced local edit -- and writes it out as a
+			// "relay conflict" copy (which then syncs to every participant).
+			// Measured live (#b100b6a9): one spurious copy per delivered edit on
+			// the receiver, from the second edit on.
+			await doc.setSyncBase(remoteText);
 			this.log(`[pullIfUnchanged] flushed remote update to disk for ${doc.entryPath}`);
 		}
 
