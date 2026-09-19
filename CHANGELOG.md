@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.12
+- Fixed: a folder share you had just created never synced its content. The local storage layer did not finish loading, so files in the folder were never picked up and nothing reached the server.
+- Fixed: the file selected when creating a share could be left unsynced if the first sync took longer than expected.
+
 ## 0.0.11
 - You can now share your vault's root folder, not just subfolders — previously this silently failed to sync anything (#1).
 
