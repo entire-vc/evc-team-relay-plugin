@@ -107,19 +107,24 @@ function makeFakeDoc(opts: FakeDocOptions) {
 }
 
 function makeQueue(): TransferQueue {
-	return new TransferQueue({} as never, new InstantClock(), {} as never);
+	const queue = new TransferQueue({} as never, new InstantClock(), {} as never);
+	// pullIfUnchanged() must never push by itself; when it decides the local
+	// edit should go up it hands the doc to the upload lane.
+	jest.spyOn(queue, "enqueueUpload").mockResolvedValue(undefined);
+	return queue;
 }
 
 describe("pullIfUnchanged — sync-base gates the overwrite, never silently discards (#0d7bcf0f)", () => {
-	test("REGRESSION: unsynced local edit sitting unchanged since the last agreed sync — preserved as conflict copy, not silently discarded", async () => {
-		// Exactly the live-reproduced #0d7bcf0f trace: this client successfully
-		// synced "initial" once (recorded as syncBase), then wrote an edit
-		// straight to disk (no live editor binding) that never made it back
-		// to the relay before this poll tick ran. The file hasn't moved DURING
-		// this call's own window, so the old code's only guard was satisfied.
+	test("REGRESSION: both sides moved since the last agreed sync -- local edit preserved as a conflict copy, relay content lands (#0d7bcf0f)", async () => {
+		// The two-client restart race: this client wrote an edit straight to
+		// disk (no live editor binding) that never made it back to the relay,
+		// AND the relay moved on (the peer's edit) since the last agreed sync.
+		// The file hasn't moved DURING this call's window, so the old code's
+		// only guard was satisfied and it silently discarded the local edit.
+		// A genuine three-way divergence: preserve the local side, take the relay's.
 		const { fakeDoc, writeConflictCopy, writeContents } = makeFakeDoc({
 			vaultContents: "B-EDIT-DURING-RESTART",
-			remoteText: "TWO-CLIENT-RESTART-PROBE initial",
+			remoteText: "TWO-CLIENT-RESTART-PROBE PEER EDIT",
 			syncBase: "TWO-CLIENT-RESTART-PROBE initial",
 		});
 
@@ -132,8 +137,47 @@ describe("pullIfUnchanged — sync-base gates the overwrite, never silently disc
 			"B-EDIT-DURING-RESTART",
 			expect.stringMatching(/^relay conflict /),
 		);
-		// The relay's content still lands on the main file -- preserved, not blocked.
-		expect(writeContents).toHaveBeenCalledWith(fakeDoc, "TWO-CLIENT-RESTART-PROBE initial");
+		expect(writeContents).toHaveBeenCalledWith(fakeDoc, "TWO-CLIENT-RESTART-PROBE PEER EDIT");
+		expect(queue.enqueueUpload).not.toHaveBeenCalled();
+	});
+
+	test("#d4dc6e95: the relay has NOT moved since the last agreed sync -- the author's own pending edit is kept on disk and its upload queued, not reverted", async () => {
+		// A edits an existing, already-synced note. Its own upload is still on
+		// the way, so the relay still holds the previous text -- which is also
+		// the recorded sync base. The vault differs from the base only because
+		// of the author's own edit. The old code treated that as a genuine
+		// unsynced edit, preserved it in a conflict copy and then OVERWROTE the
+		// file with the relay's stale text: the author's edit vanished from
+		// disk ~6-9s after being made, and the upload that followed re-read the
+		// reverted file and pushed nothing, so the peer never got it.
+		const { fakeDoc, writeConflictCopy, writeContents } = makeFakeDoc({
+			vaultContents: "note v2 (edited on A)",
+			remoteText: "note v1",
+			syncBase: "note v1",
+		});
+
+		const queue = makeQueue();
+		await queue.pullIfUnchanged(fakeDoc);
+
+		expect(writeContents).not.toHaveBeenCalled();
+		expect(writeConflictCopy).not.toHaveBeenCalled();
+		expect(queue.enqueueUpload).toHaveBeenCalledTimes(1);
+		expect(queue.enqueueUpload).toHaveBeenCalledWith(fakeDoc);
+	});
+
+	test("#d4dc6e95 edge: an EMPTY vault file with the relay unchanged keeps the previous restore behaviour (the upload path skips empty content, so queueing it would loop)", async () => {
+		const { fakeDoc, writeConflictCopy, writeContents } = makeFakeDoc({
+			vaultContents: "",
+			remoteText: "note v1",
+			syncBase: "note v1",
+		});
+
+		const queue = makeQueue();
+		await queue.pullIfUnchanged(fakeDoc);
+
+		expect(queue.enqueueUpload).not.toHaveBeenCalled();
+		expect(writeConflictCopy).toHaveBeenCalledTimes(1);
+		expect(writeContents).toHaveBeenCalledWith(fakeDoc, "note v1");
 	});
 
 	test("no recorded sync base yet: skips the write entirely rather than guess (avoids reintroducing #e1c182a2)", async () => {
