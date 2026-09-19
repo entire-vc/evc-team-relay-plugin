@@ -24,6 +24,9 @@ const EMPTY_TOKEN: DocumentGrant = {
 	expiryTime: 0,
 } as DocumentGrant;
 
+/** Do not reuse a token for a reconnect handshake with less than this left. */
+const RECONNECT_TOKEN_MARGIN_MS = 15_000;
+
 function seedAwareness(provider: YSweetProvider, user?: Account): void {
 	if (!user) {
 		return;
@@ -113,6 +116,7 @@ export class ProviderBacked extends Loggable {
 	private stateListeners: Map<unknown, Listener> = new Map();
 	private reconnectGate = new ReconnectGate();
 	private detachConnectionError: () => void;
+	private detachConnectionClose: () => void;
 	private detachState: () => void;
 
 	constructor(
@@ -144,6 +148,7 @@ export class ProviderBacked extends Loggable {
 		this._liveProvider = buildProvider(this.issuedToken, this.crdtDoc, user);
 
 		this.detachConnectionError = this.attachConnectionErrorHandler();
+		this.detachConnectionClose = this.attachConnectionCloseHandler();
 		this.detachState = this.attachStateHandler();
 	}
 
@@ -160,6 +165,35 @@ export class ProviderBacked extends Loggable {
 		};
 		this._liveProvider.on("connection-error", handler);
 		return () => this._liveProvider.off("connection-error", handler);
+	}
+
+	/**
+	 * #b3f8e33e: a socket only needs its token at the handshake, so an
+	 * established connection can outlive the token it was opened with by
+	 * hours. When such a connection drops without an "error" event
+	 * (sleep/wake, server restart), _liveProvider's own onclose path reopens
+	 * the socket against the URL it already has — an expired token, rejected
+	 * by the relay every time. This runs before that path decides anything
+	 * (connection-close is emitted ahead of its canReconnect() check): if the
+	 * token can no longer be trusted, take the reconnect over and go through
+	 * bringOnline(), which mints a fresh one first.
+	 */
+	private attachConnectionCloseHandler(): () => void {
+		const handler = () => {
+			if (!this._liveProvider.shouldConnect) {
+				return;
+			}
+			if (this.hasUsableProviderToken()) {
+				return;
+			}
+			this.log(`${this.getVaultPath()}: connection closed with a stale token, refreshing before reconnect`);
+			this.goOffline();
+			this.reconnectGate.schedule(this._liveProvider.maxBackoffTime, () => {
+				void this.bringOnline();
+			});
+		};
+		this._liveProvider.on("connection-close", handler);
+		return () => this._liveProvider.off("connection-close", handler);
 	}
 
 	private attachStateHandler(): () => void {
@@ -233,6 +267,18 @@ export class ProviderBacked extends Loggable {
 		const hasCurrentUrl = this._liveProvider.hasUrl(this.issuedToken.url);
 		const notExpired = Date.now() <= (this.issuedToken?.expiryTime || 0);
 		return hasCurrentUrl && notExpired;
+	}
+
+	/**
+	 * Whether the token the live provider was last pointed at can still open
+	 * a new handshake. Deliberately expiry-only, with a margin: one with a
+	 * second left can expire in flight. (hasFreshProviderToken() also compares
+	 * URLs, which is the wrong question here — the provider was pointed at
+	 * this grant by applyRefreshedToken() already.)
+	 */
+	private hasUsableProviderToken(): boolean {
+		const expiry = this.issuedToken?.expiryTime ?? 0;
+		return !!this.issuedToken?.token && Date.now() + RECONNECT_TOKEN_MARGIN_MS <= expiry;
 	}
 
 	applyRefreshedToken(clientToken: DocumentGrant): void {
@@ -423,6 +469,7 @@ export class ProviderBacked extends Loggable {
 	dismantle(): void {
 		this.reconnectGate.cancel();
 		this.detachConnectionError?.();
+		this.detachConnectionClose?.();
 		this.detachState?.();
 		this._liveProvider?.destroy();
 		this.authSession = null as unknown as AuthSession;
