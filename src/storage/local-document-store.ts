@@ -94,6 +94,25 @@ export const replayStoredUpdates = (
 };
 
 /**
+ * Read one key from the `custom` store given an already-open `IDBDatabase`
+ * handle directly -- the raw counterpart of `LocalDocumentStore.get()`, which
+ * instead awaits `this._dbref` to obtain that same handle.
+ *
+ * Callers that already hold `db` (the constructor's own `_dbref` resolution,
+ * for instance) MUST use this instead of `get()`: `get()` awaits `_dbref`,
+ * and calling it from inside `_dbref`'s own `.then()` callback awaits a
+ * promise that cannot settle until that very callback returns -- a
+ * deterministic deadlock, not a timing race.
+ */
+function getFromDb(
+	db: IDBDatabase,
+	key: string | number | ArrayBuffer | Date,
+): Promise<unknown> {
+	const [custom] = idb.transact(db, [CUSTOM_STORE], "readonly");
+	return idb.get(custom, key);
+}
+
+/**
  * Append the document's whole current state as one record, then drop every
  * record that preceded it. Called when the update count crosses a threshold,
  * and unconditionally when `force` is set.
@@ -174,8 +193,19 @@ export class LocalDocumentStore extends Observable<string> {
 				await replayStoredUpdates(this);
 				// Metadata is read once here so the synchronous accessors
 				// (`serverSyncKnown`, `canRender`) have an answer without awaiting.
-				this._serverSynced = (await this.get(KEY_SERVER_SYNC)) === 1;
-				this._origin = (await this.get(KEY_ORIGIN)) as
+				//
+				// Read via `db` directly, NOT `this.get()` -- `get()` awaits
+				// `this._dbref` to obtain the database handle, and we are
+				// still INSIDE that same promise's own `.then()` callback.
+				// `this._dbref` cannot settle until this callback returns, so
+				// awaiting it here awaits a promise that is waiting on this
+				// very statement to finish: a deterministic deadlock. Every
+				// freshly constructed store hung here forever -- `synced`
+				// never became true, `emit("synced")` never fired, and every
+				// caller of `awaitSynced()`/`hasPendingUpdates()` (a new
+				// share's whole adopt-local-files path) hung with it.
+				this._serverSynced = (await getFromDb(db, KEY_SERVER_SYNC)) === 1;
+				this._origin = (await getFromDb(db, KEY_ORIGIN)) as
 					| DocumentOrigin
 					| undefined;
 				if (this._destroyed) return db;
@@ -250,8 +280,7 @@ export class LocalDocumentStore extends Observable<string> {
 		key: string | number | ArrayBuffer | Date,
 	): Promise<unknown> {
 		const db = await this._dbref;
-		const [custom] = idb.transact(db, [CUSTOM_STORE], "readonly");
-		return idb.get(custom, key);
+		return getFromDb(db, key);
 	}
 
 	async set(

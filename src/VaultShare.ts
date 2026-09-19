@@ -182,6 +182,15 @@ export class VaultShare extends ProviderBacked {
 	folderIndex: FolderIndex;
 	attachmentSettings: AttachmentSyncSettings;
 	private isAuthority: boolean;
+	// Narrower than isAuthority (which the "migrate" recreate path in
+	// loadRelayOnPremShares() also sets true, for its own unrelated
+	// hasPendingUpdates()/awaitReady() reasons -- that path can legitimately
+	// be reconciling a share ANOTHER client already published under a
+	// different guid, so it must NOT get this bypass, see #be41a2ec). True
+	// only at the exact call sites that construct a VaultShare moments after
+	// this client's own createShare() call minted a guid nobody else could
+	// yet know about.
+	private freshlyCreated: boolean;
 	private resyncRequested: boolean = false;
 	private treeScanInFlight: SingleFlight<void> | null = null;
 
@@ -220,12 +229,18 @@ export class VaultShare extends ProviderBacked {
 		// settings persisted in a prior session — see the auto-connect gate
 		// below (#ea8389cf).
 		isRestore: boolean = false,
+		// True only immediately after THIS client's own createShare() call
+		// minted this guid (CreateShareView.svelte, ShareManagementModal's
+		// createLocalVaultShare, QuickShareModal) -- see the field's own
+		// comment above for why this must stay separate from isAuthority.
+		freshlyCreated: boolean = false,
 	) {
 		const s3rn = workspaceId
 			? new RemoteFolderAddress(workspaceId, guid)
 			: new FolderAddress(guid);
 
 		super(guid, s3rn, tokenStore, loginManager, _config.readValue().onpremServerId);
+		this.freshlyCreated = freshlyCreated;
 		this.path = path;
 		this.setLoggers(`[VaultShare](${this.path})`);
 		this.fileOps = fileOps;
@@ -396,10 +411,35 @@ export class VaultShare extends ProviderBacked {
 				}
 			}
 
+			// A freshlyCreated share (this client's own createShare() call,
+			// moments ago) can never collide with another client's
+			// not-yet-received guid for this exact folder: nobody else knew
+			// this share existed before that call minted it. The
+			// sync-timeout gate above exists to stop a MEMBER client from
+			// minting a disjoint guid while it's still learning about guids
+			// the authority already published (#272f5be4) -- that race
+			// cannot happen to the client that JUST created the share, so it
+			// must always be allowed to mint even when onceFreshlySynced()
+			// didn't confirm in time. Without this, a freshly created
+			// share's own files are deferred forever unless a later
+			// reconnect happens to land inside the 30s window, or the user
+			// manually runs "Relay: sync" -- exactly the observed symptom of
+			// a new folder share whose content never leaves the vault
+			// (#be41a2ec).
+			//
+			// Deliberately NOT `this.isAuthority`: loadRelayOnPremShares()'s
+			// "migrate" recreate path also sets isAuthority=true (for its
+			// own, unrelated hasPendingUpdates()/awaitReady() reasons) when
+			// reconciling a LOCAL record whose guid or workspaceId is stale
+			// -- a share that may have been published elsewhere by another
+			// client under a guid this device hasn't learned yet. Bypassing
+			// the mint gate for that path would reopen exactly the
+			// #272f5be4 race this gate exists to prevent.
+			const allowMint = freshlySynced || this.freshlyCreated;
 			console.debug(
-				`[VaultShare] isPrepared to syncNow: path=${this.path}, synced=${this.isSynced}, isAuthority=${this.isAuthority}`,
+				`[VaultShare] isPrepared to syncNow: path=${this.path}, synced=${this.isSynced}, isAuthority=${this.isAuthority}, freshlyCreated=${this.freshlyCreated}, allowMint=${allowMint}`,
 			);
-			await this.adoptLocalFiles(freshlySynced);
+			await this.adoptLocalFiles(allowMint);
 			void this.scanFileTree(this.folderIndex);
 		}
 	}
@@ -2629,6 +2669,7 @@ type FolderBuilder = (
 	workspaceId?: string,
 	hasPendingUpdates?: boolean,
 	isRestore?: boolean,
+	freshlyCreated?: boolean,
 ) => VaultShare;
 
 export class ShareRegistry extends NotifierSet<VaultShare> {
@@ -2692,12 +2733,7 @@ export class ShareRegistry extends NotifierSet<VaultShare> {
 			unsub();
 		});
 		this.relayRegistry = null as unknown as RelayRegistry;
-		this.shareFactory = null as unknown as (
-			path: string,
-			guid: string,
-			workspaceId?: string,
-			hasPendingUpdates?: boolean,
-		) => VaultShare;
+		this.shareFactory = null as unknown as FolderBuilder;
 	}
 
 	restore() {
@@ -2815,6 +2851,7 @@ export class ShareRegistry extends NotifierSet<VaultShare> {
 		workspaceId?: string,
 		hasPendingUpdates?: boolean,
 		isRestore?: boolean,
+		freshlyCreated?: boolean,
 	): VaultShare {
 		const existing = this.locate(
 			(folder) => folder.path == path && folder.entityGuid == guid,
@@ -2826,7 +2863,7 @@ export class ShareRegistry extends NotifierSet<VaultShare> {
 		this._assertPathFree(path);
 		this._assertNoNestingConflict(path);
 
-		const folder = this.shareFactory(path, guid, workspaceId, hasPendingUpdates, isRestore);
+		const folder = this.shareFactory(path, guid, workspaceId, hasPendingUpdates, isRestore, freshlyCreated);
 		this.backing.add(folder);
 		return folder;
 	}
@@ -2854,11 +2891,22 @@ export class ShareRegistry extends NotifierSet<VaultShare> {
 		}
 	}
 
-	new(path: string, guid: string, workspaceId?: string, hasPendingUpdates?: boolean) {
+	new(
+		path: string,
+		guid: string,
+		workspaceId?: string,
+		hasPendingUpdates?: boolean,
+		// True ONLY when this call is constructing a VaultShare for a guid
+		// this client's own createShare() call minted moments ago -- never
+		// for a "migrate"/reconcile of a share that may have been published
+		// elsewhere under a different guid (#be41a2ec, see freshlyCreated's
+		// own doc comment on the VaultShare field).
+		freshlyCreated?: boolean,
+	) {
 		// isRestore left undefined (falsy): every caller of this public method
 		// writes onpremServerId immediately after it returns (#ea8389cf) -- the
 		// constructor must not race that write with its own auto-connect.
-		const folder = this._create(path, guid, workspaceId, hasPendingUpdates);
+		const folder = this._create(path, guid, workspaceId, hasPendingUpdates, undefined, freshlyCreated);
 		this.notifySubscribers();
 		return folder;
 	}

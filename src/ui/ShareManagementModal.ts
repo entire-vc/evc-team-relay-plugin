@@ -1847,12 +1847,17 @@ export class ShareManagementModal extends Modal {
 
 	private async createLocalVaultShare(folderPath: string, shareGuid: string, serverId: string) {
 		try {
-			// Create VaultShare with relay-onprem marker for CRDT sync
+			// Create VaultShare with relay-onprem marker for CRDT sync.
+			// freshlyCreated=true: this guid was just minted by our own
+			// createShare() call (the caller's Notice above confirms it), so
+			// no other client can already have published a guid for
+			// anything in this folder (#be41a2ec).
 			const vaultShare = this.plugin.shareRegistry.new(
 				folderPath,
 				shareGuid,
 				"relay-onprem",
-				false
+				false,
+				true
 			);
 
 			// Store the server ID in the shared folder settings

@@ -170,12 +170,16 @@ export class QuickShareModal extends Modal {
 				}
 			);
 
-			// Create local VaultShare with relay-onprem marker for CRDT sync
+			// Create local VaultShare with relay-onprem marker for CRDT sync.
+			// freshlyCreated=true: this guid was just minted by our own
+			// createShare() call above, so no other client can already have
+			// published a guid for anything in this folder (#be41a2ec).
 			const vaultShare = this.plugin.shareRegistry.new(
 				this.folderPath,
 				share.id,
 				"relay-onprem",
-				false
+				false,
+				true
 			);
 
 			// Store server ID in settings

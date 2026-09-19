@@ -30,6 +30,7 @@ function makeFakeVaultShare(overrides: Record<string, unknown> = {}) {
 		isTornDown: false,
 		path: "test-folder",
 		isAuthority: false,
+		freshlyCreated: false,
 		_wantsConnection: true,
 		awaitSynced: jest.fn(async () => {}),
 		adoptLocalFiles: jest.fn(async () => {}),
@@ -37,7 +38,10 @@ function makeFakeVaultShare(overrides: Record<string, unknown> = {}) {
 		folderIndex: {},
 		...overrides,
 	});
-	return fake as VaultShare & { adoptLocalFiles: jest.Mock; onceFreshlySynced: jest.Mock };
+	return fake as unknown as {
+		adoptLocalFiles: jest.Mock;
+		onceFreshlySynced: jest.Mock;
+	};
 }
 
 describe("VaultShare._onReady() sync-timeout gate", () => {
@@ -89,5 +93,52 @@ describe("VaultShare._onReady() sync-timeout gate", () => {
 		await (fake as unknown as { _onReady(): Promise<void> })._onReady();
 
 		expect(fake.adoptLocalFiles).toHaveBeenCalledWith(true);
+	});
+
+	test("#be41a2ec -- freshlyCreated=true + sync never confirms: adoptLocalFiles() is STILL called with allowMint=true", async () => {
+		// freshlyCreated is true ONLY at the call sites that construct a
+		// VaultShare moments after this client's own createShare() call
+		// minted the guid -- nobody else could yet know the share exists, so
+		// there is no disjoint-guid collision (#272f5be4) to protect
+		// against. Before this fix, a freshly created folder share's own
+		// files were deferred forever whenever the first onceFreshlySynced()
+		// happened to miss the 30s window, exactly the reported symptom of a
+		// new share whose content never leaves the vault.
+		const fake = makeFakeVaultShare({
+			freshlyCreated: true,
+			onceFreshlySynced: jest.fn(() => new Promise<void>(() => {})), // never resolves
+		});
+
+		const readyPromise = (fake as unknown as { _onReady(): Promise<void> })._onReady();
+		await jest.advanceTimersByTimeAsync(30000);
+		await readyPromise;
+
+		expect(fake.adoptLocalFiles).toHaveBeenCalledTimes(1);
+		expect(fake.adoptLocalFiles).toHaveBeenCalledWith(true);
+	});
+
+	test("#be41a2ec regression -- isAuthority=true but freshlyCreated=false (the loadRelayOnPremShares() migrate-path shape) MUST NOT bypass the gate", async () => {
+		// loadRelayOnPremShares()'s "migrate" recreate path (guid mismatch or
+		// missing workspaceId on an existing local record) also constructs a
+		// VaultShare with isAuthority=true, for its own unrelated
+		// hasPendingUpdates()/awaitReady() reasons -- but that share may have
+		// been published elsewhere by ANOTHER client under a guid this
+		// device hasn't learned yet. An earlier version of this fix bypassed
+		// the mint gate on bare `isAuthority`, which reopened exactly the
+		// #272f5be4 disjoint-guid race this gate exists to prevent for that
+		// path (caught in review, not shipped). freshlyCreated staying false
+		// here is what keeps that path protected.
+		const fake = makeFakeVaultShare({
+			isAuthority: true,
+			freshlyCreated: false,
+			onceFreshlySynced: jest.fn(() => new Promise<void>(() => {})), // never resolves
+		});
+
+		const readyPromise = (fake as unknown as { _onReady(): Promise<void> })._onReady();
+		await jest.advanceTimersByTimeAsync(30000);
+		await readyPromise;
+
+		expect(fake.adoptLocalFiles).toHaveBeenCalledTimes(1);
+		expect(fake.adoptLocalFiles).toHaveBeenCalledWith(false);
 	});
 });

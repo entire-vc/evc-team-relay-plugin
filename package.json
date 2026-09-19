@@ -49,6 +49,7 @@
     "esbuild": "^0.28.2",
     "esbuild-svelte": "^0.9.5",
     "eslint-plugin-obsidianmd": "^0.4.2",
+    "fake-indexeddb": "^6.2.5",
     "globals": "^17.11.0",
     "jest": "^30.5.0",
     "jest-environment-jsdom": "^30.5.0",

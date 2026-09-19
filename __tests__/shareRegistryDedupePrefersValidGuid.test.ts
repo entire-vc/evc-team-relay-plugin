@@ -46,7 +46,14 @@ const VALID_GUID = "0eab9783-d0b2-431e-abd1-f59ceeef5419";
 describe("ShareRegistry.restore() -- dedupe prefers a valid guid (#a2ef4d4b)", () => {
 	test("an already-triplicated data.json (broken, phantom-undefined, valid -- in that order) restores from the valid record, not zero times", () => {
 		const shareFactory = jest.fn(
-			(path: string, guid: string, workspaceId?: string, hasPendingUpdates?: boolean, isRestore?: boolean) =>
+			(
+				path: string,
+				guid: string,
+				workspaceId?: string,
+				hasPendingUpdates?: boolean,
+				isRestore?: boolean,
+				freshlyCreated?: boolean,
+			) =>
 				({ path, entityGuid: guid }) as never,
 		);
 		// The exact live-repro shape from #0c38f743, in the order it's
@@ -81,12 +88,20 @@ describe("ShareRegistry.restore() -- dedupe prefers a valid guid (#a2ef4d4b)", (
 			"relay-onprem",
 			undefined,
 			true,
+			undefined,
 		);
 	});
 
 	test("among two candidates with EQUALLY valid guids, relay-presence still breaks the tie (pre-existing behavior preserved)", () => {
 		const shareFactory = jest.fn(
-			(path: string, guid: string, workspaceId?: string, hasPendingUpdates?: boolean, isRestore?: boolean) =>
+			(
+				path: string,
+				guid: string,
+				workspaceId?: string,
+				hasPendingUpdates?: boolean,
+				isRestore?: boolean,
+				freshlyCreated?: boolean,
+			) =>
 				({ path, entityGuid: guid }) as never,
 		);
 		const otherValidGuid = "22222222-2222-4222-8222-222222222222";
@@ -106,12 +121,19 @@ describe("ShareRegistry.restore() -- dedupe prefers a valid guid (#a2ef4d4b)", (
 		registry.restore();
 
 		expect(shareFactory).toHaveBeenCalledTimes(1);
-		expect(shareFactory).toHaveBeenCalledWith("folder", VALID_GUID, "fmt-test", undefined, true);
+		expect(shareFactory).toHaveBeenCalledWith("folder", VALID_GUID, "fmt-test", undefined, true, undefined);
 	});
 
 	test("among two candidates with EQUALLY invalid guids, dedupe still resolves to exactly one (refused by the guard, not a crash)", () => {
 		const shareFactory = jest.fn(
-			(path: string, guid: string, workspaceId?: string, hasPendingUpdates?: boolean, isRestore?: boolean) =>
+			(
+				path: string,
+				guid: string,
+				workspaceId?: string,
+				hasPendingUpdates?: boolean,
+				isRestore?: boolean,
+				freshlyCreated?: boolean,
+			) =>
 				({ path, entityGuid: guid }) as never,
 		);
 		const persistedShares = {
