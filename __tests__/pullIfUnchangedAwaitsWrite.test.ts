@@ -92,6 +92,7 @@ function makeFakeDocWithDeferredWrite(events: string[]) {
 		},
 	});
 	Object.defineProperty(fakeDoc, "getSyncBase", { value: async () => "shared content" });
+	Object.defineProperty(fakeDoc, "setSyncBase", { value: async () => {} });
 	Object.defineProperty(fakeDoc, "vaultShare", {
 		value: {
 			readContents: async () => "shared content",
