@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.17
+- Fixed: clicking "Sign in" twice in quick succession could start two browser sign-in flows; the second one stayed listening after "Cancel" or "Sign in with password". A second click while a sign-in is starting is now ignored.
+
 ## 0.0.16
 - Fixed: every edit to an existing note that arrived from another device created an extra "note (relay conflict …).md" copy next to it, and the copies spread to all participants of the share. The delivered text is now recorded as the last synced state, so only a real two-sided conflict produces a copy. Copies that already exist are ordinary files and are not removed; on the first delivered edit of each document after updating, one more copy can still appear.
 
