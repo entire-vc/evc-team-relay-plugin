@@ -53,7 +53,7 @@ export interface IAuthProvider {
 	/**
 	 * Login with OAuth2 provider
 	 */
-	loginWithOAuth2(provider: string): Promise<AuthResponse>;
+	loginWithOAuth2(provider: string, signal?: AbortSignal): Promise<AuthResponse>;
 
 	/**
 	 * Refresh the authentication token

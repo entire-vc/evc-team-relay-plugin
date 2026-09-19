@@ -198,7 +198,7 @@ describe("OAuthHandler", () => {
 
 			const result = await handler.waitForCallbackAndExchange(PROVIDER);
 
-			expect(mockCallbackServer.waitForCallback).toHaveBeenCalledWith("state_xyz", 300000);
+			expect(mockCallbackServer.waitForCallback).toHaveBeenCalledWith("state_xyz", 300000, undefined);
 			expect(mockFetch).toHaveBeenCalledWith(
 				expect.stringContaining(
 					`/v1/auth/oauth/${PROVIDER}/callback?code=auth_code_123&state=state_xyz`,

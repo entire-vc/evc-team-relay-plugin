@@ -249,7 +249,7 @@ export class AuthSession extends Notifier<AuthSession> {
 	 * mode); omit for the legacy single-server flow (uses `this.authProvider`
 	 * directly, like `loginWithEmailAndPassword`).
 	 */
-	async loginWithOAuth2(provider: string, serverId?: string): Promise<boolean> {
+	async loginWithOAuth2(provider: string, serverId?: string, signal?: AbortSignal): Promise<boolean> {
 		if (!this.isRelayOnPrem) {
 			throw new Error("OAuth2 login is only available in relay-onprem mode");
 		}
@@ -266,7 +266,7 @@ export class AuthSession extends Notifier<AuthSession> {
 		this.log(`Attempting OAuth2 login (${provider})${serverId ? ` for server ${serverId}` : ""}`);
 
 		try {
-			const user = await loginWithOAuth2Ext(authProvider, provider);
+			const user = await loginWithOAuth2Ext(authProvider, provider, signal);
 
 			if (serverId && this.relayOnPremSettings) {
 				const server = getServerById(this.relayOnPremSettings, serverId);
