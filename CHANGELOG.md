@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.18
+- Fixed: after your computer slept or the connection dropped silently, a shared folder could keep retrying with a login token that had already expired, and the reconnect kept being rejected. The plugin now gets a fresh token before reconnecting.
+
 ## 0.0.17
 - Fixed: clicking "Sign in" twice in quick succession could start two browser sign-in flows; the second one stayed listening after "Cancel" or "Sign in with password". A second click while a sign-in is starting is now ignored.
 
