@@ -1179,6 +1179,7 @@ export default class TeamRelayPlugin extends Plugin {
 		workspaceId?: string,
 		hasPendingUpdates?: boolean,
 		isRestore?: boolean,
+		freshlyCreated?: boolean,
 	): VaultShare {
 		// Address this folder's settings slice by its guid, not array index.
 		const folderSettings = new SettingsScope<VaultShareSettings>(
@@ -1217,6 +1218,7 @@ export default class TeamRelayPlugin extends Plugin {
 			workspaceId,
 			hasPendingUpdates,
 			isRestore,
+			freshlyCreated,
 		);
 		return folder;
 	}

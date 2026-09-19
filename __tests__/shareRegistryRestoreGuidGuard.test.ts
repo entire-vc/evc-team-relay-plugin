@@ -41,7 +41,14 @@ function makeVault(existingPaths: string[]) {
 describe("ShareRegistry.restore() -- guid guard (#0c38f743)", () => {
 	test("an entry with guid: undefined is refused, not passed to the factory", () => {
 		const shareFactory = jest.fn(
-			(path: string, guid: string, workspaceId?: string, hasPendingUpdates?: boolean, isRestore?: boolean) =>
+			(
+				path: string,
+				guid: string,
+				workspaceId?: string,
+				hasPendingUpdates?: boolean,
+				isRestore?: boolean,
+				freshlyCreated?: boolean,
+			) =>
 				({ path, entityGuid: guid }) as never,
 		);
 		const persistedShares = {
@@ -63,7 +70,14 @@ describe("ShareRegistry.restore() -- guid guard (#0c38f743)", () => {
 
 	test("an entry with an empty-string guid is also refused", () => {
 		const shareFactory = jest.fn(
-			(path: string, guid: string, workspaceId?: string, hasPendingUpdates?: boolean, isRestore?: boolean) =>
+			(
+				path: string,
+				guid: string,
+				workspaceId?: string,
+				hasPendingUpdates?: boolean,
+				isRestore?: boolean,
+				freshlyCreated?: boolean,
+			) =>
 				({ path, entityGuid: guid }) as never,
 		);
 		const persistedShares = {
@@ -83,7 +97,14 @@ describe("ShareRegistry.restore() -- guid guard (#0c38f743)", () => {
 
 	test("a genuinely renamed field (guidBROKEN instead of guid) is refused -- the exact live repro shape", () => {
 		const shareFactory = jest.fn(
-			(path: string, guid: string, workspaceId?: string, hasPendingUpdates?: boolean, isRestore?: boolean) =>
+			(
+				path: string,
+				guid: string,
+				workspaceId?: string,
+				hasPendingUpdates?: boolean,
+				isRestore?: boolean,
+				freshlyCreated?: boolean,
+			) =>
 				({ path, entityGuid: guid }) as never,
 		);
 		// Mirrors Verity's live repro exactly: the real guid moved to a
@@ -110,7 +131,14 @@ describe("ShareRegistry.restore() -- guid guard (#0c38f743)", () => {
 
 	test("a normal, valid entry alongside a corrupt one still restores cleanly -- the guard doesn't over-block", () => {
 		const shareFactory = jest.fn(
-			(path: string, guid: string, workspaceId?: string, hasPendingUpdates?: boolean, isRestore?: boolean) =>
+			(
+				path: string,
+				guid: string,
+				workspaceId?: string,
+				hasPendingUpdates?: boolean,
+				isRestore?: boolean,
+				freshlyCreated?: boolean,
+			) =>
 				({ path, entityGuid: guid }) as never,
 		);
 		const persistedShares = {
@@ -135,6 +163,7 @@ describe("ShareRegistry.restore() -- guid guard (#0c38f743)", () => {
 			"fmt-test",
 			undefined,
 			true,
+			undefined,
 		);
 	});
 
