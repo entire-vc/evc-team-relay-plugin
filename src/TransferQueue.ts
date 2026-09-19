@@ -823,6 +823,32 @@ export class TransferQueue extends Loggable {
 				// it for uploadDocumentViaSocket() to reconcile properly.
 				return;
 			}
+			if (remoteText === syncBase && vaultContentsAfter !== "") {
+				// The relay has NOT moved since this client last confirmed
+				// agreeing with it: the only divergence is this client's OWN
+				// edit, still on its way to the relay. Nothing is waiting to be
+				// pulled, and overwriting the file here would revert the
+				// author's edit on disk right after they made it (the pending
+				// upload then re-reads the reverted file and pushes nothing --
+				// #d4dc6e95). Leave the file alone and make sure the edit is
+				// actually pushed: the upload lane is the one designated
+				// pusher, this method never writes the Y.Doc.
+				//
+				// An EMPTY file is excluded: readVaultContents() returns "" for a
+				// genuinely empty file and on a read error, and the upload path
+				// skips reconcile for empty vault content, so handing it over
+				// would neither restore nor push anything and just re-enqueue
+				// every tick. That case keeps the previous behaviour below.
+				this.log(
+					`[pullIfUnchanged] relay unchanged since last sync for ${doc.entryPath}; ` +
+						`keeping local edit and queueing its upload`,
+				);
+				this.releasePulledDoc(doc, intent);
+				void this.enqueueUpload(doc).catch((err: unknown) => {
+					this.warn("[pullIfUnchanged] queueing upload of local edit failed", doc.entryPath, err);
+				});
+				return;
+			}
 			if (vaultContentsAfter !== syncBase) {
 				// The vault file doesn't just differ from the relay's CURRENT
 				// content -- it differs from what THIS client last confirmed
@@ -861,6 +887,11 @@ export class TransferQueue extends Loggable {
 			this.log(`[pullIfUnchanged] flushed remote update to disk for ${doc.entryPath}`);
 		}
 
+		this.releasePulledDoc(doc, intent);
+	}
+
+	/** Drops the connection pullIfUnchanged() opened, unless the doc was already online or is being edited. */
+	private releasePulledDoc(doc: Document, intent: Document["connectionIntent"]): void {
 		if (intent === "disconnected" && !doc.editLock) {
 			doc.goOffline();
 			doc.vaultShare.credentialCache.dropFromQueue(ResourceAddress.serialize(doc.resourceAddress));
