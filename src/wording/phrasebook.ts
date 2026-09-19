@@ -123,6 +123,11 @@ export const englishPhrasebook = {
 	"serverList.serverAddedNotice": "Server added",
 	"serverList.serverRemovedNotice": 'Server "{name}" removed',
 	"serverList.oauthStartingNotice": "Starting OAuth login with {provider}...",
+	"serverList.oauthWaitingStatus":
+		"Waiting for you to sign in in the browser. If it didn't open, sign in with a password instead.",
+	"serverList.oauthCancelButton": "Cancel",
+	"serverList.oauthUsePasswordButton": "Sign in with password",
+	"serverList.oauthCancelledNotice": "Sign-in cancelled",
 	"serverList.loggedInNotice": "Logged in to {name}",
 	"serverList.oauthFailedNotice":
 		"OAuth failed: {error}. Falling back to password.",
@@ -521,6 +526,11 @@ export const ruPhrasebook = {
 	"serverList.serverAddedNotice": "Сервер добавлен",
 	"serverList.serverRemovedNotice": "Сервер «{name}» удалён",
 	"serverList.oauthStartingNotice": "Выполняется вход через {provider}...",
+	"serverList.oauthWaitingStatus":
+		"Ждём, пока вы войдёте в браузере. Если он не открылся, войдите по паролю.",
+	"serverList.oauthCancelButton": "Отмена",
+	"serverList.oauthUsePasswordButton": "Войти по паролю",
+	"serverList.oauthCancelledNotice": "Вход отменён",
 	"serverList.loggedInNotice": "Выполнен вход на {name}",
 	"serverList.oauthFailedNotice":
 		"Не удалось войти через OAuth: {error}. Используется вход по паролю.",
