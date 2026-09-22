@@ -118,6 +118,12 @@ export class ProviderBacked extends Loggable {
 	private detachConnectionError: () => void;
 	private detachConnectionClose: () => void;
 	private detachState: () => void;
+	private detachAuthSession?: () => void;
+	// accountId last used to seed awareness/doc-identity, so a later auth
+	// notification can tell "still nothing to seed" apart from "the right
+	// user just became resolvable" without re-running the seed on every
+	// unrelated AuthSession notification.
+	private seededAccountId?: string;
 
 	constructor(
 		public entityGuid: string,
@@ -133,7 +139,16 @@ export class ProviderBacked extends Loggable {
 	) {
 		super();
 		this.authSession = authSession;
-		const user = this.authSession?.currentUser;
+		// Per-server, NOT the plugin-wide `authSession.currentUser` — that
+		// field only ever reflects whichever server is `activeServerId`
+		// (AuthSession.getCurrentUserForServer's own doc comment), so a doc
+		// belonging to a different (e.g. self-host) server than the active
+		// one would seed awareness with the wrong identity, or none at all,
+		// even though this exact server IS logged in. This is what made
+		// self-host live cursors silently never broadcast while sync (which
+		// already threaded `onpremServerId` through the credential layer)
+		// worked fine.
+		const user = this.authSession?.getCurrentUserForServer(this.onpremServerId);
 
 		this.crdtDoc = new Y.Doc();
 		if (currentToggles().enableDocumentHistory) {
@@ -146,10 +161,35 @@ export class ProviderBacked extends Loggable {
 			this.credentialCache.peekToken(ResourceAddress.serialize(this.resourceAddress)) || { ...EMPTY_TOKEN };
 
 		this._liveProvider = buildProvider(this.issuedToken, this.crdtDoc, user);
+		this.seededAccountId = user?.accountId;
 
 		this.detachConnectionError = this.attachConnectionErrorHandler();
 		this.detachConnectionClose = this.attachConnectionCloseHandler();
 		this.detachState = this.attachStateHandler();
+		// Belt-and-braces against any remaining startup-ordering race (this
+		// provider built before its server's own restore/login resolved):
+		// re-seed once the identity for THIS server actually changes, rather
+		// than trusting it was already correct at construction time.
+		this.detachAuthSession = this.authSession?.on(() => this.reseedIdentityIfChanged());
+	}
+
+	/**
+	 * Re-run seedAwareness/seedDocIdentity if the resolved per-server user
+	 * changed since the last seed (most commonly: went from unresolved to
+	 * resolved, once this doc's own server finishes logging in/restoring
+	 * after this provider was already constructed). A no-op on every
+	 * AuthSession notification that doesn't actually change this doc's
+	 * identity, so it's safe to wire to every notification rather than
+	 * something narrower.
+	 */
+	private reseedIdentityIfChanged(): void {
+		const user = this.authSession?.getCurrentUserForServer(this.onpremServerId);
+		if (user?.accountId === this.seededAccountId) {
+			return;
+		}
+		this.seededAccountId = user?.accountId;
+		seedDocIdentity(this.crdtDoc, user);
+		seedAwareness(this._liveProvider, user);
 	}
 
 	private attachConnectionErrorHandler(): () => void {
@@ -471,6 +511,7 @@ export class ProviderBacked extends Loggable {
 		this.detachConnectionError?.();
 		this.detachConnectionClose?.();
 		this.detachState?.();
+		this.detachAuthSession?.();
 		this._liveProvider?.destroy();
 		this.authSession = null as unknown as AuthSession;
 	}

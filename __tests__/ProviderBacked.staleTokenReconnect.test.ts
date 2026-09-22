@@ -82,7 +82,7 @@ function build(getToken: jest.Mock) {
 		G,
 		new RemoteFolderAddress("relay-onprem", G),
 		cache,
-		{} as AuthSession,
+		{ getCurrentUserForServer: () => undefined, on: () => (() => {}) } as unknown as AuthSession,
 		"server-a",
 	);
 }

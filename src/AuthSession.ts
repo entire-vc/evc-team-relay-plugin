@@ -5,7 +5,7 @@ import { Account } from "./Account";
 import { instanceLabels } from "./logging";
 import type { IAuthProvider } from "./auth/IAuthProvider";
 import { isRelayOnPremMode } from "./auth/AuthProviderFactory";
-import { loginWithEmailPassword, loginWithOAuth2 as loginWithOAuth2Ext, logoutUser, getCurrentUserFromProvider, resolveUserAfterFailedLogin } from "./AuthSessionExtensions";
+import { loginWithEmailPassword, loginWithOAuth2 as loginWithOAuth2Ext, logoutUser, getCurrentUserFromProvider, resolveUserAfterFailedLogin, resolveCurrentUserForServer } from "./AuthSessionExtensions";
 import type { RelayOnPremSettings, RelayOnPremServer } from "./RelayOnPremConfig";
 import { getServerById, withUpdatedLastUserEmail } from "./RelayOnPremConfig";
 import { Notifier } from "./notifiers/Notifier";
@@ -324,6 +324,30 @@ export class AuthSession extends Notifier<AuthSession> {
 	 */
 	getAuthProviderForServer(serverId: string): IAuthProvider | undefined {
 		return this.multiServerAuthManager?.getProvider(serverId);
+	}
+
+	/**
+	 * Resolve the logged-in user for a SPECIFIC server, not just whichever
+	 * server happens to be `activeServerId` right now.
+	 *
+	 * `this.currentUser` is only ever updated `if (!serverId ||
+	 * serverId === this.activeServerId)` (see loginWithOAuth2/loginWithEmailPassword
+	 * above) — a document/share whose own `onpremServerId` differs from the
+	 * currently-active server never gets reflected there, even after that
+	 * server's own login succeeds. A caller that knows which server it cares
+	 * about (any per-document/per-share awareness identity) should go through
+	 * this method instead of reading `currentUser` directly.
+	 *
+	 * `serverId` omitted → legacy behaviour, same as reading `currentUser`
+	 * (matches ProviderBacked's own fallback for docs/folders created before
+	 * `onpremServerId` existed).
+	 */
+	getCurrentUserForServer(serverId?: string): Account | undefined {
+		return resolveCurrentUserForServer(
+			this.currentUser,
+			serverId ? this.getAuthProviderForServer(serverId) : undefined,
+			serverId,
+		);
 	}
 
 	/**
