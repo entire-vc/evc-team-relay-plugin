@@ -115,7 +115,7 @@ describe("ProviderBacked.bringOnline() retries after a failed first token reques
 			"11111111-1111-4111-8111-111111111111",
 			new RemoteFolderAddress("relay-onprem", "11111111-1111-4111-8111-111111111111"),
 			makeTokenStore(getToken),
-			{} as AuthSession,
+			{ getCurrentUserForServer: () => undefined, on: () => (() => {}) } as unknown as AuthSession,
 			"server-b",
 		);
 
@@ -144,7 +144,7 @@ describe("ProviderBacked.bringOnline() retries after a failed first token reques
 			"22222222-2222-4222-8222-222222222222",
 			new RemoteFolderAddress("relay-onprem", "22222222-2222-4222-8222-222222222222"),
 			makeTokenStore(getToken),
-			{} as AuthSession,
+			{ getCurrentUserForServer: () => undefined, on: () => (() => {}) } as unknown as AuthSession,
 			"server-a",
 		);
 
@@ -169,7 +169,7 @@ describe("ProviderBacked.bringOnline() retries after a failed first token reques
 			"33333333-3333-4333-8333-333333333333",
 			new RemoteFolderAddress("relay-onprem", "33333333-3333-4333-8333-333333333333"),
 			makeTokenStore(getToken),
-			{} as AuthSession,
+			{ getCurrentUserForServer: () => undefined, on: () => (() => {}) } as unknown as AuthSession,
 			"server-c",
 		);
 

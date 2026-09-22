@@ -125,7 +125,7 @@ function makeProviderBacked(guid: string): ProviderBacked {
 		guid,
 		new RemoteFolderAddress("relay-onprem", guid),
 		makeTokenStore(),
-		{} as AuthSession,
+		{ getCurrentUserForServer: () => undefined, on: () => (() => {}) } as unknown as AuthSession,
 		"server-a",
 	);
 }
