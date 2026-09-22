@@ -18,8 +18,9 @@
  */
 
 import { describe, test, expect, jest } from "@jest/globals";
-import { loginWithOAuth2, resolveUserAfterFailedLogin } from "../src/AuthSessionExtensions";
+import { loginWithOAuth2, resolveUserAfterFailedLogin, resolveCurrentUserForServer } from "../src/AuthSessionExtensions";
 import type { IAuthProvider, AuthResponse } from "../src/auth/IAuthProvider";
+import { Account } from "../src/Account";
 
 function makeAuthProvider(authResponse: AuthResponse): IAuthProvider {
 	return {
@@ -108,5 +109,83 @@ describe("resolveUserAfterFailedLogin", () => {
 
 	test("no prior session — stays undefined (matches pre-fix behavior for this case)", () => {
 		expect(resolveUserAfterFailedLogin(undefined)).toBeUndefined();
+	});
+});
+
+/**
+ * Unit tests: resolveCurrentUserForServer (#9d24f75c — self-host cursors
+ * silently never broadcast, awareness identity resolved from the wrong
+ * server).
+ *
+ * The bug: ProviderBacked seeded awareness/doc-identity from
+ * `authSession.currentUser`, a SINGLE global field that only ever reflects
+ * whichever server is `activeServerId` — never a specific OTHER server's
+ * login, even though ProviderBacked's own constructor already receives
+ * `onpremServerId` (threaded through correctly for the CREDENTIAL/token
+ * layer, per its own doc comment) and simply never used it for identity.
+ * A doc whose server differs from the active one (or a doc built before its
+ * own server's restore/login resolved) got `user=undefined` forever —
+ * `seedAwareness` no-ops on that, so this client's cursor was never
+ * computed or sent for the rest of its lifetime (RemoteSelections.ts's
+ * `if (localAwarenessState != null)` guard).
+ */
+describe("resolveCurrentUserForServer", () => {
+	const globalUser = new Account("global-id", "Global User", "global@example.com", "", "tok-g");
+	const serverUser = new Account("server-id", "Server User", "server@example.com", "", "tok-s");
+
+	function providerFor(user: Account | undefined): IAuthProvider {
+		return {
+			isLoggedIn: jest.fn(() => user !== undefined),
+			getCurrentUser: jest.fn(() =>
+				user ? { id: user.accountId, name: user.fullName, email: user.emailAddress, picture: user.avatarUrl } : null,
+			),
+			getToken: jest.fn(() => user?.authToken ?? null),
+			getValidToken: jest.fn(async () => user?.authToken),
+			loginWithPassword: jest.fn(),
+			loginWithOAuth2: jest.fn(),
+			refreshToken: jest.fn(),
+			logout: jest.fn(),
+			isTokenValid: jest.fn(() => true),
+		} as unknown as IAuthProvider;
+	}
+
+	test("no serverId (legacy doc/folder pre-dating onpremServerId) — falls back to the global currentUser", () => {
+		expect(resolveCurrentUserForServer(globalUser, providerFor(serverUser), undefined)).toBe(
+			globalUser,
+		);
+	});
+
+	test("known serverId, THAT server IS logged in — resolves ITS user, not the global one", () => {
+		// This is the actual bug fix: previously this case returned
+		// `globalUser` regardless (the code only ever read `currentUser`),
+		// which is wrong whenever this doc's server isn't the active one.
+		// getCurrentUserFromProvider always builds a FRESH Account (random
+		// presenceColor), so compare identity fields, not object/reference
+		// equality — resolveCurrentUserForServer's own contract is "the
+		// right account", not "the exact same instance".
+		const resolved = resolveCurrentUserForServer(globalUser, providerFor(serverUser), "srv-1");
+		expect(resolved?.accountId).toBe(serverUser.accountId);
+		expect(resolved?.emailAddress).toBe(serverUser.emailAddress);
+		expect(resolved?.accountId).not.toBe(globalUser.accountId);
+	});
+
+	test("known serverId, THAT server is NOT logged in — undefined, never borrows the global user", () => {
+		// The dangerous alternative would be falling back to `globalUser`
+		// here: that misattributes this document's identity/cursor to a
+		// DIFFERENT, unrelated account instead of just leaving it unseeded.
+		expect(
+			resolveCurrentUserForServer(globalUser, providerFor(undefined), "srv-1"),
+		).toBeUndefined();
+	});
+
+	test("unknown serverId (no provider found at all) — legacy fallback to the global currentUser", () => {
+		expect(resolveCurrentUserForServer(globalUser, undefined, "srv-does-not-exist")).toBe(
+			globalUser,
+		);
+	});
+
+	test("no global user AND no per-server provider — stays undefined either way", () => {
+		expect(resolveCurrentUserForServer(undefined, undefined, undefined)).toBeUndefined();
+		expect(resolveCurrentUserForServer(undefined, providerFor(undefined), "srv-1")).toBeUndefined();
 	});
 });

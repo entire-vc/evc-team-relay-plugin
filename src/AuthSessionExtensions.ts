@@ -170,6 +170,34 @@ export function getCurrentUserFromProvider(authProvider: IAuthProvider): Account
 }
 
 /**
+ * Pure resolution logic behind AuthSession.getCurrentUserForServer, split out
+ * here so it's unit-testable — AuthSession.ts itself can't be imported in
+ * Jest (this file's own module comment above, TR-10's original note).
+ *
+ * `fallbackCurrentUser` is AuthSession's own `this.currentUser`, which only
+ * ever reflects whichever server is `activeServerId` — never a specific
+ * OTHER server's login, even after that server's own login succeeded (see
+ * AuthSession.loginWithOAuth2/loginWithEmailPassword's own
+ * `if (!serverId || serverId === this.activeServerId)` guard). A KNOWN
+ * server with no resolvable user must return undefined here, not silently
+ * borrow `fallbackCurrentUser` — that would attribute this server's
+ * identity to a DIFFERENT account instead of just being unseeded.
+ */
+export function resolveCurrentUserForServer(
+	fallbackCurrentUser: Account | undefined,
+	providerForServer: IAuthProvider | undefined,
+	serverId: string | undefined,
+): Account | undefined {
+	if (!serverId) {
+		return fallbackCurrentUser;
+	}
+	// Unknown serverId (shouldn't happen once servers are configured, but
+	// matches ProviderBacked's own legacy fallback for docs/folders created
+	// before onpremServerId existed) → legacy single-identity behaviour.
+	return providerForServer ? getCurrentUserFromProvider(providerForServer) : fallbackCurrentUser;
+}
+
+/**
  * Escapes every regex metacharacter in `value` so it is safe to interpolate
  * into a `new RegExp(...)` source string as a literal match (TR CodeQL
  * js/incomplete-sanitization + js/incomplete-hostname-regexp fix, PR #166).
