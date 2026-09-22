@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.20
+- Fixed: on a self-hosted (non-default) server, your own live cursor was never shown to other participants, even though document sync itself worked normally. The plugin was resolving account identity for the wrong server in that case.
+- Fixed: uploading an image or other file into a shared note could fail on a self-hosted server, because the upload address pointed at the server's internal network instead of a reachable one. Requires the server to be updated to the latest version as well.
+
 ## 0.0.19
 - Changed: the plugin description shown in the plugin directory no longer names the host application; the rest of the text is unchanged.
 
