@@ -43,13 +43,13 @@ You love Obsidian, but your team needs more:
 
 ## Install
 
-Team Relay is listed in the Obsidian community catalogue as **Team Relay**:
+### Via BRAT (recommended while the community listing is pending review)
 
-1. Open *Settings → Community plugins → Browse*
-2. Search for **Team Relay** and click **Install**
-3. Enable it in *Settings → Community plugins*
+1. Install the **BRAT** plugin from the community catalogue (Settings → Community plugins → Browse → "BRAT")
+2. Open BRAT settings → **Add Beta plugin** → paste `https://github.com/entire-vc/evc-team-relay-plugin` → Add
+3. Enable **Team Relay** in Settings → Community plugins. BRAT keeps it updated to the latest release.
 
-### Manual install (fallback)
+### Manual install
 
 1. Download `main.js`, `manifest.json` and `styles.css` from the
    [latest release](https://github.com/entire-vc/evc-team-relay-plugin/releases)
@@ -57,6 +57,10 @@ Team Relay is listed in the Obsidian community catalogue as **Team Relay**:
    files into it
 3. Restart Obsidian, then enable **Team Relay** in
    *Settings → Community plugins*
+
+### From the community catalogue
+
+Once the listing is live again: Settings → Community plugins → Browse → search "Team Relay".
 
 ---
 
