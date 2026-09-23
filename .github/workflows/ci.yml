@@ -1,0 +1,307 @@
+# CI — Team Relay Obsidian Plugin
+# Based on F3 ci-ts-plugin template (bob/docs/ci-templates/ci-ts-plugin.yml)
+#
+# ## What this workflow is FOR, since development moved to GitLab (2026-08-23)
+#
+# Merges happen on the canon (git.entire.host/entire-vc/evc-team-relay-plugin)
+# and are gated by `.gitlab-ci.yml`. This file runs somewhere else entirely: on
+# the public GitHub showcase, over the PUBLISHED SNAPSHOT of the tree — which is
+# a different artifact from the canon working tree, not a copy of it. The
+# snapshot is produced by an export that honours `.gitignore`, so a file can be
+# tracked on the canon and absent from what a stranger clones.
+#
+# That difference is the whole point of keeping these jobs. It is not a
+# duplicate pipeline; it is an EXPORT-INTEGRITY check, and it has already earned
+# its keep: on 2026-09-03 every Jest suite on the showcase failed to parse
+# because the snapshot shipped without `jest.config.js` (it fell under the
+# `*.js` rule in `.gitignore`, which had no exception for it until 25dcf64,
+# fourteen minutes after that snapshot was cut). Canon was green throughout —
+# only the showcase run could see it. Anyone who clones the published repo and
+# runs `npm test` gets what this job gets.
+#
+# So: a red run here says "the tree we published is broken", never "the code is
+# broken". Do not diagnose it against the canon checkout on your disk — clone
+# the showcase and reproduce there, or you will conclude it is a phantom.
+#
+# ENFORCE mode is live: all jobs use continue-on-error: false (blocking).
+# CI_MODE=ENFORCE is set in repo Settings → Variables → Actions.
+# To revert to burn-in: set continue-on-error: true on each job and set
+# CI_MODE=REPORT (or unset it).
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# All jobs only read repo contents (checkout, npm ci, tsc, jest, eslint) or make
+# read-only `gh api` calls (manifest-check's release/contents lookups). None
+# comment on PRs, publish packages, or create releases — contents: read covers
+# every job in this file, so a single top-level block is correct (not per-job).
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+
+  # ── Type-check ──────────────────────────────────────────────────────────────
+  type-check:
+    name: "TypeScript type-check"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: tsc --noEmit
+        run: npx tsc --noEmit --skipLibCheck
+
+  # ── Unit + integration tests + coverage ────────────────────────────────────
+  unit-coverage:
+    name: "Jest (unit + integration) + coverage report"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+
+      - name: Run Jest with coverage
+        run: |
+          npx jest \
+            --coverage \
+            --forceExit \
+            --passWithNoTests
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: jest-coverage-team-relay
+          path: coverage/
+
+  # ── Build smoke ─────────────────────────────────────────────────────────────
+  build-smoke:
+    name: "Build + smoke"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # THE BUILD NEEDS TAGS. `esbuild.config.mjs` derives the version from
+          # `git describe --tags` and, by design, THROWS when no tag is reachable
+          # rather than substituting a bare sha — read the comment above that call
+          # before touching anything here. `actions/checkout` defaults to
+          # `fetch-depth: 1` with `--no-tags`, so the checkout it hands the build
+          # is a git repository with no tag in it, and the guard correctly refuses:
+          #
+          #   Error: Command failed: git describe --tags
+          #
+          # That is the guard working. The broken thing is the INPUT, and this is
+          # where it gets fixed. The reason to spell this out: the natural way to
+          # make this job green again is to put `--always` back in esbuild.config
+          # or wrap the call in `|| true`, and that silently reinstates the exact
+          # defect the guard exists to prevent — a published manifest whose
+          # "version" is a raw `git describe` string, not a bare release number
+          # (it shipped once, in this repository's first release).
+          # Turning a red build green by disabling the thing that made it red is
+          # not a fix, and here the two moves look identical from the outside.
+          #
+          # `fetch-depth: 0`, not `fetch-tags: true`: the tag has to be REACHABLE,
+          # not merely present. On the showcase snapshot the release tag sits on
+          # HEAD and depth 1 happens to suffice today; one commit after the next
+          # tag it would not, and this job would go red again for a reason that
+          # looks like the old one but is not. The history here is a single-commit
+          # export — a full fetch costs nothing.
+          #
+          # What this does NOT fix, and must not be made to: the published snapshot
+          # has to CARRY a tag reachable from its own HEAD. The showcase tree is
+          # re-cut as a fresh orphan commit on each publication, so a snapshot
+          # pushed without moving the release tag onto it leaves describe with
+          # nothing to find no matter what depth is fetched. If that happens this
+          # job goes red again and is right to: the publication is the broken part.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build plugin
+        run: npm run build
+      - name: Verify main.js produced
+        run: test -f main.js && echo "build OK"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: team-relay-dist
+          path: main.js
+
+  # ── Lint ────────────────────────────────────────────────────────────────────
+  lint:
+    name: "ESLint"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  # ── Manifest version check ──────────────────────────────────────────────────
+  manifest-check:
+    name: "manifest.json version sync"
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify manifest.json matches package.json
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          MFT_VER=$(node -p "require('./manifest.json').version")
+          MFT_MIN=$(node -p "require('./manifest.json').minAppVersion")
+          echo "package.json:   $PKG_VER"
+          echo "manifest.json:  $MFT_VER  (minAppVersion: $MFT_MIN)"
+          if [ "$PKG_VER" != "$MFT_VER" ]; then
+            echo "::error::manifest.json version ($MFT_VER) != package.json version ($PKG_VER). Run 'npm version <ver>' or manually fix manifest.json."
+            exit 1
+          fi
+
+          # package-lock.json carries its own copy of the version at two JSON
+          # paths (root "version" and packages[""].version) that `npm version`
+          # does NOT touch -- it edits package.json only. This project shipped
+          # four releases (0.0.1..0.0.4) with the lock still reading a stale
+          # version the whole time, on the showcase side too (#4c85478c)
+          # -- ported from the canon-side fix (#038e3320), which only
+          # ever guarded the GitLab pipeline. Without this check here too, the
+          # next 'npm version' bump on the showcase side silently reopens the
+          # gap.
+          LOCK_ROOT_VER=$(node -p "require('./package-lock.json').version")
+          LOCK_PKG_VER=$(node -p "require('./package-lock.json').packages[''].version")
+          echo "package-lock.json: $LOCK_ROOT_VER / $LOCK_PKG_VER  (root / packages[\"\"])"
+          if [ "$LOCK_ROOT_VER" != "$PKG_VER" ] || [ "$LOCK_PKG_VER" != "$PKG_VER" ]; then
+            echo "::error::package-lock.json version(s) ($LOCK_ROOT_VER / $LOCK_PKG_VER) != package.json version ($PKG_VER). Run 'npm install --package-lock-only' after bumping package.json."
+            exit 1
+          fi
+
+          if ! grep -q "\"$MFT_VER\"" versions.json; then
+            echo "::error::versions.json is missing entry for $MFT_VER. Add it via 'npm version <ver>'."
+            exit 1
+          fi
+          echo "OK: manifest.json, package.json, versions.json all agree on $PKG_VER"
+
+          # TR-40: manifest-beta.json is what BRAT reads directly off the default
+          # branch for beta-channel installs — it's not a release asset and nothing
+          # else keeps it in sync, so it once silently rotted 7 releases behind
+          # with no CI signal. Require it to track manifest.json on every version
+          # bump, same as versions.json above.
+          MFB_VER=$(node -p "require('./manifest-beta.json').version")
+          echo "manifest-beta.json: $MFB_VER"
+          if [ "$MFB_VER" != "$MFT_VER" ]; then
+            echo "::error::manifest-beta.json version ($MFB_VER) != manifest.json version ($MFT_VER). BRAT beta-channel users won't see this release until manifest-beta.json is bumped too."
+            exit 1
+          fi
+          echo "OK: manifest-beta.json also agrees on $PKG_VER"
+
+      - name: Monotonicity guard — version must be strictly greater than latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+          fi
+          CUR_VER=$(node -p "require('./manifest.json').version")
+          # Gate on the manifest.json "version" VALUE at base vs head, NOT on whether
+          # a version FILE was touched. Dependabot bumps edit package.json (a dep range)
+          # without changing the plugin version — a file-presence skip stays red on them
+          # and, under enforce_admins=true, wedges the PR permanently (#f45df4ad,
+          # ported from evc-local-sync-plugin #fa82cc92 / PR #39).
+          BASE_VER=""
+          if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            BASE_VER=$(gh api "repos/$REPO/contents/manifest.json?ref=$BASE_SHA" --jq '.content' 2>/dev/null \
+              | base64 -d 2>/dev/null \
+              | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || true)
+          fi
+          if [ -n "$BASE_VER" ] && [ "$CUR_VER" = "$BASE_VER" ]; then
+            echo "manifest.json version unchanged ($CUR_VER vs base $BASE_VER) — not a release-bump, skipping monotonicity check."
+            exit 0
+          fi
+          LATEST_TAG=$(gh api "repos/$REPO/releases/latest" --jq '.tag_name' 2>/dev/null || echo "0.0.0")
+          LATEST_VER="${LATEST_TAG#v}"
+          echo "Latest published release: $LATEST_VER"
+          echo "Current manifest version: $CUR_VER (base $BASE_VER)"
+          # version_gt: returns 0 if $1 > $2
+          version_gt() {
+            [ "$(printf '%s\n%s' "$1" "$2" | sort -V | tail -1)" = "$1" ] && [ "$1" != "$2" ]
+          }
+          if ! version_gt "$CUR_VER" "$LATEST_VER"; then
+            echo "::error::Version $CUR_VER is not strictly greater than latest published release $LATEST_VER. Bump the version monotonically."
+            exit 1
+          fi
+          echo "OK: $CUR_VER > $LATEST_VER (monotonically increasing)"
+
+  # ── Legal gate 3 lives on the canon, not here ───────────────────────────────
+  # `legal-verbatim-distinct` (distinguishable verbatim lines vs a fixed baseline
+  # commit) used to run here and was removed on 2026-09-03. It had been failing
+  # every run on the showcase because the baseline-repo location it needs to
+  # clone is a CI variable configured on the canon only — the job refuses
+  # correctly rather than run with no baseline to compare against. It is not
+  # absent here by oversight — a similarity-baseline configuration has no
+  # business living in a PUBLIC repository whose purpose is to stand on its
+  # own. The gate is ported and green on the canon (`.gitlab-ci.yml`, job
+  # `legal-verbatim-distinct`; likewise `legal-naming`, gate 4), so deleting it
+  # here removes a permanently-red display, not a check.
+  #
+  # The tempting alternative was to skip the job when that CI variable is
+  # unset. That is worse than the red: a gate able to not-check and still
+  # report success is indistinguishable from a passing one, and the showcase
+  # is precisely where it would always take the skip branch.
+
+  # ── Gate ────────────────────────────────────────────────────────────────────
+  ci-gate:
+    name: "CI gate"
+    runs-on: ubuntu-latest
+    needs: [type-check, unit-coverage, build-smoke, lint, manifest-check]
+    if: always()
+    steps:
+      - name: Check outcomes
+        run: |
+          MODE="${{ vars.CI_MODE || 'REPORT' }}"
+          TC="${{ needs.type-check.result }}"
+          UC="${{ needs.unit-coverage.result }}"
+          BS="${{ needs.build-smoke.result }}"
+          LN="${{ needs.lint.result }}"
+          MC="${{ needs.manifest-check.result }}"
+          echo "Mode=$MODE  type-check=$TC  unit-coverage=$UC  build-smoke=$BS  lint=$LN  manifest-check=$MC"
+          if [ "$MC" != "success" ]; then
+            echo "::error::manifest-check always enforced (version drift prevention)."
+            exit 1
+          fi
+          if [ "$MODE" = "ENFORCE" ]; then
+            if [ "$TC" != "success" ] || [ "$UC" != "success" ] || \
+               [ "$BS" != "success" ] || [ "$LN" != "success" ]; then
+              echo "::error::One or more CI gates failed in ENFORCE mode."
+              exit 1
+            fi
+          else
+            echo "REPORT mode — failures are informational. Flip CI_MODE=ENFORCE after 3-day green burn-in."
+          fi
