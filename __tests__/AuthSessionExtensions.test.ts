@@ -1,0 +1,112 @@
+/**
+ * Unit tests: AuthSessionExtensions.loginWithOAuth2 (TR-10, #e7bca9fb)
+ *
+ * The bug: OAuth login call sites (RelayOnPremLoginModal, RelayOnPremServerList)
+ * used to call `authProvider.loginWithOAuth2()` directly, bypassing AuthSession
+ * entirely — AuthSession.currentUser was never set and notifySubscribers() was never
+ * called, so main.ts's login listener (which gates _onLogin()/
+ * loadRelayOnPremShares() on loginManager.isAuthenticated) never fired. Shares/live-sync
+ * only started after a plugin reload happened to re-run the "already logged in"
+ * restore path.
+ *
+ * AuthSession itself can't be unit-tested in this repo (it imports `pocketbase`,
+ * an ESM-only package Jest can't parse under the current config — same wall
+ * hit for Document.ts, see checkStale's TR-08 fix). This module
+ * (AuthSessionExtensions.ts) has no such dependency, so the actual new logic —
+ * turning an OAuth AuthResponse into an Account the same way the password path
+ * does — is fully testable here with a mock IAuthProvider.
+ */
+
+import { describe, test, expect, jest } from "@jest/globals";
+import { loginWithOAuth2, resolveUserAfterFailedLogin } from "../src/AuthSessionExtensions";
+import type { IAuthProvider, AuthResponse } from "../src/auth/IAuthProvider";
+
+function makeAuthProvider(authResponse: AuthResponse): IAuthProvider {
+	return {
+		isLoggedIn: jest.fn(() => true),
+		getCurrentUser: jest.fn(() => authResponse.user),
+		getToken: jest.fn(() => authResponse.token.token),
+		getValidToken: jest.fn(async () => authResponse.token.token),
+		loginWithPassword: jest.fn(),
+		loginWithOAuth2: jest.fn(async () => authResponse),
+		refreshToken: jest.fn(),
+		logout: jest.fn(),
+		isTokenValid: jest.fn(() => true),
+	} as unknown as IAuthProvider;
+}
+
+describe("loginWithOAuth2", () => {
+	test("builds an Account from the provider's AuthResponse", async () => {
+		const authProvider = makeAuthProvider({
+			user: { id: "u1", email: "dev@example.com", name: "Dev Account", picture: "https://x/y.png" },
+			token: { token: "jwt-abc", expiresAt: 999999 },
+		});
+
+		const user = await loginWithOAuth2(authProvider, "github");
+
+		expect(authProvider.loginWithOAuth2).toHaveBeenCalledWith("github");
+		expect(user.accountId).toBe("u1");
+		expect(user.fullName).toBe("Dev Account");
+		expect(user.emailAddress).toBe("dev@example.com");
+		expect(user.avatarUrl).toBe("https://x/y.png");
+		expect(user.authToken).toBe("jwt-abc");
+	});
+
+	test("falls back to email when the provider gives no display name", async () => {
+		const authProvider = makeAuthProvider({
+			user: { id: "u2", email: "noname@example.com" },
+			token: { token: "jwt-xyz", expiresAt: 999999 },
+		});
+
+		const user = await loginWithOAuth2(authProvider, "google");
+
+		expect(user.fullName).toBe("noname@example.com");
+		expect(user.avatarUrl).toBe("");
+	});
+
+	test("propagates a rejected OAuth attempt instead of returning a partial user", async () => {
+		const authProvider: IAuthProvider = {
+			isLoggedIn: jest.fn(() => false),
+			getCurrentUser: jest.fn(() => undefined),
+			getToken: jest.fn(() => undefined),
+			getValidToken: jest.fn(async () => undefined),
+			loginWithPassword: jest.fn(),
+			loginWithOAuth2: jest.fn(async () => {
+				throw new Error("popup closed");
+			}),
+			refreshToken: jest.fn(),
+			logout: jest.fn(),
+			isTokenValid: jest.fn(() => false),
+		} as unknown as IAuthProvider;
+
+		await expect(loginWithOAuth2(authProvider, "github")).rejects.toThrow(
+			"popup closed",
+		);
+	});
+});
+
+/**
+ * Unit tests: resolveUserAfterFailedLogin (TR-52 analog for
+ * AuthSession.loginWithEmailAndPassword, audit #96d804dd, follow-up to
+ * #67cf69b0).
+ *
+ * The bug: loginWithEmailAndPassword's catch block unconditionally set
+ * `this.currentUser = undefined` on ANY login failure — including a failed
+ * RE-login attempted while already logged in (e.g. a typo'd password),
+ * which silently logged the user out of a session that was working fine.
+ * AuthSession itself can't be unit-tested in this repo (imports
+ * `pocketbase`, an ESM-only package that breaks ts-jest parsing — same
+ * wall documented above for loginWithOAuth2), so this tests the extracted
+ * pure decision function directly, same approach as TR-42's
+ * preserveBeforeTrash.ts extraction.
+ */
+describe("resolveUserAfterFailedLogin", () => {
+	test("TR-52 analog: a failed re-login while already logged in restores the existing user, not undefined", () => {
+		const existingUser = { id: "u1", email: "a@example.com" };
+		expect(resolveUserAfterFailedLogin(existingUser)).toBe(existingUser);
+	});
+
+	test("no prior session — stays undefined (matches pre-fix behavior for this case)", () => {
+		expect(resolveUserAfterFailedLogin(undefined)).toBeUndefined();
+	});
+});
