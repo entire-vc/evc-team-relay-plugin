@@ -2,6 +2,7 @@ import * as Y from "yjs";
 import { namedLogger } from "./logging";
 import { diff_match_patch, type Diff } from "diff-match-patch";
 import { currentToggles } from "./featureToggleState";
+import { hasPreservableContent, sameTextContent } from "./textEquivalence";
 
 type DeltaLog = (...args: unknown[]) => void;
 
@@ -108,8 +109,14 @@ export async function reconcileWithConflictCopy(
 	const ytext = ydoc.getText("contents");
 	const currentContent = ytext.toJSON();
 
-	if (currentContent === vaultContent) {
+	if (sameTextContent(currentContent, vaultContent)) {
 		return { reconciled: false };
+	}
+
+	if (!hasPreservableContent(currentContent)) {
+		// Nothing to lose: an empty Y.Text would only produce a 0-byte copy.
+		applyDiffToYText(ydoc, vaultContent, origin);
+		return { reconciled: true };
 	}
 
 	let conflictPath: string;
