@@ -8,6 +8,18 @@ import { dirname, join } from "path-browserify";
  * it's directly unit-testable — see VaultShare.writeConflictCopy for the
  * write side.
  */
+const CONFLICT_COPY_SUFFIX = /\((?:relay conflict|relay deleted)[^()]*\)(?:\.[^./]+)?$/;
+
+/**
+ * True when `path` is one of the plugin's own recovery copies
+ * ("x (relay conflict <ts>).md", "x (relay deleted <ts>).md"). Such copies
+ * are local artefacts: syncing them multiplies them on every participant and
+ * nests them on the next conflict.
+ */
+export function isConflictCopyPath(path: string): boolean {
+	return CONFLICT_COPY_SUFFIX.test(path);
+}
+
 export function buildConflictCopyPath(docPath: string, label: string): string {
 	const dir = dirname(docPath);
 	const base = docPath.split("/").pop() || docPath;

@@ -20,6 +20,7 @@
  * applies to canvas content for exactly this reason.
  */
 
+import { sameTextContent } from "./textEquivalence";
 import type { CanvasData } from "./HostCanvasView";
 import { deepValueEquals } from "./deepValueEquals";
 
@@ -59,7 +60,7 @@ export function findByPath<T extends PathHolder>(
  * proceeds; if it matches, the existing trash behavior is safe as-is.
  */
 export function hasUnsyncedEdit(onDiskContent: string, syncedContent: string): boolean {
-	return onDiskContent !== syncedContent;
+	return !sameTextContent(onDiskContent, syncedContent);
 }
 
 /**
