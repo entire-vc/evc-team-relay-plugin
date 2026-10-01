@@ -211,3 +211,41 @@ PocketBase adapter, none of which participate in this path.
 core: mocking them would defeat the purpose of this harness. Folder-level
 coverage needs a real vault (an Obsidian test vault or an e2e harness), not more
 test doubles.
+
+## New Markdown note in two real vaults
+
+`scripts/check-note-bootstrap.py` exercises the folder path in two actual
+Obsidian instances. Use disposable vaults and a local self-hosted relay stack;
+the check creates a note and leaves it in both vaults for inspection.
+
+1. Install the same plugin build in both vaults. Start each Obsidian instance
+   with a separate `--user-data-dir` and `--remote-debugging-port`.
+2. Enable the plugin, authenticate both vaults to the local server, and restart
+   Obsidian so plugin startup has completed.
+3. Connect one folder in each vault to the same shared-folder GUID. Use different
+   local folder names, leave `otherTypes=false`, and wait for both folders to
+   be online. For an HTTP reverse proxy, route the control-plane API and the
+   relay's `/d/*` websocket paths to their respective services. The relay token
+   audience must match the relay's configured server URL.
+4. Install `websocket-client` in a Python environment, then run:
+
+```bash
+python3 scripts/check-note-bootstrap.py \
+  --writer-port 9471 --reader-port 9472 \
+  --guid <shared-folder-guid> --version 0.0.21 \
+  --note bootstrap-check.md
+```
+
+The check creates an empty Markdown file via the real Vault API, writes four
+successive edits, and waits up to 45 seconds. Success requires the writer's and
+receiver's disk content to match, the receiver's child CRDT to contain that same
+text, and both parent metadata maps to name that child GUID. No repair command
+or direct upload is invoked. It prints parent claims, metadata, child content,
+and a SHA256 of the expected text; failure exits nonzero. Use a fresh note name
+for each run: existing files are never overwritten.
+
+Run the identical command against an affected build as the negative control.
+The hermetic companion regression is the pending-local-edit case in
+`pullIfUnchangedConflictCopy.test.ts`; it fails before commit `ece546c` and passes
+after the fix released in 0.0.14. The real-vault check is manual because CI does
+not run Obsidian.
