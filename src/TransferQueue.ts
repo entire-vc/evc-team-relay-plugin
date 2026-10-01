@@ -17,6 +17,7 @@ import { deepValueEquals } from "./deepValueEquals";
 import type { CanvasData } from "./HostCanvasView";
 import { AttachmentFile, isAttachmentFile } from "./AttachmentFile";
 import { applyDiffToYText, reconcileWithConflictCopy } from "./ytextDiff";
+import { hasPreservableContent, sameTextContent } from "./textEquivalence";
 import { waitForBufferFlush } from "./websocketFlush";
 import {
 	claimInitIfUnclaimed,
@@ -812,7 +813,7 @@ export class TransferQueue extends Loggable {
 		const vaultContentsAfter = await this.readVaultContents(doc);
 		if (
 			vaultContentsAfter === vaultContentsBefore &&
-			remoteText !== vaultContentsAfter &&
+			!sameTextContent(remoteText, vaultContentsAfter) &&
 			doc.vaultShare.folderIndex.tracks(doc.entryPath)
 		) {
 			const syncBase = await doc.getSyncBase();
@@ -823,7 +824,7 @@ export class TransferQueue extends Loggable {
 				// it for uploadDocumentViaSocket() to reconcile properly.
 				return;
 			}
-			if (remoteText === syncBase && vaultContentsAfter !== "") {
+			if (sameTextContent(remoteText, syncBase) && vaultContentsAfter !== "") {
 				// The relay has NOT moved since this client last confirmed
 				// agreeing with it: the only divergence is this client's OWN
 				// edit, still on its way to the relay. Nothing is waiting to be
@@ -849,7 +850,12 @@ export class TransferQueue extends Loggable {
 				});
 				return;
 			}
-			if (vaultContentsAfter !== syncBase) {
+			// An empty read means a file that is not on disk yet (or an empty
+			// one): there is nothing to preserve, only the relay text to write.
+			if (
+				hasPreservableContent(vaultContentsAfter) &&
+				!sameTextContent(vaultContentsAfter, syncBase)
+			) {
 				// The vault file doesn't just differ from the relay's CURRENT
 				// content -- it differs from what THIS client last confirmed
 				// agreeing with the relay on. That's a genuine unsynced local
@@ -964,7 +970,7 @@ export class TransferQueue extends Loggable {
 				: { nodes: [], edges: [] };
 			return deepValueEquals(synced.canvasData, vaultJson);
 		}
-		return synced.text === vaultContents;
+		return sameTextContent(synced.text, vaultContents);
 	}
 
 	private isRelayLinked(doc: Document | CanvasDocument): boolean {
@@ -1028,7 +1034,7 @@ export class TransferQueue extends Loggable {
 					`[uploadDocumentViaSocket] Skipped initial-content insert for ${doc.entryPath} — lost the init claim to a concurrently-connecting client`,
 				);
 			}
-		} else if (syncedText !== vaultContents) {
+		} else if (!sameTextContent(syncedText, vaultContents)) {
 			// `syncedText` diverges from the vault file. That alone doesn't
 			// tell us whether the RELAY moved (another client's edit just
 			// merged in via the bringOnline()/onceProviderSynced() call above --

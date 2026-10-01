@@ -186,7 +186,8 @@ describe("pullIfUnchanged — sync-base gates the overwrite, never silently disc
 		await queue.pullIfUnchanged(fakeDoc);
 
 		expect(queue.enqueueUpload).not.toHaveBeenCalled();
-		expect(writeConflictCopy).toHaveBeenCalledTimes(1);
+		// Restored, but no 0-byte copy: an empty file holds nothing to preserve (GH #4).
+		expect(writeConflictCopy).not.toHaveBeenCalled();
 		expect(writeContents).toHaveBeenCalledWith(fakeDoc, "note v1");
 	});
 

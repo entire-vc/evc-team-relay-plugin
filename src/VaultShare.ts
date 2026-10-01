@@ -61,7 +61,7 @@ import { AttachmentSyncSettings, type AttachmentToggles } from "./AttachmentSync
 import { currentToggles } from "./featureToggleState";
 import { findNestingConflictPath } from "./vaultShareNesting";
 import { isRootSharePath, resolveShareFolder } from "./vaultRootPath";
-import { buildConflictCopyPath } from "./conflictCopyPath";
+import { buildConflictCopyPath, isConflictCopyPath } from "./conflictCopyPath";
 import { partitionByKnownGuid } from "./mintGate";
 import {
 	findByPath,
@@ -914,6 +914,10 @@ export class VaultShare extends ProviderBacked {
 		if (tfile instanceof TFolder) {
 			return true;
 		}
+		// Local recovery copies stay local (GH #4).
+		if (isConflictCopyPath(tfile.path)) {
+			return false;
+		}
 		return this.attachmentSettings.isFileTypeAllowed(vpath);
 	}
 
@@ -1263,6 +1267,13 @@ export class VaultShare extends ProviderBacked {
 		// Skip files that are being locally deleted — prevents race condition
 		// where scanFileTree runs between disk deletion and folderIndex removal
 		if (this.isDeletePending(path)) {
+			return this._noop(path);
+		}
+
+		// Recovery copies are local-only: copies already registered in the
+		// shared index by an earlier version must not be pulled onto other
+		// clients (that is how they nested).
+		if (isConflictCopyPath(path)) {
 			return this._noop(path);
 		}
 
