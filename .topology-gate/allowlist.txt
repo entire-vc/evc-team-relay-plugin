@@ -1,0 +1,3 @@
+# Topology-gate exceptions. Every line needs a reason after '#'. No inline markers, no skip flag.
+# Syntax: path <glob> <rule|*> | value <ipv4> | tokenhash <sha256 of lowercased token>
+path src/components/RelayOnPremSettings.svelte ip-public  # inline SVG path data (numbers separated by dots), not an address
