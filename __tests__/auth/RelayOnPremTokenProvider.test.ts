@@ -126,7 +126,7 @@ describe("RelayOnPremTokenProvider.updateControlPlaneUrl", () => {
  * The caller (RelayCredentialRefresh.ts) always requests mode "write" regardless
  * of the member's actual share role. The control-plane correctly 403s a
  * viewer's write request (app/services/share_service.py::ensure_write_access,
- * verified live against tr-relay-vm + its own test_viewer_cannot_write test) --
+ * verified live against the relay host + its own test_viewer_cannot_write test) --
  * without this fallback that 403 propagated as a hard connection failure,
  * leaving viewer-role members unable to open onprem relay shares at all.
  */
