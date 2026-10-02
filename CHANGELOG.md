@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.22
+- Fixed: a reconnect queued before your computer slept could still open with an expired token after waking. The token is now checked again immediately before each connection attempt and refreshed when needed.
+
 ## 0.0.21
 - Fixed: shared folders no longer fill up with empty "note (relay conflict …).md" copies. An empty or not-yet-written file is no longer saved as a conflict copy, which happened after deleting a shared folder locally and joining it again.
 - Fixed: notes that differ only in line endings (Windows CRLF vs. LF) are no longer treated as a conflict, so the first sync of a folder you already had locally stops producing a copy for every note.

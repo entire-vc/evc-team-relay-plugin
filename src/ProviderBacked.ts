@@ -43,9 +43,11 @@ function buildProvider(
 	clientToken: DocumentGrant,
 	ydoc: Y.Doc,
 	user?: Account,
+	beforeConnect?: () => boolean,
 ): YSweetProvider {
 	const provider = new YSweetProvider(clientToken.url, clientToken.docId, ydoc, {
 		connect: false,
+		beforeConnect,
 		params: { token: clientToken.token },
 		disableBc: true,
 		// TR-12: no cap — see YSweetProvider's maxConnectionErrors default.
@@ -160,7 +162,9 @@ export class ProviderBacked extends Loggable {
 		this.issuedToken =
 			this.credentialCache.peekToken(ResourceAddress.serialize(this.resourceAddress)) || { ...EMPTY_TOKEN };
 
-		this._liveProvider = buildProvider(this.issuedToken, this.crdtDoc, user);
+		this._liveProvider = buildProvider(
+			this.issuedToken, this.crdtDoc, user, () => this.refreshStaleProviderToken(),
+		);
 		this.seededAccountId = user?.accountId;
 
 		this.detachConnectionError = this.attachConnectionErrorHandler();
@@ -220,20 +224,22 @@ export class ProviderBacked extends Loggable {
 	 */
 	private attachConnectionCloseHandler(): () => void {
 		const handler = () => {
-			if (!this._liveProvider.shouldConnect) {
-				return;
-			}
-			if (this.hasUsableProviderToken()) {
-				return;
-			}
-			this.log(`${this.getVaultPath()}: connection closed with a stale token, refreshing before reconnect`);
-			this.goOffline();
-			this.reconnectGate.schedule(this._liveProvider.maxBackoffTime, () => {
-				void this.bringOnline();
-			});
+			this.refreshStaleProviderToken();
 		};
 		this._liveProvider.on("connection-close", handler);
 		return () => this._liveProvider.off("connection-close", handler);
+	}
+
+	/** A queued reconnect may run after sleep, long after the close-time check. */
+	private refreshStaleProviderToken(): boolean {
+		if (!this._liveProvider.shouldConnect) return false;
+		if (this.hasUsableProviderToken()) return true;
+		this.log(`${this.getVaultPath()}: stale token, refreshing before reconnect`);
+		this.goOffline();
+		this.reconnectGate.schedule(this._liveProvider.maxBackoffTime, () => {
+			void this.bringOnline();
+		});
+		return false;
 	}
 
 	private attachStateHandler(): () => void {

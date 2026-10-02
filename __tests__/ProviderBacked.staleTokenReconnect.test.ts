@@ -140,6 +140,29 @@ describe("onclose reconnect never reuses an expired token (#b3f8e33e)", () => {
 		expect(urls()[1]).toContain("token=old");
 	});
 
+	test("a reconnect queued while fresh checks credentials again after sleep", async () => {
+		const t0 = Date.now();
+		const getToken = jest
+			.fn<() => Promise<DocumentGrant>>()
+			.mockResolvedValueOnce(grant("old", t0 + 5 * 60_000))
+			.mockResolvedValueOnce(grant("new", t0 + 65 * 60_000));
+		const pb = build(getToken);
+		await pb.bringOnline();
+		FakeWS.instances[0].open();
+		FakeWS.instances[0].drop();
+		expect(getToken).toHaveBeenCalledTimes(1);
+		expect(FakeWS.instances).toHaveLength(1);
+
+		// Sleep advances wall time without running the pending backoff timer.
+		jest.setSystemTime(t0 + 60 * 60_000);
+		await jest.advanceTimersByTimeAsync(10_000);
+
+		expect(urls().slice(1).some((u) => u.includes("token=old"))).toBe(false);
+		expect(getToken).toHaveBeenCalledTimes(2);
+		expect(urls().at(-1)).toContain("token=new");
+		pb.dismantle();
+	});
+
 	test("a deliberate goOffline() is not turned back into a reconnect by the guard", async () => {
 		const t0 = Date.now();
 		const getToken = jest
@@ -156,5 +179,42 @@ describe("onclose reconnect never reuses an expired token (#b3f8e33e)", () => {
 
 		expect(getToken).toHaveBeenCalledTimes(1);
 		expect(FakeWS.instances.length).toBe(1);
+	});
+
+	test.each(["goOffline", "dismantle"] as const)("%s cancels a socket attempt queued before sleep", async (stop) => {
+		const t0 = Date.now();
+		const getToken = jest.fn<() => Promise<DocumentGrant>>()
+			.mockResolvedValue(grant("old", t0 + 5 * 60_000));
+		const pb = build(getToken);
+		await pb.bringOnline();
+		FakeWS.instances[0].open();
+		FakeWS.instances[0].drop();
+		pb[stop]();
+		jest.setSystemTime(t0 + 60 * 60_000);
+		await jest.advanceTimersByTimeAsync(10_000);
+		expect(getToken).toHaveBeenCalledTimes(1);
+		expect(FakeWS.instances).toHaveLength(1);
+		if (stop !== "dismantle") pb.dismantle();
+	});
+
+	test("failed renewal after sleep opens no stale socket and retries through the cache", async () => {
+		const t0 = Date.now();
+		const getToken = jest.fn<() => Promise<DocumentGrant>>()
+			.mockResolvedValueOnce(grant("old", t0 + 5 * 60_000))
+			.mockRejectedValueOnce(new Error("temporarily offline"))
+			.mockResolvedValueOnce(grant("new", t0 + 65 * 60_000));
+		const pb = build(getToken);
+		await pb.bringOnline();
+		FakeWS.instances[0].open();
+		FakeWS.instances[0].drop();
+		jest.setSystemTime(t0 + 60 * 60_000);
+		await jest.advanceTimersByTimeAsync(200);
+		expect(getToken).toHaveBeenCalledTimes(2);
+		expect(FakeWS.instances).toHaveLength(1);
+		await jest.advanceTimersByTimeAsync(10_000);
+		expect(getToken).toHaveBeenCalledTimes(3);
+		expect(urls().slice(1)).toHaveLength(1);
+		expect(urls()[1]).toContain("token=new");
+		pb.dismantle();
 	});
 });

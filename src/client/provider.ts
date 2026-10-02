@@ -65,6 +65,8 @@ export type YSweetProviderParams = {
 	maxBackoffTime?: number;
 	disableBc?: boolean;
 	maxConnectionErrors?: number;
+	/** Recheck credentials immediately before opening any socket. */
+	beforeConnect?: () => boolean;
 };
 
 export type ConnectionStatus =
@@ -197,6 +199,7 @@ const encodeAwarenessOf = (
  */
 const setupWS = (provider: YSweetProvider): void => {
 	if (!provider.shouldConnect || provider.ws !== null) return;
+	if (!provider.beforeConnect()) return;
 
 	const websocket = new provider._WS(provider.url);
 	websocket.binaryType = "arraybuffer";
@@ -334,6 +337,7 @@ export class YSweetProvider extends Observable<string> {
 	wsLastMessageReceived = 0;
 	shouldConnect: boolean;
 	maxConnectionErrors: number;
+	beforeConnect: () => boolean;
 
 	private _synced = false;
 	private _resyncInterval: number | 0 = 0;
@@ -362,6 +366,7 @@ export class YSweetProvider extends Observable<string> {
 			// restart and never refills, leaving the document offline for
 			// good. Unbounded plus backoff is the safe default here.
 			maxConnectionErrors = Infinity,
+			beforeConnect = () => true,
 		}: YSweetProviderParams = {},
 	) {
 		super();
@@ -371,6 +376,7 @@ export class YSweetProvider extends Observable<string> {
 		}
 
 		this.maxBackoffTime = maxBackoffTime;
+		this.beforeConnect = beforeConnect;
 		this.bcChannel = serverUrl + "/" + roomname;
 		this.url = serverUrl + "/" + roomname + "?" + url.encodeQueryParams(params);
 		this.roomname = roomname;
