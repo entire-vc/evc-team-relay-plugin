@@ -7,6 +7,7 @@
 	import StatusOverlay from "./StatusOverlay.svelte";
 	import RelayOnPremSettings from "./RelayOnPremSettings.svelte";
 	import AnnouncementBanner from "./AnnouncementBanner.svelte";
+	import { onMount } from "svelte";
 	import {
 		resolvePath,
 		popToRestorableView,
@@ -16,6 +17,16 @@
 	interface NavigateBackEvent extends CustomEvent {
 		clear?: boolean;
 	}
+
+	// Marks the surrounding settings modal while this panel is shown, so the
+	// mobile stylesheet can give Obsidian's floating (transparent) nav header
+	// a solid background without touching other plugins' settings tabs.
+	let contentEl: HTMLElement | undefined;
+	onMount(() => {
+		const modalEl = contentEl?.closest(".modal");
+		modalEl?.classList.add("evc-relay-settings-open");
+		return () => modalEl?.classList.remove("evc-relay-settings-open");
+	});
 
 	export let live: TeamRelayPlugin;
 	export let initialPath: string | undefined = undefined;
@@ -157,7 +168,7 @@
 {:else if live.serviceHealth.lastReport}
 	<AnnouncementBanner serviceStatus={live.serviceHealth.lastReport} onInstall={install} />
 {/if}
-<div class="vertical-tab-content">
+<div class="vertical-tab-content" bind:this={contentEl}>
 	{#if activeManageView}
 		<svelte:component
 			this={activeManageView.component}
