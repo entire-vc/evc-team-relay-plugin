@@ -510,3 +510,78 @@
 	border: none;
 	background: transparent;
 }
+
+/* ------------------------------------------------------------------------
+   Mobile (Obsidian isMobile, ~393px) settings layout. Desktop is untouched:
+   every rule below is scoped under `.is-mobile`.
+   ------------------------------------------------------------------------ */
+
+/* Obsidian's own mobile `.vertical-tab-content` padding/margin (and the
+   plugin tab row's `.setting-item` padding) were applied a second time to
+   the panel's inner wrapper, leaving a ~139px empty block above the header,
+   double side padding and a card inside a card. Strip it from the inner one
+   and keep a single scroller (Obsidian's outer .vertical-tab-content). */
+.is-mobile .modal.mod-settings .vertical-tab-content .vertical-tab-content.vertical-tab-content {
+	padding: 0;
+	margin: 0;
+	max-height: none;
+	overflow: visible;
+	background: transparent;
+}
+
+.is-mobile .setting-item.evc-relay-settings-tab-row {
+	padding: 0;
+}
+
+/* Obsidian's floating settings nav header is transparent, so scrolled
+   content showed through it. Give it a solid background while the Team
+   Relay tab is open (class set by SettingsPanel.svelte). */
+.is-mobile .modal.evc-relay-settings-open .modal-header {
+	background-color: var(--background-secondary);
+}
+
+/* Share list: no inner scroller, nothing wider than its container. */
+.is-mobile .evc-share-list {
+	max-height: none;
+	overflow: visible;
+	min-width: 0;
+}
+
+.is-mobile .evc-share-list .evc-share-list-header {
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.is-mobile .evc-share-list .evc-share-list-header .evc-section-title {
+	flex: 1 1 100%;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.is-mobile .evc-share-list .evc-share-list-header button {
+	flex: 1 1 100%;
+	width: 100%;
+	max-width: 100%;
+	height: auto;
+	min-height: var(--input-height);
+	white-space: normal;
+}
+
+.is-mobile .evc-share-list .evc-share-items,
+.is-mobile .evc-share-list .evc-share-item {
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.is-mobile .evc-share-list .evc-share-item-header,
+.is-mobile .evc-share-list .evc-share-item-meta {
+	min-width: 0;
+	flex-wrap: wrap;
+	overflow-wrap: anywhere;
+}
+
+/* Server-row action buttons read as buttons, not bare text. */
+.is-mobile .relay-server-actions .relay-server-btn {
+	border: 1px solid var(--background-modifier-border);
+}
