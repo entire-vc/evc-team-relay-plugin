@@ -1,5 +1,5 @@
 # CI — Team Relay Obsidian Plugin
-# Based on F3 ci-ts-plugin template (bob/docs/ci-templates/ci-ts-plugin.yml)
+# Based on F3 ci-ts-plugin template (the internal ts-plugin CI template)
 #
 # ## What this workflow is FOR, since development moved to GitLab (2026-08-23)
 #

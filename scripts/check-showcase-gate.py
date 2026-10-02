@@ -23,7 +23,7 @@ showcase. Scanning them here would fail MRs the publisher would accept. The
 fixed template itself is checked by --self-test.
 
 THE PATTERNS ARE A COPY. The block between the SYNC markers below is copied
-from bob/scripts/tr-showcase-publish.py (FORBIDDEN, NEGATIVE_CANARY,
+from the private showcase publisher (tr-showcase-publish.py) (FORBIDDEN, NEGATIVE_CANARY,
 ALLOW_PREFIXES, ALLOW_FILES) -- generated from the publisher's AST, not typed.
 A copy can drift, and a drifted copy gives a false green, so:
 
@@ -35,7 +35,7 @@ touched. CI cannot run it: the publisher lives outside this repository.
 
 Copy last synced 2026-09-19 from publisher sha256
 be48f390543044a907147f66d28653f1ee7e3db7fe0d75a5f50dff876e27877d
-(identical to the copy deployed at gitlab-vm:/root/tr-showcase-publish.py).
+(identical to the copy deployed at the canon host).
 
 USAGE
     check-showcase-gate.py              scan the tracked tree (exit 1 on findings,
