@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.23
+- Fixed: mobile settings layout at 393px (share button clipped, nested scrollers, nav header).
+
 ## 0.0.22
 - Fixed: a reconnect queued before your computer slept could still open with an expired token after waking. The token is now checked again immediately before each connection attempt and refreshed when needed.
 
