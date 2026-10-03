@@ -3,6 +3,9 @@
 ## 0.0.24
 - Fixed: adding an unreachable server now shows one clear error next to the URL field instead of also displaying a raw network-error notification.
 
+### Pending next release
+- Fixed: agent key settings, dialogs, and notifications now follow the Russian interface language.
+
 ## 0.0.23
 - Fixed: mobile settings layout at 393px (share button clipped, nested scrollers, nav header).
 
