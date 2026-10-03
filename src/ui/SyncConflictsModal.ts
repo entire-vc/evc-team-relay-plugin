@@ -12,6 +12,7 @@
 import { App, Modal, Notice, Setting } from "obsidian";
 import type TeamRelayPlugin from "../main";
 import { confirmDialog } from "./dialogs";
+import { setDestructiveButton } from "./destructiveButton";
 
 export class SyncConflictsModal extends Modal {
 	constructor(app: App, private plugin: TeamRelayPlugin) {
@@ -51,7 +52,7 @@ export class SyncConflictsModal extends Modal {
 				.setDesc(`Detected ${new Date(conflict.detectedAt).toLocaleString()}`);
 
 			setting.addButton((button) => {
-				button.setButtonText("Use server version").setWarning().onClick(async () => {
+				setDestructiveButton(button).setButtonText("Use server version").onClick(async () => {
 					const ok = await confirmDialog(
 						this.app,
 						`Discard local changes to "${conflict.vaultPath}" and replace it with the ` +
