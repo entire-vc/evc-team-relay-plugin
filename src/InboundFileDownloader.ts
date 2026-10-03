@@ -6,6 +6,7 @@
  */
 
 import { normalizePath, Notice, TFile, Vault } from "obsidian";
+import type { FileManager } from "obsidian";
 import { dirname, join } from "path-browserify";
 import { namedLogger } from "./logging";
 import { sha256Hex } from "./contentDigest";
@@ -51,6 +52,7 @@ export class InboundFileDownloader {
 
 	constructor(
 		vault: Vault,
+		private readonly fileManager: FileManager,
 		clientManager: RelayOnPremShareClientManager,
 		webSyncManager: WebSyncManager,
 		hashManifestStore: Map<string, Record<string, string>> = new Map(),
@@ -274,7 +276,7 @@ export class InboundFileDownloader {
 	}
 
 	/**
-	 * Resolve a conflict by taking the server version: delete the local file so the
+	 * Resolve a conflict by taking the server version: trash the local file so the
 	 * next `downloadShare()` pass finds no local content to guard and writes the
 	 * server copy fresh. Mirrors the manual recipe this bug's report used to fix
 	 * the one already-live conflict by hand.
@@ -285,7 +287,7 @@ export class InboundFileDownloader {
 		if (!conflict) return;
 		const abstractFile = this.vault.getAbstractFileByPath(conflict.vaultPath);
 		if (abstractFile instanceof TFile) {
-			await this.vault.delete(abstractFile);
+			await this.fileManager.trashFile(abstractFile);
 		}
 		this.conflicts.delete(key);
 	}

@@ -168,7 +168,7 @@ export class LocalDocumentStore extends Observable<string> {
 	_origin: DocumentOrigin | undefined = undefined;
 
 	private _trimSize = COLD_START_COLLAPSE_AT;
-	private _storeTimeoutId: ReturnType<typeof setTimeout> | null = null;
+	private _storeTimeoutId: number | null = null;
 	private readonly _storeDebounceMs = 1000;
 	private readonly _updateHandler: (update: Uint8Array, origin: unknown) => void;
 
@@ -236,8 +236,8 @@ export class LocalDocumentStore extends Observable<string> {
 
 	/** Collapse soon, not on every crossing — bursts of edits are normal. */
 	private _scheduleCollapse(): void {
-		if (this._storeTimeoutId !== null) clearTimeout(this._storeTimeoutId);
-		this._storeTimeoutId = setTimeout(() => {
+		if (this._storeTimeoutId !== null) window.clearTimeout(this._storeTimeoutId);
+		this._storeTimeoutId = window.setTimeout(() => {
 			this._storeTimeoutId = null;
 			void collapseStoredHistory(this, false);
 		}, this._storeDebounceMs);
@@ -258,7 +258,7 @@ export class LocalDocumentStore extends Observable<string> {
 
 	destroy(): Promise<void> {
 		if (this._storeTimeoutId !== null) {
-			clearTimeout(this._storeTimeoutId);
+			window.clearTimeout(this._storeTimeoutId);
 			this._storeTimeoutId = null;
 		}
 		this.doc.off("update", this._updateHandler);
