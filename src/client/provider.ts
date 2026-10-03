@@ -216,7 +216,7 @@ const setupWS = (provider: YSweetProvider): void => {
 		}
 	};
 
-	websocket.onmessage = (event: MessageEvent) => {
+	websocket.onmessage = (event: MessageEvent<ArrayBuffer>) => {
 		provider.wsLastMessageReceived = time.getUnixTime();
 		const reply = readMessage(provider, new Uint8Array(event.data), true);
 		if (encoding.length(reply) > 1) {
@@ -340,7 +340,7 @@ export class YSweetProvider extends Observable<string> {
 	beforeConnect: () => boolean;
 
 	private _synced = false;
-	private _resyncInterval: number | 0 = 0;
+	private _resyncInterval: number = 0;
 	private _checkInterval: number;
 	private _bcSubscriber: (data: ArrayBuffer, origin: unknown) => void;
 	private _updateHandler: (update: Uint8Array, origin: unknown) => void;
