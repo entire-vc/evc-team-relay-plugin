@@ -191,25 +191,21 @@
 		return null;
 	}
 
-	async function testConnection(url: string, serverId?: string) {
+	async function testConnection(url: string, serverId?: string, showNotice = true) {
 		if (serverId) {
 			testingServerId = serverId;
 		}
 		try {
 			const response = await platformFetch(`${url}/v1/health`, { method: "GET" });
 			if (response.ok) {
-				new Notice(uiText("serverList.connectionSuccessNotice"));
+				if (showNotice) new Notice(uiText("serverList.connectionSuccessNotice"));
 				return true;
 			} else {
-				new Notice(uiText("serverList.connectionFailedStatusNotice", { status: response.status }));
+				if (showNotice) new Notice(uiText("serverList.cannotConnectError"));
 				return false;
 			}
-		} catch (error: unknown) {
-			new Notice(
-				uiText("serverList.connectionFailedErrorNotice", {
-					error: error instanceof Error ? error.message : uiText("shared.unknownError"),
-				})
-			);
+		} catch {
+			if (showNotice) new Notice(uiText("serverList.cannotConnectError"));
 			return false;
 		} finally {
 			testingServerId = null;
@@ -225,8 +221,9 @@
 			return;
 		}
 
-		// Test connection first
-		const connectionOk = await testConnection(newControlPlaneUrl.trim());
+		// The form owns validation feedback; connection-test notices are for
+		// the standalone Test button, not a second message during saving.
+		const connectionOk = await testConnection(newControlPlaneUrl.trim(), undefined, false);
 		if (!connectionOk) {
 			formError = uiText("serverList.cannotConnectError");
 			return;
