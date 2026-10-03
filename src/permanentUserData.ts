@@ -27,16 +27,17 @@ type UsersObserver = (event: Y.YMapEvent<unknown>, tr: Y.Transaction) => void;
  * handler that cannot cope with it. Every other event passes through untouched.
  */
 export function createPermanentUserData(ydoc: Y.Doc): Y.PermanentUserData {
-	const users = ydoc.getMap("users");
+	const users = ydoc.getMap<unknown>("users");
 	const guarded = new Proxy(users, {
-		get(target, prop) {
-			const value = Reflect.get(target, prop, target);
+		get(target, prop): unknown {
+			const value: unknown = Reflect.get(target, prop, target);
 			if (prop === "observe") {
 				return (observer: UsersObserver) =>
-					target.observe((event, tr) => {
+					target.observe((event: Y.YMapEvent<unknown>, tr: Y.Transaction) => {
 						const live = new Set<string>();
-						for (const key of event.keysChanged) {
-							if (target.has(key)) live.add(key);
+						const keys: ReadonlySet<unknown> = event.keysChanged;
+						for (const key of keys) {
+							if (typeof key === "string" && target.has(key)) live.add(key);
 						}
 						if (live.size === 0) return;
 						if (live.size === event.keysChanged.size) {
@@ -51,7 +52,11 @@ export function createPermanentUserData(ydoc: Y.Doc): Y.PermanentUserData {
 						);
 					});
 			}
-			return typeof value === "function" ? value.bind(target) : value;
+			if (typeof value === "function") {
+				const bound: unknown = value.bind(target);
+				return bound;
+			}
+			return value;
 		},
 	});
 	return new Y.PermanentUserData(ydoc, guarded);
