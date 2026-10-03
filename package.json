@@ -82,13 +82,16 @@
   },
   "overrides": {
     "gray-matter": {
-      "js-yaml": "^3.15.1"
+      "js-yaml": "^3.15.2"
     },
     "@istanbuljs/load-nyc-config": {
-      "js-yaml": "^3.15.1"
+      "js-yaml": "^3.15.2"
     },
     "@eslint/eslintrc": {
-      "js-yaml": "^4.3.1"
+      "js-yaml": "^4.3.2"
+    },
+    "obsidian": {
+      "moment": "^2.31.0"
     },
     "fast-uri": "^3.1.7"
   }
