@@ -5,6 +5,7 @@
 	import type { RelayOnPremServer } from "../RelayOnPremConfig";
 	import type { ShareWithServer } from "../RelayOnPremShareClientManager";
 	import type { AgentKey, RelayOnPremShare } from "../RelayOnPremShareClient";
+	import { uiText } from "../wording/uiText";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -49,11 +50,11 @@
 		const diffHour = Math.floor(diffMin / 60);
 		const diffDay = Math.floor(diffHour / 24);
 		const diffMonth = Math.floor(diffDay / 30);
-		if (diffSec < 60) return "just now";
-		if (diffMin < 60) return `${diffMin} min ago`;
-		if (diffHour < 24) return `${diffHour} hour${diffHour === 1 ? "" : "s"} ago`;
-		if (diffDay < 30) return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
-		return `${diffMonth} month${diffMonth === 1 ? "" : "s"} ago`;
+		if (diffSec < 60) return uiText("agentKeys.justNow");
+		if (diffMin < 60) return uiText("agentKeys.minutesAgo", { count: diffMin });
+		if (diffHour < 24) return uiText(diffHour === 1 ? "agentKeys.hourAgo" : "agentKeys.hoursAgo", { count: diffHour });
+		if (diffDay < 30) return uiText(diffDay === 1 ? "agentKeys.dayAgo" : "agentKeys.daysAgo", { count: diffDay });
+		return uiText(diffMonth === 1 ? "agentKeys.monthAgo" : "agentKeys.monthsAgo", { count: diffMonth });
 	}
 
 	function expiryChoiceToIso(choice: string): string | undefined {
@@ -185,9 +186,9 @@
 			const msg = e instanceof Error ? e.message : String(e);
 			if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
 				createNeeds401Reauth = true;
-				createError = "Session expired. Please re-authenticate and try again.";
+				createError = uiText("agentKeys.sessionExpiredError");
 			} else {
-				createError = `Failed to create key: ${msg}`;
+				createError = uiText("agentKeys.createError", { error: msg });
 			}
 		} finally {
 			creating = false;
@@ -217,11 +218,11 @@
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : String(e);
 			if (msg.includes("404")) {
-				new Notice("Share removed — key inactive");
+				new Notice(uiText("agentKeys.shareRemovedNotice"));
 			} else {
 				// Restore key on failure
 				keysByShare = { ...keysByShare, [shareId]: prev };
-				new Notice(`Failed to revoke key: ${msg}`);
+				new Notice(uiText("agentKeys.revokeError", { error: msg }));
 			}
 		}
 	}
@@ -250,7 +251,7 @@
 			revealCopied = true;
 			window.setTimeout(() => { revealCopied = false; }, 2000);
 		}).catch(() => {
-			new Notice("Failed to copy key");
+			new Notice(uiText("agentKeys.copyError"));
 		});
 	}
 
@@ -276,47 +277,47 @@
 <!-- Main view -->
 <div class="ak-view">
 	<div class="ak-header-row">
-		<h3 class="ak-title">Agent Keys</h3>
-		<button class="evc-small-btn mod-cta" on:click={() => openCreateModal()}>+ Create agent key</button>
+		<h3 class="ak-title">{uiText("shell.breadcrumb.agentKeys")}</h3>
+		<button class="evc-small-btn mod-cta" on:click={() => openCreateModal()}>{uiText("agentKeys.createAgentKeyButton")}</button>
 	</div>
 
 	{#if loadingShares}
-		<div class="ak-state-msg">Loading...</div>
+		<div class="ak-state-msg">{uiText("agentKeys.loading")}</div>
 	{:else if shares.length === 0}
 		<div class="ak-state-msg ak-empty">
-			No shares found for this server. Create a share first to manage agent keys.
+			{uiText("agentKeys.noShares")}
 		</div>
 	{:else}
 		{#each shares as share (share.id)}
 			<div class="ak-share-group">
 				<div class="ak-share-header">
 					<span class="ak-share-path">{share.path}</span>
-					<button class="evc-small-btn" on:click={() => openCreateModal(share.id)}>+ Create key</button>
+					<button class="evc-small-btn" on:click={() => openCreateModal(share.id)}>{uiText("agentKeys.createKeyButton")}</button>
 				</div>
 				{#if (keysByShare[share.id] ?? []).length === 0}
-					<div class="ak-no-keys">No keys for this share.</div>
+					<div class="ak-no-keys">{uiText("agentKeys.noKeys")}</div>
 				{:else}
 					<table class="ak-table">
 						<thead>
 							<tr>
-								<th>Label</th>
-								<th>Created</th>
-								<th>Expires</th>
+								<th>{uiText("agentKeys.label")}</th>
+								<th>{uiText("agentKeys.created")}</th>
+								<th>{uiText("agentKeys.expires")}</th>
 								<th></th>
 							</tr>
 						</thead>
 						<tbody>
 							{#each (keysByShare[share.id] ?? []) as key (key.id)}
 								<tr>
-									<td class="ak-label">{key.label || '(unnamed)'}</td>
+									<td class="ak-label">{key.label || uiText("agentKeys.unnamed")}</td>
 									<td title={key.created_at}>{timeAgo(key.created_at)}</td>
-									<td>{key.expires_at ? new Date(key.expires_at).toLocaleDateString() : "Never"}</td>
+									<td>{key.expires_at ? new Date(key.expires_at).toLocaleDateString() : uiText("agentKeys.never")}</td>
 									<td>
 										<button
 											class="evc-small-btn evc-btn-danger"
 											on:click={() => { revokeTarget = { key, shareId: share.id }; }}
 										>
-											Revoke
+											{uiText("agentKeys.revokeButton")}
 										</button>
 									</td>
 								</tr>
@@ -334,17 +335,17 @@
 	<div class="ak-overlay" role="presentation" on:click|self={() => {}}>
 		<div class="ak-modal" role="dialog" aria-modal="true" on:click|stopPropagation>
 			<div class="ak-modal-header">
-				<span class="ak-modal-title">Create agent key</span>
+				<span class="ak-modal-title">{uiText("agentKeys.createTitle")}</span>
 				<button class="ak-close-btn" on:click={() => { showCreateModal = false; }}>✕</button>
 			</div>
 
 			<div class="ak-modal-body">
 				<div class="ak-field">
-					<label for="ak-label-input">Label</label>
+					<label for="ak-label-input">{uiText("agentKeys.label")}</label>
 					<input
 						id="ak-label-input"
 						type="text"
-						placeholder="e.g. ci-bot"
+						placeholder={uiText("agentKeys.labelPlaceholder")}
 						bind:value={newKeyLabel}
 						required
 						disabled={creating}
@@ -354,12 +355,12 @@
 
 				{#if initialShare}
 					<div class="ak-field">
-						<label>Share</label>
+						<label>{uiText("agentKeys.share")}</label>
 						<span class="ak-static-share">{initialShare.path}</span>
 					</div>
 				{:else}
 					<div class="ak-field">
-						<label for="ak-share-select">Share</label>
+						<label for="ak-share-select">{uiText("agentKeys.share")}</label>
 						<select id="ak-share-select" bind:value={newKeyShareId} disabled={creating}>
 							{#each shares as s (s.id)}
 								<option value={s.id}>{s.path}</option>
@@ -369,12 +370,12 @@
 				{/if}
 
 				<div class="ak-field">
-					<label for="ak-expiry-select">Expiry</label>
+					<label for="ak-expiry-select">{uiText("agentKeys.expiry")}</label>
 					<select id="ak-expiry-select" bind:value={newKeyExpiryChoice} disabled={creating}>
-						<option value="never">Never</option>
-						<option value="30d">30 days</option>
-						<option value="90d">90 days</option>
-						<option value="1y">1 year</option>
+						<option value="never">{uiText("agentKeys.never")}</option>
+						<option value="30d">{uiText("agentKeys.thirtyDays")}</option>
+						<option value="90d">{uiText("agentKeys.ninetyDays")}</option>
+						<option value="1y">{uiText("agentKeys.oneYear")}</option>
 					</select>
 				</div>
 
@@ -388,22 +389,22 @@
 									createError = null;
 									createNeeds401Reauth = false;
 								} catch (e) {
-									new Notice(`Re-auth failed: ${e instanceof Error ? e.message : "error"}`);
+									new Notice(uiText("agentKeys.reauthError", { error: e instanceof Error ? e.message : uiText("agentKeys.genericError") }));
 								}
-							}}>Re-authenticate</button>
+							}}>{uiText("agentKeys.reauthButton")}</button>
 						{/if}
 					</div>
 				{/if}
 			</div>
 
 			<div class="ak-modal-footer">
-				<button class="evc-small-btn" on:click={() => { showCreateModal = false; }} disabled={creating}>Cancel</button>
+				<button class="evc-small-btn" on:click={() => { showCreateModal = false; }} disabled={creating}>{uiText("shared.cancelButton")}</button>
 				<button
 					class="evc-small-btn mod-cta"
 					on:click={createKey}
 					disabled={creating || !newKeyLabel.trim()}
 				>
-					{creating ? "Creating..." : "Create key"}
+					{creating ? uiText("shared.creatingEllipsis") : uiText("agentKeys.createSubmitButton")}
 				</button>
 			</div>
 		</div>
@@ -415,41 +416,41 @@
 	<div class="ak-overlay" role="presentation" on:click|self={() => {}}>
 		<div class="ak-modal" role="dialog" aria-modal="true" on:click|stopPropagation>
 			<div class="ak-modal-header">
-				<span class="ak-modal-title">Key created: {revealedKey.label || '(unnamed)'}</span>
-				<button class="ak-close-btn" on:click={handleRevealClose} title="Close">✕</button>
+				<span class="ak-modal-title">{uiText("agentKeys.createdTitle", { label: revealedKey.label || uiText("agentKeys.unnamed") })}</span>
+				<button class="ak-close-btn" on:click={handleRevealClose} title={uiText("agentKeys.close")}>✕</button>
 			</div>
 
 			{#if revealCloseWarning}
-				<div class="ak-warn-banner">You haven't copied the key yet. Click ✕ again to close anyway.</div>
+				<div class="ak-warn-banner">{uiText("agentKeys.notCopiedWarning")}</div>
 			{/if}
 
 			<div class="ak-modal-body">
-				<p class="ak-reveal-warning">Save this key — it will <strong>not</strong> be shown again.</p>
+				<p class="ak-reveal-warning">{uiText("agentKeys.saveKeyPrefix")}<strong>{uiText("agentKeys.saveKeyEmphasis")}</strong>{uiText("agentKeys.saveKeySuffix")}</p>
 
 				<code class="ak-key-block">{revealedKey.key}</code>
 
 				<div class="ak-reveal-actions">
 					<button class="evc-small-btn" on:click={copyRevealedKey}>
-						{revealCopied ? "Copied!" : "Copy"}
+						{revealCopied ? uiText("agentKeys.copied") : uiText("agentKeys.copyButton")}
 					</button>
 					<button class="evc-small-btn" on:click={() => revealedKey && downloadKey(revealedKey.key, revealedKey.label, revealedKey.expiresAt)}>
-						Download .txt
+						{uiText("agentKeys.downloadButton")}
 					</button>
 				</div>
 
 				<div class="ak-reveal-meta">
-					<span>Share: {revealedKey.shareName}</span>
+					<span>{uiText("agentKeys.shareMeta", { share: revealedKey.shareName })}</span>
 					{#if revealedKey.expiresAt}
-						<span>Expires: {new Date(revealedKey.expiresAt).toLocaleString()}</span>
+						<span>{uiText("agentKeys.expiresMeta", { date: new Date(revealedKey.expiresAt).toLocaleString() })}</span>
 					{:else}
-						<span>Expires: Never</span>
+						<span>{uiText("agentKeys.expiresMeta", { date: uiText("agentKeys.never") })}</span>
 					{/if}
 				</div>
 			</div>
 
 			<div class="ak-modal-footer">
 				<button class="evc-small-btn mod-cta" on:click={dismissRevealedKey}>
-					I've copied this key — close
+					{uiText("agentKeys.copiedCloseButton")}
 				</button>
 			</div>
 		</div>
@@ -461,14 +462,14 @@
 	<div class="ak-overlay" role="presentation" on:click|self={() => {}}>
 		<div class="ak-modal" role="dialog" aria-modal="true" on:click|stopPropagation>
 			<div class="ak-modal-header">
-				<span class="ak-modal-title">Revoke key?</span>
+				<span class="ak-modal-title">{uiText("agentKeys.revokeTitle")}</span>
 			</div>
 			<div class="ak-modal-body">
-				<p>Revoke <strong>{revokeTarget.key.label || '(unnamed)'}</strong>? This cannot be undone — any agent using this key will lose access immediately.</p>
+				<p>{uiText("agentKeys.revokePrefix")}<strong>{revokeTarget.key.label || uiText("agentKeys.unnamed")}</strong>{uiText("agentKeys.revokeSuffix")}</p>
 			</div>
 			<div class="ak-modal-footer">
-				<button class="evc-small-btn" on:click={() => { revokeTarget = null; }}>Cancel</button>
-				<button class="evc-small-btn evc-btn-danger" on:click={confirmRevoke}>Revoke key</button>
+				<button class="evc-small-btn" on:click={() => { revokeTarget = null; }}>{uiText("shared.cancelButton")}</button>
+				<button class="evc-small-btn evc-btn-danger" on:click={confirmRevoke}>{uiText("agentKeys.revokeSubmitButton")}</button>
 			</div>
 		</div>
 	</div>
