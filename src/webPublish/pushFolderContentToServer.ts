@@ -56,7 +56,7 @@ export async function pushFolderContentToServer(
 	for (const item of syncable) {
 		const content = await deps.getDocumentContent(joinFolderPath(folderPath, item.path));
 		if (content === null) continue; // file vanished between listing and read -- skip, not fatal
-		const localSha = await sha256Hex(new TextEncoder().encode(content).buffer as ArrayBuffer);
+		const localSha = await sha256Hex(new TextEncoder().encode(content).buffer);
 		const remoteSha = indexed.get(item.path);
 		if (remoteSha === localSha) continue; // already in sync, don't churn a needless write
 

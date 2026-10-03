@@ -134,7 +134,7 @@ export const collapseStoredHistory = (
 				idb
 					.del(
 						updates,
-						idb.createIDBKeyRangeUpperBound(newKey as number, true),
+						idb.createIDBKeyRangeUpperBound(newKey, true),
 					)
 					.then(() => idb.count(updates))
 					.then((count) => {
@@ -145,10 +145,18 @@ export const collapseStoredHistory = (
 	});
 
 /** Remove a document's database entirely. */
-export const dropStoredDocument = (name: string): Promise<void> =>
-	idb.deleteDB(name) as unknown as Promise<void>;
+export const dropStoredDocument = async (name: string): Promise<void> => {
+	await idb.deleteDB(name);
+};
 
-export class LocalDocumentStore extends Observable<string> {
+// Persistence closes its database asynchronously. Keep the same Observable
+// implementation, but allow teardown to finish asynchronously in subclasses.
+const PersistenceObservable: new () => Omit<Observable<string>, "destroy" | "once"> & {
+	once(name: string, f: (...args: never[]) => void): void;
+	destroy(): void | Promise<void>;
+} = Observable;
+
+export class LocalDocumentStore extends PersistenceObservable {
 	readonly doc: Y.Doc;
 	readonly name: string;
 
@@ -171,6 +179,9 @@ export class LocalDocumentStore extends Observable<string> {
 	private _storeTimeoutId: number | null = null;
 	private readonly _storeDebounceMs = 1000;
 	private readonly _updateHandler: (update: Uint8Array, origin: unknown) => void;
+	private readonly _destroyHandler = (): void => {
+		void this.destroy();
+	};
 
 	constructor(name: string, doc: Y.Doc) {
 		super();
@@ -231,7 +242,7 @@ export class LocalDocumentStore extends Observable<string> {
 		};
 		doc.on("update", this._updateHandler);
 		this.destroy = this.destroy.bind(this);
-		doc.on("destroy", this.destroy);
+		doc.on("destroy", this._destroyHandler);
 	}
 
 	/** Collapse soon, not on every crossing — bursts of edits are normal. */
@@ -253,7 +264,7 @@ export class LocalDocumentStore extends Observable<string> {
 			(f as (...args: unknown[]) => void)(this);
 			return;
 		}
-		super.once(name, f as never);
+		super.once(name, f);
 	}
 
 	destroy(): Promise<void> {
@@ -262,7 +273,7 @@ export class LocalDocumentStore extends Observable<string> {
 			this._storeTimeoutId = null;
 		}
 		this.doc.off("update", this._updateHandler);
-		this.doc.off("destroy", this.destroy);
+		this.doc.off("destroy", this._destroyHandler);
 		this._destroyed = true;
 		return this._dbref.then((db) => {
 			db.close();
@@ -295,7 +306,7 @@ export class LocalDocumentStore extends Observable<string> {
 	async del(key: string | number | ArrayBuffer | Date): Promise<void> {
 		const db = await this._dbref;
 		const [custom] = idb.transact(db, [CUSTOM_STORE]);
-		return idb.del(custom, key) as unknown as Promise<void>;
+		await idb.del(custom, key);
 	}
 
 	/**

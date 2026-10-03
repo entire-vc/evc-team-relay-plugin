@@ -331,7 +331,7 @@ export class SignedOutViewBinding implements ViewBinding {
 
 /** True once `view`'s backing document exists and has text -- i.e. its CRDT
  * model has been created, independent of markdown vs. any other TextFileView. */
-function hasSyncedDocument(view: DocumentViewBinding<TextFileView>): boolean {
+function hasSyncedDocument(view: Pick<DocumentViewBinding<TextFileView>, "boundDocument">): boolean {
 	return view.boundDocument !== undefined && view.boundDocument.content !== undefined;
 }
 
