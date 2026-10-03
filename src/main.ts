@@ -774,6 +774,7 @@ export default class TeamRelayPlugin extends Plugin {
 			);
 			this.inboundFileDownloader = new InboundFileDownloader(
 				this.pluginVault,
+				this.app.fileManager,
 				this.shareClientManager,
 				this.webSyncManager,
 				hashManifestStore,

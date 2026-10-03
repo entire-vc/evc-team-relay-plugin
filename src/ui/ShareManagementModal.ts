@@ -12,6 +12,7 @@ import { RelayOnPremShareClientManager, type ShareWithServer } from "../RelayOnP
 import { FolderPathPickerModal } from "./FolderPathPickerModal";
 import { getDefaultServer, type RelayOnPremServer } from "../RelayOnPremConfig";
 import { confirmDialog, promptDialog } from "./dialogs";
+import { setDestructiveButton } from "./destructiveButton";
 import { withOutboundSyncGuard } from "../WebSyncManager";
 import { collectWebFolderItems, joinFolderPath, resolveShareFolder, toSharePath } from "../vaultRootPath";
 
@@ -409,9 +410,8 @@ export class ShareManagementModal extends Modal {
 							});
 					});
 					setting.addButton((button) => {
-						button
+						setDestructiveButton(button)
 							.setButtonText("Remove")
-							.setWarning()
 							.onClick(() => this.removeMember(member.user_id));
 					});
 				} else {
@@ -499,9 +499,8 @@ export class ShareManagementModal extends Modal {
 				.setName(localFolder.path)
 				.setDesc("Connected and syncing")
 				.addButton((button) => {
-					button
+					setDestructiveButton(button)
 						.setButtonText("Disconnect")
-						.setWarning()
 						.onClick(async () => {
 							const ok = await confirmDialog(
 								this.app,
@@ -609,9 +608,8 @@ export class ShareManagementModal extends Modal {
 			.setName("Delete share")
 			.setDesc("Permanently delete this share and remove all members")
 			.addButton((button) => {
-				button
+				setDestructiveButton(button)
 					.setButtonText("Delete")
-					.setWarning()
 					.onClick(() => this.deleteShare());
 			});
 	}
@@ -1244,9 +1242,8 @@ export class ShareManagementModal extends Modal {
 							.onClick(() => { void this.copyInviteLink(invite); });
 					})
 					.addButton((button) => {
-						button
+						setDestructiveButton(button)
 							.setButtonText("Revoke")
-							.setWarning()
 							.onClick(() => { void this.revokeInvite(invite.id); });
 					});
 
@@ -1299,9 +1296,8 @@ export class ShareManagementModal extends Modal {
 					.setName(key.label || `Key ${key.id.substring(0, 8)}`)
 					.setDesc(desc.join(" • "))
 					.addButton((button) => {
-						button
+						setDestructiveButton(button)
 							.setButtonText("Revoke")
-							.setWarning()
 							.onClick(() => void this.revokeShareAgentKey(key.id));
 					});
 			});
