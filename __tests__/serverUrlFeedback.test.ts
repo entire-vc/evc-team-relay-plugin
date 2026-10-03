@@ -20,7 +20,7 @@ let closeDom: () => void;
 // boundaries are replaced: clicks, bindings, validation and persistence paths
 // run as they do in the settings UI (no source-text assertions).
 beforeAll(async () => {
-	const { JSDOM } = require("jsdom");
+	const { JSDOM } = await import("jsdom");
 	const dom = new JSDOM("<!doctype html><html><body></body></html>");
 	closeDom = () => dom.window.close();
 	Object.assign(globalThis, { window: dom.window, document: dom.window.document, Event: dom.window.Event });
@@ -42,10 +42,10 @@ beforeAll(async () => {
 	const dependencies: Record<string, unknown> = {
 		obsidian: { Notice: notice, Platform },
 		"../platformFetch": { platformFetch: fetch },
-		"../RelayOnPremConfig": require("../src/RelayOnPremConfig"),
-		"../wording/uiText": require("../src/wording/uiText"),
-		"../auth/OAuthCancelledError": require("../src/auth/OAuthCancelledError"),
-		"../inFlightGuard": require("../src/inFlightGuard"),
+		"../RelayOnPremConfig": await import("../src/RelayOnPremConfig"),
+		"../wording/uiText": await import("../src/wording/uiText"),
+		"../auth/OAuthCancelledError": await import("../src/auth/OAuthCancelledError"),
+		"../inFlightGuard": await import("../src/inFlightGuard"),
 		"../ui/RelayOnPremLoginModal": {},
 		"../ui/dialogs": {},
 		"../assets/evc-logo.png": "",
