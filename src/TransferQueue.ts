@@ -723,8 +723,13 @@ export class TransferQueue extends Loggable {
 		// file was modified without an active editor binding) — but see
 		// reconcileRelayContent()/reconcileWithConflictCopy: it never discards
 		// divergent Y.Doc content without preserving it first.
-		if (isRelayOnPrem && !contentsMatch && vaultContents && isDocument(doc)) {
-			await this.reconcileRelayContent(doc, vaultContents);
+		if (isRelayOnPrem && isDocument(doc)) {
+			// Typing can continue while the provider connects. Compare the
+			// current disk and CRDT contents, not the pre-connection snapshots.
+			const currentVaultContents = await this.readVaultContents(doc);
+			if (currentVaultContents && !sameTextContent(doc.content, currentVaultContents)) {
+				await this.reconcileRelayContent(doc, currentVaultContents);
+			}
 		}
 
 		// Record what this client now believes it agrees with the relay on --
@@ -1022,12 +1027,15 @@ export class TransferQueue extends Loggable {
 			// inserts. See initContentClaim.ts for the mechanism.
 			claimInitIfUnclaimed(doc.crdtDoc, doc._liveProvider.awareness);
 			await awaitClaimSettled(doc.crdtDoc, { socket: doc._liveProvider.ws });
+			// The claim also yields to concurrent edits. Seed the latest file,
+			// and check ownership after the read in case a peer inserted meanwhile.
+			const currentVaultContents = await this.readVaultContents(doc);
 			const text = doc.crdtDoc.getText("contents");
-			if (wonInitClaim(doc.crdtDoc, text)) {
+			if (currentVaultContents && wonInitClaim(doc.crdtDoc, text)) {
 				this.log(
-					`[uploadDocumentViaSocket] Uploading new content for ${doc.entryPath} (${vaultContents.length} chars)`,
+					`[uploadDocumentViaSocket] Uploading new content for ${doc.entryPath} (${currentVaultContents.length} chars)`,
 				);
-				text.insert(0, vaultContents);
+				text.insert(0, currentVaultContents);
 				markInitDone(doc.crdtDoc);
 			} else if (text.length === 0) {
 				this.warn(

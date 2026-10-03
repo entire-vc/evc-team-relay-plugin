@@ -65,6 +65,9 @@ def state(client, guid, note):
             metadata: s.crdtDoc.getMap('filemeta_v0').toJSON(),
             children: children.map(d => ({guid: d.entityGuid, text: d.content})),
             disk: await app.vault.adapter.exists(path) ? await app.vault.adapter.read(path) : null,
+            conflictCopies: app.vault.getFiles().filter(f =>
+                f.path.startsWith(path.slice(0, -3) + ' (relay conflict ') && f.path.endsWith('.md')
+            ).map(f => ({path: f.path, bytes: f.stat.size})),
         };
     })(""" + json.dumps(guid) + "," + json.dumps(note) + ")")
 
@@ -93,27 +96,39 @@ def run(args):
             }
         })(""" + ",".join(json.dumps(value) for value in [args.guid, args.note, text]) + ")")
         arrived = False
+        settled = False
+        first_arrival = None
         writer, reader = state(a, args.guid, args.note), state(b, args.guid, args.note)
         while time.monotonic() - start < args.timeout:
             writer, reader = state(a, args.guid, args.note), state(b, args.guid, args.note)
             arrived = (
                 writer["disk"] == text and reader["disk"] == text
+                and any(d["text"] == text and d["guid"] == writer["metadata"].get(args.note, {}).get("id") for d in writer["children"])
                 and any(d["text"] == text and d["guid"] == reader["metadata"].get(args.note, {}).get("id") for d in reader["children"])
                 and writer["metadata"].get(args.note, {}).get("id") == reader["metadata"].get(args.note, {}).get("id")
             )
-            if arrived:
+            if arrived and first_arrival is None:
+                first_arrival = time.monotonic()
+            if not arrived:
+                first_arrival = None
+            if arrived and time.monotonic() - first_arrival >= args.settle_seconds:
+                settled = True
                 break
             time.sleep(0.25)
         proof = {
             "version": args.version, "same_guid": writer["guid"] == reader["guid"],
             "local_folders": [writer["path"], reader["path"]],
             "otherTypes": [writer["otherTypes"], reader["otherTypes"]],
-            "arrived": arrived, "seconds": round(time.monotonic() - start, 2),
+            "arrived": arrived, "settled": settled, "seconds": round(time.monotonic() - start, 2),
             "writer": writer, "reader": reader,
             "expected_sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "no_conflict_copies": not (writer["conflictCopies"] or reader["conflictCopies"]),
         }
         print(json.dumps(proof, ensure_ascii=False, indent=2))
         require(arrived, "Note content was not published and received before the deadline")
+        require(settled, "Note content did not remain stable for the requested settle window")
+        if args.no_conflict_copies:
+            require(proof["no_conflict_copies"], "Rapid edits created a conflict copy")
     finally:
         a.close()
         if b is not None:
@@ -128,10 +143,14 @@ if __name__ == "__main__":
     parser.add_argument("--version", required=True)
     parser.add_argument("--note", required=True)
     parser.add_argument("--timeout", type=float, default=45)
+    parser.add_argument("--no-conflict-copies", action="store_true", help="Fail if rapid edits produce a conflict copy")
+    parser.add_argument("--settle-seconds", type=float, default=0, help="Observe stable final content before accepting it")
     options = parser.parse_args()
     uuid.UUID(options.guid)
     if not options.note.endswith('.md') or '/' in options.note or '\\' in options.note:
         parser.error("Use a Markdown filename without directory separators")
     if options.timeout <= 0:
         parser.error("Timeout must be positive")
+    if not 0 <= options.settle_seconds < options.timeout:
+        parser.error("Settle window must be nonnegative and shorter than the timeout")
     run(options)

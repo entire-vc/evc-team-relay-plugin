@@ -299,11 +299,22 @@ python3 scripts/check-note-bootstrap.py \
 
 The check creates an empty Markdown file via the real Vault API, writes four
 successive edits, and waits up to 45 seconds. Success requires the writer's and
-receiver's disk content to match, the receiver's child CRDT to contain that same
+receiver's disk content to match, both child CRDTs to contain that same
 text, and both parent metadata maps to name that child GUID. No repair command
 or direct upload is invoked. It prints parent claims, metadata, child content,
 and a SHA256 of the expected text; failure exits nonzero. Use a fresh note name
 for each run: existing files are never overwritten.
+
+To check rapid-edit conflict copies as well as delivery, add
+`--no-conflict-copies --settle-seconds 5`. The driver inspects both vaults for
+the new note's ` (relay conflict ...)` files and requires the final text to
+remain stable for five seconds. Both disks and the receiver CRDT can converge
+even when an intermediate edit has been saved as a conflict copy; this mode
+rejects that result. The JSON includes each copy's path and byte count.
+Use a new note name on the affected and fixed builds and keep the other
+arguments identical. This check exercises the real `VaultShare.publishDoc`
+and transfer queue, including the connection and initial-content claim waits;
+it does not replace them with test implementations.
 
 Run the identical command against an affected build as the negative control.
 The hermetic companion regression is the pending-local-edit case in

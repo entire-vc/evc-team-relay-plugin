@@ -2224,10 +2224,16 @@ export class VaultShare extends ProviderBacked {
 				awaitingUpdatesPromise,
 			]);
 			if (!hasPendingUpdates && origin === undefined) {
-				this.log(`[${item.entryPath}] No Known Peers: Syncing file into ytext.`);
-				void this.crdtDoc.transact(() => {
-					seed(item, contents);
-				}, this._localDb);
+				// Relay documents are initialized by the transfer queue after
+				// connecting and settling the init claim. Seeding here races
+				// that upload: its earlier disk snapshot can mistake our own
+				// intermediate text for a remote conflict before a sync base exists.
+				if (!this.workspaceId || !isDocument(item)) {
+					this.log(`[${item.entryPath}] No Known Peers: Syncing file into ytext.`);
+					void this.crdtDoc.transact(() => {
+						seed(item, contents);
+					}, this._localDb);
+				}
 				void (isDocument(item) ? item.markSyncOrigin("local") : item.markSyncOrigin("local"));
 				this.log(`[${item.entryPath}] Uploading file`);
 				await this.transfers.enqueueUpload(item);
