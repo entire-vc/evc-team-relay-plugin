@@ -43,8 +43,11 @@ import { RelayOnPremAuthProvider } from "../../src/auth/RelayOnPremAuthProvider"
 import { RelayOnPremShareClient } from "../../src/RelayOnPremShareClient";
 import { SystemClock } from "../../src/Clock";
 import { ResourceAddress, RemoteDocumentAddress } from "../../src/ResourceAddress";
-import { Account } from "../../src/Account";
-import type { AuthSession } from "../../src/AuthSession";
+import { AuthSession, type AuthSettings } from "../../src/AuthSession";
+import { Settings, SettingsScope } from "../../src/SettingsPersistence";
+import { TenantRegistry, type TenantSettings } from "../../src/TenantRegistry";
+import type { RelayOnPremSettings } from "../../src/RelayOnPremConfig";
+import type { IAuthProvider } from "../../src/auth/IAuthProvider";
 import type { DocumentGrant } from "../../src/relay/TokenShapes";
 
 // ---------------------------------------------------------------------------
@@ -56,9 +59,10 @@ const RELAY_SERVER = process.env.LIVE_RELAY_SERVER ?? "http://localhost:58081";
 const ADMIN_EMAIL = process.env.LIVE_ADMIN_EMAIL ?? "admin@example.com";
 const ADMIN_PASSWORD = process.env.LIVE_ADMIN_PASSWORD ?? "super-secret-pass";
 
-/** Relay id used by main.ts for every relay-onprem VaultShare (see main.ts:1128). */
+/** Relay id used by main.ts for every relay-onprem VaultShare. */
 const RELAY_ID = "relay-onprem";
-const YTEXT_KEY = "contents"; // Document.ts:219 — ydoc.getText("contents")
+const SERVER_ID = "live-harness-server";
+const YTEXT_KEY = "contents"; // Shared text key used by Document.ts.
 
 const gate = process.env.LIVE_RELAY === "1" ? describe : describe.skip;
 
@@ -153,11 +157,13 @@ async function waitFor(
 // ---------------------------------------------------------------------------
 
 gate("LIVE relay integration", () => {
-	let authProvider: RelayOnPremAuthProvider;
+	let authProvider: IAuthProvider;
 	let shareClient: RelayOnPremShareClient;
 	let tokenProvider: RelayOnPremTokenProvider;
 	let tokenStore: RelayCredentialCache;
-	let loginManagerStandIn: AuthSession;
+	let authSession: AuthSession;
+	let loginSettings: SettingsScope<AuthSettings>;
+	let tenantSettings: SettingsScope<TenantSettings>;
 
 	let shareId: string;
 	let sharePath: string;
@@ -172,9 +178,10 @@ gate("LIVE relay integration", () => {
 			docId,
 			new RemoteDocumentAddress(RELAY_ID, shareId, docId),
 			tokenStore,
-			loginManagerStandIn,
+			authSession,
+			SERVER_ID,
 		);
-		hp.path = name;
+		hp.entryPath = `${sharePath}/${name}.md`;
 		openProviders.push(hp);
 		return hp;
 	}
@@ -184,32 +191,51 @@ gate("LIVE relay integration", () => {
 
 		const stamp = Date.now();
 
-		// --- REAL login against the control plane -------------------------
-		authProvider = new RelayOnPremAuthProvider({
-			controlPlaneUrl: CONTROL_PLANE,
-			appId: `live-harness-${stamp}`,
-			serverId: "live-harness-server",
-		});
-		const auth = await authProvider.loginWithPassword(ADMIN_EMAIL, ADMIN_PASSWORD);
-
-		// ProviderBacked reads exactly one thing off AuthSession: `.currentUser`, used to
-		// seed the awareness state (ProviderBacked.ts:seedAwareness). The onprem
-		// token path never touches AuthSession at all — RelayCredentialCache passes it
-		// to universalRefresh, whose relay-onprem branch ignores it
-		// (RelayCredentialRefresh.ts:refreshRelayOnPrem). Constructing the real
-		// AuthSession would drag in TenantRegistry + SettingsScope + the
-		// PocketBase adapter, none of which participate here. So: a real `Account`,
-		// built from the real authenticated identity, behind the one property
-		// that is read.
-		loginManagerStandIn = {
-			currentUser: new Account(
-				auth.user.id,
-				auth.user.name ?? auth.user.email,
-				auth.user.email,
-				"",
-				auth.token.token,
-			),
-		} as unknown as AuthSession;
+		// Mock: external boundary — Obsidian's plugin data file only. The
+		// settings scopes, per-server auth manager and session remain real.
+		const settings = new Settings<Record<string, unknown>>(
+			{
+				loadData: async () => null,
+				saveData: async () => undefined,
+			},
+			{ login: { provider: undefined }, tenants: {} },
+		);
+		await settings.hydrate();
+		loginSettings = new SettingsScope<AuthSettings>(settings, "login");
+		tenantSettings = new SettingsScope<TenantSettings>(settings, "tenants");
+		const serverSettings: RelayOnPremSettings = {
+			enabled: true,
+			defaultServerId: SERVER_ID,
+			servers: [
+				{
+					id: SERVER_ID,
+					name: "Live harness",
+					controlPlaneUrl: CONTROL_PLANE,
+					isValidated: true,
+				},
+			],
+		};
+		authSession = new AuthSession(
+			`live-harness-${stamp}`,
+			async () => undefined,
+			new SystemClock(),
+			() => undefined,
+			loginSettings,
+			new TenantRegistry(tenantSettings),
+			serverSettings,
+		);
+		await authSession.waitForRestore();
+		expect(
+			await authSession.loginToServer(SERVER_ID, ADMIN_EMAIL, ADMIN_PASSWORD),
+		).toBe(true);
+		const provider = authSession.getAuthProviderForServer(SERVER_ID);
+		if (!(provider instanceof RelayOnPremAuthProvider)) {
+			throw new Error("Live server auth provider was not configured");
+		}
+		authProvider = provider;
+		expect(authSession.getCurrentUserForServer(SERVER_ID)?.emailAddress).toBe(
+			ADMIN_EMAIL,
+		);
 
 		// --- REAL share creation through the plugin's own client ----------
 		shareClient = new RelayOnPremShareClient(CONTROL_PLANE, () =>
@@ -229,11 +255,13 @@ gate("LIVE relay integration", () => {
 			authProvider,
 		});
 		tokenStore = new RelayCredentialCache(
-			loginManagerStandIn,
+			authSession,
 			new SystemClock(),
 			`live-harness-${stamp}`,
 			5,
-			tokenProvider,
+			new Map([[SERVER_ID, tokenProvider]]),
+			undefined,
+			SERVER_ID,
 		);
 		tokenStore.startSweeping();
 
@@ -258,7 +286,10 @@ gate("LIVE relay integration", () => {
 		}
 		try {
 			tokenStore?.destroy();
-			tokenProvider?.destroy();
+			await authSession?.logoutFromAllServers();
+			authSession?.shutdown();
+			loginSettings?.destroy();
+			tenantSettings?.destroy();
 		} catch {
 			/* teardown best-effort */
 		}
@@ -310,11 +341,11 @@ gate("LIVE relay integration", () => {
 			const connected = await client.bringOnline();
 			expect(connected).toBe(true);
 
-			await waitFor(() => client.connected, 15_000, "step1 websocket connect");
-			expect(client.connected).toBe(true);
+			await waitFor(() => client.isOnline, 15_000, "step1 websocket connect");
+			expect(client.isOnline).toBe(true);
 
-			await client.onceProviderSynced();
-			expect(client.synced).toBe(true);
+			await client.onceEverSynced();
+			expect(client.isSynced).toBe(true);
 		});
 	});
 
@@ -381,40 +412,40 @@ gate("LIVE relay integration", () => {
 
 			expect(await clientA.bringOnline()).toBe(true);
 			expect(await clientB.bringOnline()).toBe(true);
-			await clientA.onceProviderSynced();
-			await clientB.onceProviderSynced();
+			await clientA.onceEverSynced();
+			await clientB.onceEverSynced();
 
 			// Independent Y.Docs — no shared memory, no broadcast channel
 			// (ProviderBacked builds providers with disableBc: true), so the only
 			// path from A to B is the relay server.
-			expect(clientA.ydoc).not.toBe(clientB.ydoc);
+			expect(clientA.crdtDoc).not.toBe(clientB.crdtDoc);
 
-			clientA.ydoc.getText(YTEXT_KEY).insert(0, MARKER);
+			clientA.crdtDoc.getText(YTEXT_KEY).insert(0, MARKER);
 
 			await waitForText(
-				() => clientB.ydoc.getText(YTEXT_KEY).toString(),
+				() => clientB.crdtDoc.getText(YTEXT_KEY).toString(),
 				MARKER,
 				20_000,
 				"A->B convergence",
 			);
 
 			// Assert on content, not on connection state.
-			expect(clientB.ydoc.getText(YTEXT_KEY).toString()).toBe(MARKER);
-			expect(clientA.ydoc.getText(YTEXT_KEY).toString()).toBe(MARKER);
+			expect(clientB.crdtDoc.getText(YTEXT_KEY).toString()).toBe(MARKER);
+			expect(clientA.crdtDoc.getText(YTEXT_KEY).toString()).toBe(MARKER);
 		}, 60_000);
 
 		test("and back: B's edit reaches A", async () => {
 			const suffix = "-plus-beta";
-			const textB = clientB.ydoc.getText(YTEXT_KEY);
+			const textB = clientB.crdtDoc.getText(YTEXT_KEY);
 			textB.insert(textB.length, suffix);
 
 			await waitForText(
-				() => clientA.ydoc.getText(YTEXT_KEY).toString(),
+				() => clientA.crdtDoc.getText(YTEXT_KEY).toString(),
 				MARKER + suffix,
 				20_000,
 				"B->A convergence",
 			);
-			expect(clientA.ydoc.getText(YTEXT_KEY).toString()).toBe(MARKER + suffix);
+			expect(clientA.crdtDoc.getText(YTEXT_KEY).toString()).toBe(MARKER + suffix);
 		}, 40_000);
 
 		// -----------------------------------------------------------------
@@ -424,7 +455,7 @@ gate("LIVE relay integration", () => {
 			const wrong = `${MARKER}-THIS-WAS-NEVER-WRITTEN`;
 			await expect(
 				waitForText(
-					() => clientB.ydoc.getText(YTEXT_KEY).toString(),
+					() => clientB.crdtDoc.getText(YTEXT_KEY).toString(),
 					wrong,
 					3_000,
 					"deliberate-mismatch",
@@ -450,20 +481,20 @@ gate("LIVE relay integration", () => {
 			// --- write, and prove the server has it -------------------------
 			const writer = newClient("clientD-writer");
 			await writer.bringOnline();
-			await writer.onceProviderSynced();
-			const wText = writer.ydoc.getText(YTEXT_KEY);
+			await writer.onceEverSynced();
+			const wText = writer.crdtDoc.getText(YTEXT_KEY);
 			wText.insert(wText.length, RESTART_MARKER);
 
 			const witness = newClient("clientE-witness");
 			await witness.bringOnline();
-			await witness.onceProviderSynced();
+			await witness.onceEverSynced();
 			await waitForText(
-				() => witness.ydoc.getText(YTEXT_KEY).toString(),
-				writer.ydoc.getText(YTEXT_KEY).toString(),
+				() => witness.crdtDoc.getText(YTEXT_KEY).toString(),
+				writer.crdtDoc.getText(YTEXT_KEY).toString(),
 				20_000,
 				"writer->witness (server holds the marker)",
 			);
-			const expectedText = witness.ydoc.getText(YTEXT_KEY).toString();
+			const expectedText = witness.crdtDoc.getText(YTEXT_KEY).toString();
 			expect(expectedText).toContain(RESTART_MARKER);
 
 			// --- both clients go away ---------------------------------------
@@ -475,7 +506,7 @@ gate("LIVE relay integration", () => {
 			const reconnected = newClient("clientF-after-restart");
 
 			// Pre-connect: nothing loaded yet.
-			expect(reconnected.ydoc.getText(YTEXT_KEY).toString()).toBe("");
+			expect(reconnected.crdtDoc.getText(YTEXT_KEY).toString()).toBe("");
 
 			await reconnected.bringOnline();
 
@@ -485,20 +516,20 @@ gate("LIVE relay integration", () => {
 			// with no wait: it observes an EMPTY document even though the server
 			// holds content, which is how a populated file got re-seeded from the
 			// vault and doubled.
-			const textBeforeSync = reconnected.ydoc.getText(YTEXT_KEY).toString();
-			expect(reconnected.synced).toBe(false);
+			const textBeforeSync = reconnected.crdtDoc.getText(YTEXT_KEY).toString();
+			expect(reconnected.isSynced).toBe(false);
 			expect(textBeforeSync).toBe("");
 
 			// The fix's ordering: wait for sync FIRST, then read.
-			await reconnected.onceProviderSynced();
+			await reconnected.onceEverSynced();
 			await waitForText(
-				() => reconnected.ydoc.getText(YTEXT_KEY).toString(),
+				() => reconnected.crdtDoc.getText(YTEXT_KEY).toString(),
 				expectedText,
 				20_000,
 				"post-restart content arrival",
 			);
 
-			const textAfterSync = reconnected.ydoc.getText(YTEXT_KEY).toString();
+			const textAfterSync = reconnected.crdtDoc.getText(YTEXT_KEY).toString();
 			expect(textAfterSync).toBe(expectedText);
 			expect(textAfterSync).toContain(RESTART_MARKER);
 
@@ -521,10 +552,7 @@ gate("LIVE relay integration", () => {
 		 * the termination line for THIS doc id. Set LIVE_SKIP_EVICTION=1 to skip
 		 * where the relay's logs are not reachable by that command.
 		 */
-		test("content is re-hydrated from object storage after the relay evicts the doc", async () => {
-			if (process.env.LIVE_SKIP_EVICTION === "1") {
-				return;
-			}
+		(process.env.LIVE_SKIP_EVICTION === "1" ? test.skip : test)("content is re-hydrated from object storage after the relay evicts the doc", async () => {
 			const DURABILITY_MARKER = `durability-marker-${Date.now()}`;
 			const evictDocId = crypto.randomUUID();
 			const evictS3rn = new RemoteDocumentAddress(RELAY_ID, shareId, evictDocId);
@@ -534,23 +562,24 @@ gate("LIVE relay integration", () => {
 					evictDocId,
 					evictS3rn,
 					tokenStore,
-					loginManagerStandIn,
+					authSession,
+					SERVER_ID,
 				);
-				hp.path = label;
+				hp.entryPath = `${sharePath}/${label}.md`;
 				openProviders.push(hp);
 				return hp;
 			};
 
 			const writer = makeClient("evict-writer");
 			await writer.bringOnline();
-			await writer.onceProviderSynced();
-			writer.ydoc.getText(YTEXT_KEY).insert(0, DURABILITY_MARKER);
+			await writer.onceEverSynced();
+			writer.crdtDoc.getText(YTEXT_KEY).insert(0, DURABILITY_MARKER);
 
 			const witness = makeClient("evict-witness");
 			await witness.bringOnline();
-			await witness.onceProviderSynced();
+			await witness.onceEverSynced();
 			await waitForText(
-				() => witness.ydoc.getText(YTEXT_KEY).toString(),
+				() => witness.crdtDoc.getText(YTEXT_KEY).toString(),
 				DURABILITY_MARKER,
 				20_000,
 				"evict-writer->witness",
@@ -570,14 +599,14 @@ gate("LIVE relay integration", () => {
 
 			const afterEviction = makeClient("evict-reader");
 			await afterEviction.bringOnline();
-			await afterEviction.onceProviderSynced();
+			await afterEviction.onceEverSynced();
 			await waitForText(
-				() => afterEviction.ydoc.getText(YTEXT_KEY).toString(),
+				() => afterEviction.crdtDoc.getText(YTEXT_KEY).toString(),
 				DURABILITY_MARKER,
 				20_000,
 				"post-eviction re-hydration from object storage",
 			);
-			expect(afterEviction.ydoc.getText(YTEXT_KEY).toString()).toBe(
+			expect(afterEviction.crdtDoc.getText(YTEXT_KEY).toString()).toBe(
 				DURABILITY_MARKER,
 			);
 
