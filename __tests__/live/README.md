@@ -4,18 +4,24 @@ Runs the rewritten sync core against a **real** relay stack — no mocked relay,
 no mocked websocket, no mocked tokens, no mocked HTTP.
 
 ```bash
-LIVE_RELAY=1 npx jest --config jest.live.config.js
+BASE=~/trlive-base/infra
+LIVE_RELAY=1 \
+LIVE_RELAY_LOG_CMD="docker compose -p trlive-check -f \"$BASE/docker-compose.yml\" -f \"$PWD/__tests__/live/docker-compose.live.yml\" logs relay-server --since 5m" \
+  npx jest --config jest.live.config.js --runInBand --runTestsByPath __tests__/live/relayLive.test.ts
 ```
 
 It is **excluded from `npm test`** (`jest.config.js` ignores `__tests__/live/`),
-so the hermetic suite stays at its 40-suite / 453-test baseline and never depends
-on a server being up.
+so the hermetic suite never depends on a server being up.
+
+The full run contains **10 tests**. Do not set `LIVE_SKIP_EVICTION` for the full
+acceptance run: with it set to `1`, Jest reports the durability test as skipped.
 
 ## What it covers
 
 | Step | Covered | How |
 |---|---|---|
-| 1. Token chain | yes | real password login → real `POST /tokens/relay` → relay-server accepts the CWT on a real websocket |
+| 1. Token chain | yes | real per-server `AuthSession` login → real `POST /tokens/relay` → relay-server accepts the CWT on a real websocket |
+| Negative controls | yes | a tampered token is rejected while a genuine token connects; the content waiter rejects a deliberately wrong expectation |
 | 2. Two-client convergence | yes | two independent `Y.Doc`s through `ProviderBacked` → `client/provider.ts`, asserted on **text content** both directions |
 | 3. Persistence across reconnect | yes | writer + witness prove the server holds the text, both disconnect, a fresh client re-reads it; asserts the pre-sync read is empty and the post-sync read is not |
 | 3b. Durability past server eviction | yes | all clients leave, the relay's own log is polled until it reports `Terminating loop for <doc>`, then a new client re-reads the text — served from MinIO, not a warm room |
@@ -98,7 +104,7 @@ repository's root, with `BASE` pointing at the checkout's `infra/` directory:
 
 ```bash
 BASE=~/trlive-base/infra
-docker compose -p trlive \
+docker compose -p trlive-check \
   -f "$BASE/docker-compose.yml" \
   -f __tests__/live/docker-compose.live.yml \
   up -d --build
@@ -110,13 +116,58 @@ code — an error page can be a 200:
 ```bash
 curl -s http://localhost:58080/health          # {"ok":true}
 curl -s http://localhost:58080/health/ready    # database-checked readiness
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:58081/ready   # relay-server: 200
+curl -s http://localhost:58081/ready          # relay-server: {"ok":true}
 ```
+
+Run all ten tests from this repository's root, and point the eviction log reader
+at the **same project and compose files**:
+
+```bash
+BASE=~/trlive-base/infra
+LIVE_RELAY=1 \
+LIVE_RELAY_LOG_CMD="docker compose -p trlive-check -f \"$BASE/docker-compose.yml\" -f \"$PWD/__tests__/live/docker-compose.live.yml\" logs relay-server --since 5m" \
+  npx jest --config jest.live.config.js --runInBand --runTestsByPath __tests__/live/relayLive.test.ts
+```
+
+Expect `10 passed, 10 total` with no skips. A missing/wrong log command is an
+error, not proof of durability. The table above describes this full run.
+
+### Audience negative control
+
+On this disposable stack, change only the control-plane audience, leaving
+`relay.toml` unchanged:
+
+```bash
+cat > "$BASE/live-wrong-audience.yml" <<'YAML'
+services:
+  control-plane:
+    environment:
+      RELAY_AUDIENCE: "https://wrong-audience.example"
+YAML
+docker compose -p trlive-check -f "$BASE/docker-compose.yml" \
+  -f __tests__/live/docker-compose.live.yml -f "$BASE/live-wrong-audience.yml" \
+  up -d --wait --wait-timeout 120 control-plane
+LIVE_RELAY=1 npx jest --config jest.live.config.js --runInBand \
+  --runTestsByPath __tests__/live/relayLive.test.ts --testNamePattern 'relay-server ACCEPTS'
+```
+
+The selected connection test must **fail**, and the relay-server log must name
+`CWT audience validation failed`. A successful login or token mint alone does
+not prove relay acceptance. Restore the correct audience by recreating the
+control-plane with the original two-file configuration:
+
+```bash
+docker compose -p trlive-check -f "$BASE/docker-compose.yml" \
+  -f __tests__/live/docker-compose.live.yml \
+  up -d --wait --wait-timeout 120 control-plane
+```
+
+Then rerun the full ten-test command above and require it to pass again.
 
 Stop it and delete its state:
 
 ```bash
-docker compose -p trlive -f "$BASE/docker-compose.yml" -f __tests__/live/docker-compose.live.yml down -v
+docker compose -p trlive-check -f "$BASE/docker-compose.yml" -f __tests__/live/docker-compose.live.yml down -v
 ```
 
 Always pass **both** `-f` files, and use the same pair every time. Recreating a
@@ -138,7 +189,10 @@ would start the test build.
 
 ## Environment
 
-Defaults match the local docker stack above (`docker compose -p trlive`):
+The HTTP endpoints and bootstrap admin defaults match the local Docker stack
+above. The relay-log default still targets the legacy `trlive` project: every
+full run on `trlive-check` **must override `LIVE_RELAY_LOG_CMD` with both compose
+files**, as shown in the full-run commands.
 
 | var | default |
 |---|---|
@@ -149,6 +203,9 @@ Defaults match the local docker stack above (`docker compose -p trlive`):
 | `LIVE_ADMIN_PASSWORD` | `super-secret-pass` |
 | `LIVE_RELAY_LOG_CMD` | `docker compose -p trlive logs relay-server --since 5m` |
 | `LIVE_SKIP_EVICTION` | unset; `1` skips the ~40s durability test |
+
+Override `LIVE_RELAY_LOG_CMD` for `trlive-check` using both compose files, as
+shown in the full-run command above.
 
 The suite fails loudly in `beforeAll` if either service is not answering, rather
 than producing a confusing mid-test websocket error.
@@ -188,19 +245,23 @@ at a host that does not resolve. Even without the shipped value, leaving
 Only `obsidian` — mapped by `jest.live.config.js` to `__tests__/live/obsidianLive.ts`.
 That module re-exports the shared unit-test mock for the inert bits (`TFile`,
 `Notice`, `debounce`, …) and implements `requestUrl` over Node's real `fetch`, so
-`src/customFetch.ts` and everything above it issue genuine HTTP.
+`src/platformFetch.ts` and everything above it issue genuine HTTP.
 
 The Obsidian app API is a true external boundary per the repo's mocking
 convention; the relay, the tokens and the CRDT traffic are not, and none of them
 are stubbed here.
 
-`ProviderBacked` also takes a `AuthSession`. The harness passes an object carrying
-a real `Account` built from the real authenticated identity, because `.user` (for
-awareness seeding) is the only member `ProviderBacked` reads, and the relay-onprem
-token path ignores `AuthSession` entirely
-(`RelayCredentialRefresh.refreshRelayOnPrem`). Constructing the real
-`AuthSession` would pull in `TenantRegistry`, `SettingsScope` and the
-PocketBase adapter, none of which participate in this path.
+`ProviderBacked` receives a real `AuthSession` configured with one local server.
+The suite logs in through that server's real auth provider and supplies the same
+server ID to `ProviderBacked` and the `RelayCredentialCache` provider map. It
+uses the current `crdtDoc`, `entryPath`, `isOnline`, `isSynced` and
+`onceEverSynced()` APIs. No auth-session or credential-cache behavior is stubbed.
+
+The only additional adapter is the Obsidian plugin-data-file boundary: an
+in-memory `loadData`/`saveData` backend for real `Settings`/`SettingsScope` objects.
+The single-server run verifies the current multi-server API wiring; it does not
+claim isolation between two different servers, awareness/cursor rendering,
+attachment transfer or folder-level `VaultShare` coverage.
 
 ## Why step 4 stops where it does
 
