@@ -277,7 +277,7 @@ export class LocalDocumentStore extends PersistenceObservable {
 		this._destroyed = true;
 		return this._dbref.then((db) => {
 			db.close();
-			super.destroy();
+			return super.destroy();
 		});
 	}
 
