@@ -1,6 +1,6 @@
 {
   "name": "evc-team-relay",
-  "version": "0.0.25",
+  "version": "0.0.26",
   "description": "Enterprise collaboration with self-hosted relay infrastructure for Obsidian.",
   "main": "main.js",
   "scripts": {
@@ -12,6 +12,7 @@
     "version": "node version-bump.mjs && git add manifest.json manifest-beta.json versions.json",
     "test": "jest",
     "lint": "npx eslint src/",
+    "lint:obsidian-api": "eslint src/ --parser-options '{\"project\":\"./tsconfig.json\"}' --rule 'obsidianmd/no-unsupported-api:error' --rule '@typescript-eslint/no-floating-promises:error' --rule 'obsidianmd/prefer-create-el:error'",
     "typecheck:svelte": "bash scripts/check-svelte-types.sh",
     "typecheck:tests": "bash scripts/check-tests-types.sh",
     "check:svelte-events": "bash scripts/check-svelte-events.sh"

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.26
+- Fixed: destructive buttons remain compatible with Obsidian 1.8.7 without relying on a newer API.
+
 ## 0.0.25
 - Fixed: creating a note and editing it quickly no longer produces a conflict copy of your own intermediate text. Independent edits from different devices still preserve both versions.
 - Fixed: agent key settings, dialogs, and notifications now follow the Russian interface language.
