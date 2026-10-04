@@ -77,7 +77,7 @@ export class RelayOnPremLoginModal extends Modal {
 		// Email field
 		const emailGroup = form.createDiv({ cls: "setting-item" });
 		emailGroup.createDiv({ cls: "setting-item-info" })
-			.createEl("div", { text: uiText("connect.login.emailLabel"), cls: "setting-item-name" });
+			.createDiv({ text: uiText("connect.login.emailLabel"), cls: "setting-item-name" });
 		const emailControl = emailGroup.createDiv({ cls: "setting-item-control" });
 		this.emailInput = emailControl.createEl("input", {
 			type: "email",
@@ -89,7 +89,7 @@ export class RelayOnPremLoginModal extends Modal {
 		// Password field
 		const passwordGroup = form.createDiv({ cls: "setting-item" });
 		passwordGroup.createDiv({ cls: "setting-item-info" })
-			.createEl("div", { text: uiText("shared.passwordLabel"), cls: "setting-item-name" });
+			.createDiv({ text: uiText("shared.passwordLabel"), cls: "setting-item-name" });
 		const passwordControl = passwordGroup.createDiv({ cls: "setting-item-control" });
 		this.passwordInput = passwordControl.createEl("input", {
 			type: "password",

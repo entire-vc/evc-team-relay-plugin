@@ -245,6 +245,7 @@ lint:
   <<: *node_job
   script:
     - npm run lint
+    - npm run lint:obsidian-api
 
 test:
   <<: *node_job
