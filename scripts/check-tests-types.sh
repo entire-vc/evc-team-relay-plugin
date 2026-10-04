@@ -57,6 +57,9 @@ if [[ "$SELFTEST" == "1" ]]; then
   mkdir -p "$WORK/probe"
   cp -R "$REPO_ROOT/src" "$WORK/probe/src"
   cp -R "$REPO_ROOT/__tests__" "$WORK/probe/__tests__"
+  # Test imports must resolve in the isolated probe as in the real checkout.
+  mkdir -p "$WORK/probe/scripts"
+  cp -R "$REPO_ROOT/scripts/test" "$WORK/probe/scripts/test"
   cp "$REPO_ROOT/tsconfig.json" "$REPO_ROOT/tsconfig.tests.json" "$WORK/probe/"
   ln -s "$REPO_ROOT/node_modules" "$WORK/probe/node_modules"
   TARGET="$WORK/probe/__tests__/crdtBackgroundSyncPoller.test.ts"

@@ -5,6 +5,10 @@ const { JSDOM } = require("jsdom");
 
 // Run native imports outside Jest's CJS VM: svelte-preprocess loads its
 // processors dynamically. The compiler and preprocess match production.
+/**
+ * The VM exports the compiled component and the flushSync re-export above.
+ * @returns {{ dom: import("jsdom").JSDOM, default: typeof import("svelte").SvelteComponent, flushSync: typeof import("svelte").flushSync }}
+ */
 function loadSvelteComponent(filename, dependencies = {}, withCompatibility = true) {
 	const root = path.resolve(__dirname, "../..");
 	const bundle = execFileSync(process.execPath, ["--input-type=module", "-e", `
