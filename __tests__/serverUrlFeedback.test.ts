@@ -1,10 +1,6 @@
 /** @jest-environment node */
-import fs from "node:fs";
 import path from "node:path";
-import { compile, preprocess } from "svelte/compiler";
 import type { SvelteComponent } from "svelte";
-import { transpileModule, ModuleKind, ScriptTarget } from "typescript";
-import { buildSync } from "esbuild";
 import { getLanguage, Platform } from "obsidian";
 import type { RelayOnPremServer } from "../src/RelayOnPremConfig";
 
@@ -12,6 +8,8 @@ const notice = jest.fn();
 const fetch = jest.fn();
 const addServer = jest.fn();
 const mutateValue = jest.fn();
+const { loadSvelteComponent } = require("../scripts/test/svelteDOM.cjs");
+
 let Component: typeof SvelteComponent;
 let component: SvelteComponent;
 let closeDom: () => void;
@@ -20,25 +18,6 @@ let closeDom: () => void;
 // boundaries are replaced: clicks, bindings, validation and persistence paths
 // run as they do in the settings UI (no source-text assertions).
 beforeAll(async () => {
-	const { JSDOM } = await import("jsdom");
-	const dom = new JSDOM("<!doctype html><html><body></body></html>");
-	closeDom = () => dom.window.close();
-	Object.assign(globalThis, { window: dom.window, document: dom.window.document, Event: dom.window.Event });
-	const filename = path.resolve(__dirname, "../src/components/RelayOnPremServerList.svelte");
-	const source = await preprocess(fs.readFileSync(filename, "utf8"), {
-		script: ({ content }) => ({ code: transpileModule(content, {
-			compilerOptions: { module: ModuleKind.ESNext, target: ScriptTarget.ES2020, verbatimModuleSyntax: true },
-		}).outputText }),
-	}, { filename });
-	const { js } = compile(source.code, { filename, generate: "dom" });
-	const bundled = buildSync({
-		stdin: { contents: js.code, resolveDir: path.dirname(filename) },
-		bundle: true, write: false, format: "cjs", platform: "browser",
-		external: ["obsidian", "../platformFetch", "../RelayOnPremConfig", "../wording/uiText",
-			"../auth/OAuthCancelledError", "../inFlightGuard", "../ui/RelayOnPremLoginModal",
-			"../ui/dialogs", "../assets/evc-logo.png"],
-	}).outputFiles[0].text;
-	const loaded = { exports: {} as { default: typeof SvelteComponent } };
 	const dependencies: Record<string, unknown> = {
 		obsidian: { Notice: notice, Platform },
 		"../platformFetch": { platformFetch: fetch },
@@ -50,11 +29,11 @@ beforeAll(async () => {
 		"../ui/dialogs": {},
 		"../assets/evc-logo.png": "",
 	};
-	new Function("require", "module", "exports", bundled)((id: string) => {
-		if (!(id in dependencies)) throw new Error(`Unexpected dependency: ${id}`);
-		return dependencies[id];
-	}, loaded, loaded.exports);
-	Component = loaded.exports.default;
+	const loaded = loadSvelteComponent(path.resolve(__dirname, "../src/components/RelayOnPremServerList.svelte"), dependencies);
+	closeDom = () => loaded.dom.window.close();
+	Object.assign(globalThis, { window: loaded.dom.window, document: loaded.dom.window.document,
+		activeDocument: loaded.dom.window.document, Event: loaded.dom.window.Event });
+	Component = loaded.default;
 });
 
 async function flush() {
