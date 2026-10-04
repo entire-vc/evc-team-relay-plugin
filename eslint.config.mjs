@@ -109,6 +109,22 @@ export default tseslint.config(
         },
     },
     {
+        files: ["scripts/test/**/*.cjs", "__tests__/**/*.cjs"],
+        languageOptions: {
+            sourceType: "commonjs",
+        },
+        rules: {
+            // CommonJS helpers use require because they run under Jest's CJS runtime.
+            "@typescript-eslint/no-require-imports": "off",
+        },
+    },
+    {
+        files: ["__tests__/**/*.cjs"],
+        languageOptions: {
+            globals: globals.jest,
+        },
+    },
+    {
         ignores: ["node_modules/", "main.js", "*.config.js"],
     }
 );
