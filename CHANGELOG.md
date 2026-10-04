@@ -1,10 +1,13 @@
 # Changelog
 
+## 0.0.25
+- Fixed: creating a note and editing it quickly no longer produces a conflict copy of your own intermediate text. Independent edits from different devices still preserve both versions.
+- Fixed: agent key settings, dialogs, and notifications now follow the Russian interface language.
+- Improved: upgraded Svelte and patched YAML and date dependencies while preserving the existing component API.
+- Improved: strengthened type checks and confirmation controls for destructive actions.
+
 ## 0.0.24
 - Fixed: adding an unreachable server now shows one clear error next to the URL field instead of also displaying a raw network-error notification.
-
-### Pending next release
-- Fixed: agent key settings, dialogs, and notifications now follow the Russian interface language.
 
 ## 0.0.23
 - Fixed: mobile settings layout at 393px (share button clipped, nested scrollers, nav header).

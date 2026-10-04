@@ -3,7 +3,7 @@ import path from "node:path";
 import type { SvelteComponent } from "svelte";
 import { getLanguage } from "obsidian";
 
-const { loadSvelteComponent } = require("../scripts/test/svelteDOM.cjs");
+import { loadSvelteComponent } from "../scripts/test/svelteDOM.cjs";
 
 let Component: typeof SvelteComponent;
 let component: SvelteComponent;

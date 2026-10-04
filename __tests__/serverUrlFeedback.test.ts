@@ -8,7 +8,7 @@ const notice = jest.fn();
 const fetch = jest.fn();
 const addServer = jest.fn();
 const mutateValue = jest.fn();
-const { loadSvelteComponent } = require("../scripts/test/svelteDOM.cjs");
+import { loadSvelteComponent } from "../scripts/test/svelteDOM.cjs";
 
 let Component: typeof SvelteComponent;
 let component: SvelteComponent;
