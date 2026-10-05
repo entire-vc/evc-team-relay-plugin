@@ -36,6 +36,7 @@ import {
 	makeDocumentRecord,
 	makeFileRecord,
 	makeFolderRecord,
+	isFolderRecord,
 	isFileRecord,
 	isCanvasRecord,
 	type FileRecord,
@@ -169,6 +170,11 @@ export class VaultShare extends ProviderBacked {
 	trackedEntries: Map<string, SyncableEntry>; // Maps guids to SharedDocs
 	pathSet: FileSet;
 	private awaitingDelete: Set<string> = new Set();
+	/** Prevent an upload already in flight from republishing a discarded entry. */
+	private deletedEntries: WeakSet<SyncableEntry> = new WeakSet();
+	private folderCreations = new Map<string, Set<Promise<TFolder>>>();
+	private discardedFolderNodes = new WeakSet<TAbstractFile>();
+	private deletedEntryRoots = new WeakMap<SyncableEntry, string>();
 	private uploadClaims: VaultScopedMap<string>;
 
 	// -- Remote / connection state --
@@ -1760,7 +1766,7 @@ export class VaultShare extends ProviderBacked {
 	}
 
 	writeContents(doc: SyncableEntry, content: string): Promise<void> {
-		if (this.isDeletePending(doc.entryPath)) {
+		if (this.deletedEntries.has(doc) || this.isDeletePending(doc.entryPath)) {
 			this.log("skipping write for pending delete", doc.entryPath);
 			return Promise.resolve();
 		}
@@ -1933,7 +1939,7 @@ export class VaultShare extends ProviderBacked {
 	}
 
 	private _commitMeta(file: SyncableEntry, meta: ItemRecord): void {
-		if (!this.folderIndex) {
+		if (!this.folderIndex || this.deletedEntries.has(file) || this.isDeletePending(file.entryPath)) {
 			return;
 		}
 		try {
@@ -2437,6 +2443,88 @@ export class VaultShare extends ProviderBacked {
 		throw new Error("no upload path matched this file's type");
 	}
 
+	/** Create missing ancestors separately so each vault create event has an owner. */
+	async createFolderForEntry(entry: SyncableEntry): Promise<TFolder> {
+		const parts = entry.entryPath.split("/");
+		let node: TFolder | null = null;
+		for (let length = 1; length <= parts.length; length++) {
+			if (this.deletedEntries.has(entry) || this.isDeletePending(entry.entryPath)) {
+				throw new Error("folder entry was deleted during creation");
+			}
+			const vpath = parts.slice(0, length).join("/");
+			const existing = this.vaultApi.getAbstractFileByPath(this.absolutePath(vpath));
+			if (existing instanceof TFolder) {
+				node = existing;
+				continue;
+			}
+			node = await this.createOwnedFolderAt(entry, vpath);
+		}
+		if (!node) throw new Error("folder path is empty");
+		return node;
+	}
+
+	private createOwnedFolderAt(entry: SyncableEntry, vpath: string): Promise<TFolder> {
+		const path = this.absolutePath(vpath);
+		const ancestors = vpath.split("/").map((_, index, parts) => parts.slice(0, index + 1).join("/"));
+		const before = new Map(ancestors.map((ancestor) => [ancestor, this.vaultApi.getAbstractFileByPath(this.absolutePath(ancestor))]));
+		// Register before even a synchronous create event. Include ancestors because
+		// Obsidian may recreate a removed parent inside its recursive mkdir call.
+		const creation = Promise.resolve().then(async () => {
+			let node: TFolder;
+			try {
+				node = await this.vaultApi.createFolder(path);
+			} catch (error: unknown) {
+				// Another creator won this path. Its object belongs to that creator.
+				const existing = this.vaultApi.getAbstractFileByPath(path);
+				if (existing instanceof TFolder) return existing;
+				throw error;
+			}
+			let deletedRoot = this.deletedEntryRoots?.get(entry);
+			if (deletedRoot === undefined) deletedRoot = Array.from(this.awaitingDelete).find((root) => entry.entryPath === root || entry.entryPath.startsWith(root + "/"));
+			if (deletedRoot !== undefined) {
+				const discarded = this.discardedFolderNodes ??= new WeakSet();
+				discarded.add(node);
+				// Follow only newly-created objects in the returned parent chain, inside
+				// the deleted subtree. Trash bottom-up, without permanent deletion.
+				const chain: TFolder[] = [];
+				for (let candidate: TFolder | null = node; candidate; candidate = candidate.parent) {
+					if (!this.containsPath(candidate.path)) break;
+					const candidatePath = this.toVirtualPath(candidate.path);
+					if (candidatePath !== deletedRoot && !candidatePath.startsWith(deletedRoot + "/")) break;
+					if (candidate === node || before.get(candidatePath) !== candidate) chain.push(candidate);
+				}
+				for (const candidate of chain) {
+					if (this.vaultApi.getAbstractFileByPath(candidate.path) !== candidate) {
+						discarded.add(candidate);
+						continue;
+					}
+					if (candidate.children.length !== 0) continue;
+					discarded.add(candidate);
+					try {
+						await this.vaultApi.trash(candidate, false);
+					} catch (error: unknown) {
+						this.warn("could not remove discarded folder creation", candidate.path, error);
+					}
+				}
+			}
+			return node;
+		});
+		const slots = ancestors.map((ancestor) => {
+			const pending = (this.folderCreations ??= new Map()).get(ancestor) ?? new Set<Promise<TFolder>>();
+			pending.add(creation);
+			this.folderCreations.set(ancestor, pending);
+			return { ancestor, pending };
+		});
+		const finished = () => {
+			for (const { ancestor, pending } of slots) {
+				pending.delete(creation);
+				if (pending.size === 0 && this.folderCreations.get(ancestor) === pending) this.folderCreations.delete(ancestor);
+			}
+		};
+		void creation.then(finished, finished);
+		return creation;
+	}
+
 	/**
 	 * Claim-protected entry point for callers OUTSIDE the adoptLocalFiles()
 	 * bulk-sync flow that discover a single new file and would otherwise
@@ -2452,6 +2540,11 @@ export class VaultShare extends ProviderBacked {
 	 */
 	async claimAndUploadFile(tfile: TAbstractFile): Promise<void> {
 		const vpath = this.toVirtualPath(tfile.path);
+		if (tfile instanceof TFolder) {
+			const pending = this.folderCreations?.get(vpath);
+			if (pending?.size) await Promise.allSettled(Array.from(pending));
+			if (this.discardedFolderNodes?.has(tfile) || this.isDeletePending(vpath)) return;
+		}
 		const newDocs = this.claimPaths([tfile]);
 		if (newDocs.length === 0) {
 			// Already known -- ordinary existing-file path, unchanged.
@@ -2491,28 +2584,37 @@ export class VaultShare extends ProviderBacked {
 	}
 
 	isDeletePending(vpath: string): boolean {
-		return this.awaitingDelete.has(vpath);
+		for (const path of this.awaitingDelete) {
+			if (vpath === path || vpath.startsWith(path + "/")) return true;
+		}
+		return false;
 	}
 
-	removeEntry(vpath: string) {
-		const guid = this.folderIndex?.guidFor(vpath);
-		if (!guid) {
-			return;
+	removeEntry(vpath: string, recursive = false) {
+		if (!this.folderIndex) return;
+		recursive = recursive || isFolderRecord(this.folderIndex.recordFor(vpath));
+		const removed: SyncableEntry[] = [];
+		for (const doc of this.trackedEntries.values()) {
+			if (doc.entryPath === vpath || (recursive && doc.entryPath.startsWith(vpath + "/"))) {
+				this.deletedEntries.add(doc);
+				(this.deletedEntryRoots ??= new WeakMap()).set(doc, vpath);
+				removed.push(doc);
+			}
 		}
-		const doc = this.trackedEntries.get(guid);
 		this.crdtDoc.transact(() => {
-			this.folderIndex.delete(vpath);
-			if (doc) {
+			if (recursive) this.folderIndex.deleteTree(vpath);
+			else this.folderIndex.delete(vpath);
+			for (const doc of removed) {
 				void doc.dispose();
 				this.pathSet.delete(doc);
+				this.trackedEntries.delete(doc.entityGuid);
 			}
-			this.trackedEntries.delete(guid);
 		}, this);
 		// Fully tear down the Document/CanvasDocument after removing from folderIndex:
 		// cancel pending debounced saves, disconnect WebSocket, destroy Y.Doc.
 		// Without this, a stale scheduleSave debounce can re-create the file
 		// on disk after clearDeletePending runs.
-		if (doc) {
+		for (const doc of removed) {
 			this._teardownDeletedFile(doc);
 		}
 	}
