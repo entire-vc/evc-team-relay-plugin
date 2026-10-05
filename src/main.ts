@@ -1947,7 +1947,7 @@ export default class TeamRelayPlugin extends Plugin {
 					const vpath = folder.toVirtualPath(file.path);
 					folder.markDeletePending(vpath);
 					void folder.awaitReady().then((folder) => {
-						folder.rootRelative.removeEntry(file.path);
+						folder.rootRelative.removeEntry(file.path, file instanceof TFolder);
 					}).finally(() => {
 						folder.clearDeletePending(vpath);
 					});

@@ -24,6 +24,7 @@ function folderName(path: string): string {
 export class TrackedFolder extends Loggable implements SyncableEntry {
 	private _parent: VaultShare;
 	private _node: TFolder | null = null;
+	private tornDown = false;
 	folderLabel: string;
 	lastSyncAt = 0;
 	vaultApi: Vault;
@@ -54,10 +55,13 @@ export class TrackedFolder extends Loggable implements SyncableEntry {
 		});
 
 		void (async () => {
-			if (this.creation) {
-				await this.creation;
+			try {
+				if (this.creation) await this.creation;
+			} catch (error: unknown) {
+				if (!this.tornDown) this.warn("folder creation failed", error);
+				return;
 			}
-			void parent.noteUploaded(this);
+			if (!this.tornDown) void parent.noteUploaded(this);
 		})();
 		this.log("created");
 	}
@@ -86,13 +90,15 @@ export class TrackedFolder extends Loggable implements SyncableEntry {
 			this.warn("skipping folder creation for pending delete", this.entryPath);
 			return;
 		}
-		this.creation = this.vaultApi.createFolder(this.vaultShare.absolutePath(this.entryPath));
+		this.creation = parent.createFolderForEntry(this);
 		this.creation
 			.then((vaultFolder) => {
+				if (this.tornDown) return;
 				this._node = vaultFolder;
 				this.attached = true;
 			})
 			.catch(() => {
+				if (this.tornDown) return;
 				// lost the race to create it — someone else already made this folder
 				this.attachExisting();
 			});
@@ -153,6 +159,7 @@ export class TrackedFolder extends Loggable implements SyncableEntry {
 	public dispose() {}
 
 	dismantle() {
+		this.tornDown = true;
 		this.offStatus?.();
 		this.offStatus = null as unknown as Unsubscriber;
 		this._parent = null as unknown as VaultShare;

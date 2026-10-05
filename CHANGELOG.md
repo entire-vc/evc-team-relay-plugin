@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.27
+- Fixed: deleting a shared subfolder removes its empty folders and nested files from the share, including metadata used by older clients. Pending uploads and staged changes no longer restore the deleted tree.
+
 ## 0.0.26
 - Fixed: destructive buttons remain compatible with Obsidian 1.8.7 without relying on a newer API.
 

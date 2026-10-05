@@ -377,7 +377,28 @@ export class FolderIndex extends Notifier<FolderIndex> {
 		this.requireVirtualPath(vpath);
 		this.flatIdMap.delete(vpath);
 		this.mintedGuids.delete(vpath);
+		this.stagedWrites.delete(vpath);
+		this.stagedDeletes.delete(vpath);
 		return this.records.delete(vpath);
+	}
+
+	/** Remove a complete tree, including legacy-only and not-yet-published paths. */
+	deleteTree(vpath: string): void {
+		this.requireVirtualPath(vpath);
+		const inTree = (path: string) => path === vpath || path.startsWith(vpath + sep);
+		const paths = new Set([
+			...this.records.keys(),
+			...this.flatIdMap.keys(),
+			...this.mintedGuids.keys(),
+			...this.stagedWrites.keys(),
+			...this.stagedDeletes,
+		]);
+		for (const path of paths) {
+			if (inTree(path)) this.delete(path);
+		}
+		for (const [from, to] of this.aliases) {
+			if (inTree(from) || inTree(to)) this.aliases.delete(from);
+		}
 	}
 
 	public get knownGuids(): Set<string> {
