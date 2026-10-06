@@ -199,6 +199,8 @@ export class VaultShare extends ProviderBacked {
 	private freshlyCreated: boolean;
 	private resyncRequested: boolean = false;
 	private treeScanInFlight: SingleFlight<void> | null = null;
+	private initialFolderSync: Promise<boolean> | null = null;
+	private cancelInitialFolderSync: (() => void) | null = null;
 
 	// -- Readiness / persistence promises (memoized -- see awaitReady/awaitSynced) --
 	private readyValue: LazyValue<VaultShare> | null = null;
@@ -374,7 +376,7 @@ export class VaultShare extends ProviderBacked {
 	 */
 	private async _onReady(): Promise<void> {
 		if (!this.isTornDown) {
-			await this.awaitSynced(); // Ensure IDB and folderIndex.observe() completed
+			await this.awaitSynced(); // Ensure the persisted document has loaded.
 
 			// Always wait for a FRESH provider sync before processing files --
 			// onceProviderSynced() is deliberately NOT used here: its sticky
@@ -452,7 +454,11 @@ export class VaultShare extends ProviderBacked {
 
 	/** Body of `awaitSynced().then(...)` from the constructor. */
 	private _onSynced(): void {
-		this.folderIndex.observe();
+		// Observing docs before the fresh sync can migrate stale legacy paths
+		// into newly minted folders that the server's old tombstones cannot delete.
+		void this.awaitFolderTreeReady().then((ready) => {
+			if (ready && !this.isTornDown) this.folderIndex.observe();
+		});
 		try {
 			void this._localDb.set("path", this.path);
 			void this._localDb.set("relay", this.workspaceId || "");
@@ -461,6 +467,27 @@ export class VaultShare extends ProviderBacked {
 		} catch {
 			// pass
 		}
+	}
+
+	/** One startup barrier for observers, manual sync, and automatic tree scans. */
+	private awaitFolderTreeReady(): Promise<boolean> {
+		if (this.isTornDown) return Promise.resolve(false);
+		if (!this.initialFolderSync) {
+			const cancelled = new Promise<boolean>((resolve) => {
+				this.cancelInitialFolderSync = () => resolve(false);
+			});
+			this.initialFolderSync = Promise.race([
+				(async () => {
+					await this.awaitSynced();
+					if (!this.freshlyCreated && !this.isTornDown) {
+						await this.onceFreshlySynced();
+					}
+					return !this.isTornDown;
+				})(),
+				cancelled,
+			]);
+		}
+		return this.initialFolderSync;
 	}
 
 	/** Body of the fire-and-forget IIFE from the constructor. */
@@ -1625,7 +1652,10 @@ export class VaultShare extends ProviderBacked {
 		});
 	}
 
-	scanFileTree(folderIndex: FolderIndex): Promise<void> {
+	async scanFileTree(folderIndex: FolderIndex): Promise<void> {
+		// Do not start SingleFlight's stall timer while waiting for the first
+		// connection; offline startup may legitimately wait indefinitely.
+		if (!(await this.awaitFolderTreeReady()) || this.isTornDown) return;
 		// A sync is already in flight -- queue a follow-up pass instead of overlapping.
 		if (this.treeScanInFlight) {
 			this.resyncRequested = true;
@@ -2735,6 +2765,8 @@ export class VaultShare extends ProviderBacked {
 
 	dismantle() {
 		this.isTornDown = true;
+		this.cancelInitialFolderSync?.();
+		this.cancelInitialFolderSync = null;
 		this.teardowns.forEach((unsub) => {
 			unsub();
 		});
