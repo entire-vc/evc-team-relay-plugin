@@ -6,6 +6,7 @@
 
 import { namedLogger } from "./logging";
 import { platformFetch } from "./platformFetch";
+import { RelayHttpError } from "./relayRequestErrors";
 
 const log = namedLogger("[RelayOnPremShareClient]");
 
@@ -1145,7 +1146,7 @@ export class RelayOnPremShareClient {
 			);
 			if (!response.ok) {
 				const errorText = await response.text();
-				throw new Error(`Failed to get files index: ${response.status} ${errorText}`);
+				throw new RelayHttpError(response.status, `Failed to get files index: ${response.status} ${errorText}`);
 			}
 			const data = await response.json() as SyncArtifactItem[];
 			log(`Retrieved ${data.length} file index items for share ${shareId}`);
@@ -1169,7 +1170,7 @@ export class RelayOnPremShareClient {
 			});
 			if (!response.ok) {
 				const errorText = await response.text();
-				throw new Error(`Failed to download file: ${response.status} ${errorText}`);
+				throw new RelayHttpError(response.status, `Failed to download file: ${response.status} ${errorText}`);
 			}
 			return response.arrayBuffer();
 		} catch (error: unknown) {
