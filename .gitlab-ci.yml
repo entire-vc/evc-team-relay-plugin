@@ -385,8 +385,7 @@ legal-verbatim-distinct:
       set -eu
       PC="${PINNED_COMMIT:?PINNED_COMMIT is not set - refusing to run a baseline gate with no baseline}"
       echo "baseline commit: $PC"
-      git clone --quiet "${BASELINE_REPO_URL:?BASELINE_REPO_URL is not set - refusing to run a baseline gate with no baseline}" /tmp/relay-baseline
-      git -C /tmp/relay-baseline checkout --quiet "$PC"
+      python3 scripts/clone-baseline.py /tmp/relay-baseline
       python3 scripts/check-verbatim-distinct.py /tmp/relay-baseline/src src --max-distinct 15
 
 # Legal gate 4: how many NAMES our src/ still shares with the baseline
@@ -421,6 +420,7 @@ legal-naming:
     # busybox sh, so bash is a real dependency here, not just git for the clone.
     - apk add --no-cache git bash
   script:
+    - python3 scripts/test/test_clone_baseline.py
     - bash scripts/check-naming.sh --self-test
     - bash scripts/check-naming.sh --max-work 0
   allow_failure: false
