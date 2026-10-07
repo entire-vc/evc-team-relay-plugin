@@ -32,7 +32,9 @@ SELFTEST=0
 EXTRA=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --baseline) BASELINE_REF="$2"; shift 2 ;;
+    --baseline)
+      [[ "$2" == "$PINNED_COMMIT" ]] || { echo "FATAL: baseline override differs from the fixed pin"; exit 2; }
+      shift 2 ;;
     --self-test) SELFTEST=1; shift ;;
     *) EXTRA+=("$1"); shift ;;
   esac
@@ -41,16 +43,9 @@ done
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-echo "== cloning baseline $BASELINE_REPO ..."
-git clone --quiet "$BASELINE_REPO" "$WORK/baseline" \
-  || { echo "FATAL: baseline clone failed"; exit 2; }
-if [[ "$BASELINE_REF" == "HEAD" ]]; then
-  BASELINE_SHA="$(git -C "$WORK/baseline" rev-parse --short HEAD)"
-else
-  BASELINE_SHA="$BASELINE_REF"
-fi
-git -C "$WORK/baseline" checkout --quiet "$BASELINE_SHA" \
-  || { echo "FATAL: baseline commit $BASELINE_SHA not found"; exit 2; }
+echo "== cloning pinned baseline ..."
+"$PY" "$REPO_ROOT/scripts/clone-baseline.py" "$WORK/baseline"
+BASELINE_SHA="$BASELINE_REF"
 echo "== baseline pinned at $BASELINE_SHA ($(git -C "$WORK/baseline" log -1 --format=%ad --date=short))"
 echo "== ours at $(git -C "$REPO_ROOT" rev-parse --short HEAD)"
 echo
