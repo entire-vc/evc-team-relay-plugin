@@ -24,6 +24,8 @@ interface WatchedShare {
 export class InboundSyncPoller {
 	private watchedShares: Map<string, WatchedShare> = new Map();
 	private intervalId: number | null = null;
+	private polling = false;
+	private serverBackoff = new Map<string, { failures: number; retryAt: number }>();
 
 	constructor(
 		private readonly timeProvider: Clock,
@@ -62,12 +64,29 @@ export class InboundSyncPoller {
 	}
 
 	private async _poll(): Promise<void> {
-		if (this.webSyncManager.isOutboundSyncing) {
+		if (this.polling || this.webSyncManager.isOutboundSyncing) {
 			log("Skipping poll — outbound sync in flight");
 			return;
 		}
-		for (const [shareId, info] of this.watchedShares) {
-			await this._checkShare(shareId, info.serverId, info.lastUpdatedAt);
+		this.polling = true;
+		try {
+			const recoveredServers = new Set<string>();
+			const failedServers = new Set<string>();
+			for (const [shareId, info] of this.watchedShares) {
+				const backoff = this.serverBackoff.get(info.serverId);
+				if (backoff && this.timeProvider.now() < backoff.retryAt) continue;
+				if (await this._checkShare(shareId, info.serverId, info.lastUpdatedAt)) {
+					recoveredServers.add(info.serverId);
+				} else {
+					failedServers.add(info.serverId);
+				}
+			}
+			// A healthy share cannot reset failures from another share on this server.
+			for (const serverId of recoveredServers) {
+				if (!failedServers.has(serverId)) this.serverBackoff.delete(serverId);
+			}
+		} finally {
+			this.polling = false;
 		}
 	}
 
@@ -75,15 +94,17 @@ export class InboundSyncPoller {
 		shareId: string,
 		serverId: string,
 		lastUpdatedAt: string | null,
-	): Promise<void> {
+	): Promise<boolean> {
 		try {
 			// Bypass the 5-min share cache so server-side bumps are detected within one poll cycle
 			const share = await this.clientManager.getShare(serverId, shareId, true);
 			const newUpdatedAt = share.web_content_updated_at ?? null;
-			if (!newUpdatedAt) return;
+			if (!newUpdatedAt) {
+				return true;
+			}
 			if (newUpdatedAt === lastUpdatedAt) {
 				log("web_content_updated_at unchanged, skipping", { shareId });
-				return;
+				return true;
 			}
 			log("web_content_updated_at bumped, triggering download", {
 				shareId,
@@ -93,16 +114,24 @@ export class InboundSyncPoller {
 			// outbound sync in flight) so a skipped cycle retries on the next poll.
 			const result = await this.fileDownloader.downloadShare(shareId, serverId);
 			if (result !== "skipped") {
+				// unregister/destroy may run while a network request is in flight.
+				if (!this.watchedShares.has(shareId)) return true;
 				this.watchedShares.set(shareId, { serverId, lastUpdatedAt: newUpdatedAt });
 				// Persist the watermark too, not just the in-memory copy (TR-02) —
 				// otherwise the very next restart is back to lastUpdatedAt=null.
 				this.persistedUpdatedAt.set(shareId, newUpdatedAt);
 			}
+			return result !== "skipped";
 		} catch (err: unknown) {
+			const failures = Math.min((this.serverBackoff.get(serverId)?.failures ?? 0) + 1, 5);
+			const delay = Math.min(300_000, 30_000 * 2 ** (failures - 1) *
+				(0.8 + Math.random() * 0.4));
+			this.serverBackoff.set(serverId, { failures, retryAt: this.timeProvider.now() + delay });
 			log("Failed to check share", {
 				shareId,
 				error: err instanceof Error ? err.message : String(err),
 			});
+			return false;
 		}
 	}
 
@@ -112,6 +141,7 @@ export class InboundSyncPoller {
 			this.intervalId = null;
 		}
 		this.watchedShares.clear();
+		this.serverBackoff.clear();
 		log("InboundSyncPoller destroyed");
 	}
 }

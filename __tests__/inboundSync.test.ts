@@ -26,6 +26,7 @@ jest.mock("src/logging", () => ({
 import { MockClock } from "./mocks/MockClock";
 import { InboundSyncPoller } from "src/InboundSyncPoller";
 import { InboundFileDownloader } from "src/InboundFileDownloader";
+import { RelayHttpError } from "src/relayRequestErrors";
 import type { RelayOnPremShareClientManager } from "src/RelayOnPremShareClientManager";
 import type { WebSyncManager } from "src/WebSyncManager";
 import type { FileManager, Vault } from "obsidian";
@@ -194,9 +195,80 @@ describe("InboundSyncPoller", () => {
 
 		// Poller remains alive for next tick
 		(clientManager.getShare as jest.Mock).mockResolvedValue(makeShare("2026-06-08T10:00:00Z"));
+		// The first cooldown may last 36s with jitter, so resume on the
+		// following tick rather than assuming the minimum delay.
+		timeProvider.setTime(startTime + 90_000);
+		await flushPromises();
+		expect(fileDownloader.downloadShare).toHaveBeenCalledTimes(1);
+	});
+
+	test("does not overlap a slow download across poll ticks", async () => {
+		let finish!: () => void;
+		fileDownloader.downloadShare.mockImplementation(() => new Promise<"ran" | "skipped">((resolve) => { finish = () => resolve("ran"); }));
+		clientManager.getShare.mockResolvedValue(makeShare("changed") as any);
+		poller.registerShare(SHARE_ID, SERVER_ID);
+		poller.start();
+		timeProvider.setTime(startTime + 30_000);
+		await flushPromises();
 		timeProvider.setTime(startTime + 60_000);
 		await flushPromises();
 		expect(fileDownloader.downloadShare).toHaveBeenCalledTimes(1);
+		finish();
+		await flushPromises();
+	});
+
+	test("backs off the server after repeated failures and resets after recovery", async () => {
+		const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
+		try {
+			clientManager.getShare.mockRejectedValue(new Error("Request timed out"));
+			poller.registerShare(SHARE_ID, SERVER_ID);
+			poller.registerShare("same-server", SERVER_ID);
+			poller.start();
+			for (const elapsed of [30_000, 60_000, 90_000]) {
+				timeProvider.setTime(startTime + elapsed);
+				await flushPromises();
+			}
+			expect(clientManager.getShare).toHaveBeenCalledTimes(2);
+			clientManager.getShare.mockResolvedValue(makeShare("changed") as any);
+			timeProvider.setTime(startTime + 120_000);
+			await flushPromises();
+			expect(fileDownloader.downloadShare).toHaveBeenCalledTimes(2);
+			clientManager.getShare.mockRejectedValue(new Error("Request timed out"));
+			timeProvider.setTime(startTime + 150_000);
+			await flushPromises();
+			timeProvider.setTime(startTime + 180_000);
+			await flushPromises();
+			expect(clientManager.getShare).toHaveBeenCalledTimes(6);
+		} finally { random.mockRestore(); }
+	});
+
+	test.each([null, "changed"])("escalates mixed share failures after a healthy share (%s)", async (watermark) => {
+		const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
+		let failing = true;
+		try {
+			clientManager.getShare.mockImplementation(async (_server, shareId) => {
+				if (shareId === "failing" && failing) throw new Error("Request timed out");
+				return makeShare(watermark) as any;
+			});
+			poller.registerShare("healthy", SERVER_ID);
+			poller.registerShare("failing", SERVER_ID);
+			poller.start();
+			for (const elapsed of [30_000, 60_000, 90_000]) {
+				timeProvider.setTime(startTime + elapsed);
+				await flushPromises();
+			}
+			expect(clientManager.getShare).toHaveBeenCalledTimes(4);
+			failing = false;
+			timeProvider.setTime(startTime + 120_000);
+			await flushPromises();
+			expect(clientManager.getShare).toHaveBeenCalledTimes(6);
+			failing = true;
+			for (const elapsed of [150_000, 180_000]) {
+				timeProvider.setTime(startTime + elapsed);
+				await flushPromises();
+			}
+			expect(clientManager.getShare).toHaveBeenCalledTimes(10);
+		} finally { random.mockRestore(); }
 	});
 
 	test("unregisterShare stops polling for that share", async () => {
@@ -399,6 +471,33 @@ describe("InboundFileDownloader", () => {
 		expect(clientManager.downloadFile).toHaveBeenCalledWith(SERVER_ID, SHARE_ID, "no-type.md");
 		expect(clientManager.downloadFile).not.toHaveBeenCalledWith(SERVER_ID, SHARE_ID, "web-doc.md");
 	});
+
+	test.each([new RelayHttpError(503, "unavailable"), new Error("Request timed out"),
+		Object.assign(new Error("Socket failed"), { code: "ETIMEDOUT" })])(
+		"stops the remaining batch after a transient download failure: %s", async (failure) => {
+			const persistedHashes = new Map<string, Record<string, string>>();
+			downloader = new InboundFileDownloader(vault, fileManager as unknown as FileManager,
+				clientManager as any, webSyncManager as any, persistedHashes);
+			clientManager.getFilesIndex.mockResolvedValue([
+				{ path: "one.md", sha256: "hash-aabbcc", size: 4, updated_at: "now", type: "sync-artifact" },
+				{ path: "two.md", sha256: "hash-aabbcc", size: 4, updated_at: "now", type: "sync-artifact" },
+				{ path: "three.md", sha256: "hash-aabbcc", size: 4, updated_at: "now", type: "sync-artifact" },
+			]);
+			clientManager.downloadFile.mockResolvedValueOnce(new ArrayBuffer(4)).mockRejectedValueOnce(failure);
+			await expect(downloader.downloadShare(SHARE_ID, SERVER_ID)).rejects.toThrow(failure);
+			expect(clientManager.downloadFile).toHaveBeenCalledTimes(2);
+			expect(persistedHashes.get(SHARE_ID)).toEqual({ "one.md": "hash-aabbcc" });
+			expect(vault.adapter.writeBinary).toHaveBeenCalledTimes(1);
+			// Completed files remain in the manifest, so recovery starts with the
+			// failed file rather than re-downloading the whole share.
+			clientManager.downloadFile.mockResolvedValue(new ArrayBuffer(4));
+			await downloader.downloadShare(SHARE_ID, SERVER_ID);
+			expect(clientManager.downloadFile).toHaveBeenCalledTimes(4);
+			expect(persistedHashes.get(SHARE_ID)).toEqual({
+				"one.md": "hash-aabbcc", "two.md": "hash-aabbcc", "three.md": "hash-aabbcc",
+			});
+		},
+	);
 
 	test("does nothing when files index is empty", async () => {
 		(clientManager.getShare as jest.Mock).mockResolvedValue(makeShare());

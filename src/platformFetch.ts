@@ -4,6 +4,7 @@ import { Platform } from "obsidian";
 import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import { namedLogger } from "./logging";
 import { currentToggles } from "./featureToggleState";
+import { RelayHttpError, isTransientRelayFailure } from "./relayRequestErrors";
 
 declare const GIT_TAG: string;
 
@@ -51,8 +52,10 @@ const RETRYABLE_MESSAGE_SUBSTRINGS = [
 	"RST_STREAM",
 ];
 
-function isRetryableMessage(message: string): boolean {
-	return RETRYABLE_MESSAGE_SUBSTRINGS.some((substring) => message.includes(substring));
+function isRetryableFailure(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : "";
+	return RETRYABLE_MESSAGE_SUBSTRINGS.some((substring) => message.includes(substring)) ||
+		isTransientRelayFailure(error);
 }
 
 const RETRIES_EXHAUSTED = Symbol("retries-exhausted");
@@ -67,29 +70,32 @@ const RETRIES_EXHAUSTED = Symbol("retries-exhausted");
 async function requestWithRetry(
 	requestParams: RequestUrlParam,
 	method: string,
-	urlString: string,
 ): Promise<RequestUrlResponse | typeof RETRIES_EXHAUSTED> {
 	const isIdempotentMethod = method === "GET" || method === "HEAD";
 	const maxRetries = isIdempotentMethod ? 2 : 0;
 
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		try {
-			return await requestUrl(requestParams);
+			const result = await requestUrl(requestParams);
+			if (result.status < 500 || attempt >= maxRetries) return result;
 		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : "";
-			const retryable = isRetryableMessage(message);
+			const retryable = isRetryableFailure(error);
 
 			if (retryable && attempt < maxRetries) {
 				namedLogger("[PlatformFetch]", "warn")(
-					`Retrying ${method} ${urlString} (attempt ${attempt + 2}/${maxRetries + 1}): ${message}`,
+					`Retrying ${method} (attempt ${attempt + 2}/${maxRetries + 1}) after a transient transport failure`,
 				);
-				continue;
-			}
-			if (retryable) {
+			} else if (retryable) {
 				return RETRIES_EXHAUSTED;
+			} else {
+				throw error;
 			}
-			throw error;
 		}
+		// At most three GET/HEAD attempts, separated by exponential delays with
+		// jitter. Mutations always return/throw above without retrying.
+		await new Promise<void>((resolve) => {
+			window.setTimeout(resolve, 1000 * 2 ** attempt * (0.8 + Math.random() * 0.4));
+		});
 	}
 	// Unreachable — the loop above always returns or throws — but keeps
 	// TypeScript's control-flow analysis happy about the async function's
@@ -162,7 +168,7 @@ export const platformFetch = async (
 		throw: false,
 	};
 
-	const result = await requestWithRetry(requestParams, method, urlString);
+	const result = await requestWithRetry(requestParams, method);
 	if (result === RETRIES_EXHAUSTED) {
 		return new Response(JSON.stringify({ error: "Network request failed" }), {
 			status: 503,
@@ -174,7 +180,7 @@ export const platformFetch = async (
 	logIfEnabled(result, method, urlString);
 
 	if (result.status >= 500) {
-		throw new Error(result.text);
+		throw new RelayHttpError(result.status, result.text);
 	}
 
 	return toFetchResponse(result);
