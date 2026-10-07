@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.29
+- Fixed: server outages no longer start overlapping inbound downloads. Transient failures stop the current batch and delay polling with exponential backoff; completed downloads remain recorded for recovery.
+- Improved: GET and HEAD requests retry server errors and timeouts at most twice with jittered delays. Mutating requests are never retried automatically.
+
 ## 0.0.27
 - Fixed: deleting a shared subfolder removes its empty folders and nested files from the share, including metadata used by older clients. Pending uploads and staged changes no longer restore the deleted tree.
 

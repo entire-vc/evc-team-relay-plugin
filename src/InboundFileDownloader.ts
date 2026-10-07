@@ -9,6 +9,7 @@ import { normalizePath, Notice, TFile, Vault } from "obsidian";
 import type { FileManager } from "obsidian";
 import { dirname, join } from "path-browserify";
 import { namedLogger } from "./logging";
+import { isTransientRelayFailure } from "./relayRequestErrors";
 import { sha256Hex } from "./contentDigest";
 import type { RelayOnPremShareClientManager } from "./RelayOnPremShareClientManager";
 import type { WebSyncManager } from "./WebSyncManager";
@@ -92,6 +93,7 @@ export class InboundFileDownloader {
 				shareId,
 				error: err instanceof Error ? err.message : String(err),
 			});
+			if (isTransientRelayFailure(err)) throw err;
 			return "ran";
 		}
 
@@ -103,6 +105,7 @@ export class InboundFileDownloader {
 				shareId,
 				error: err instanceof Error ? err.message : String(err),
 			});
+			if (isTransientRelayFailure(err)) throw err;
 			return "ran";
 		}
 
@@ -118,11 +121,15 @@ export class InboundFileDownloader {
 
 		const shareManifest = { ...(this.lastWrittenHash.get(shareId) ?? {}) };
 
-		for (const item of syncItems) {
-			await this._downloadItem(item.path, item.sha256, shareId, serverId, sharePath, shareManifest);
+		try {
+			for (const item of syncItems) {
+				await this._downloadItem(item.path, item.sha256, shareId, serverId, sharePath, shareManifest);
+			}
+		} finally {
+			// Keep completed files when a transport failure stops the batch. Its
+			// watermark stays unchanged so the next pass retries unfinished files.
+			this.lastWrittenHash.set(shareId, shareManifest);
 		}
-
-		this.lastWrittenHash.set(shareId, shareManifest);
 		return "ran";
 	}
 
@@ -241,6 +248,7 @@ export class InboundFileDownloader {
 				vaultPath,
 				error: err instanceof Error ? err.message : String(err),
 			});
+			if (isTransientRelayFailure(err)) throw err;
 			return;
 		}
 
