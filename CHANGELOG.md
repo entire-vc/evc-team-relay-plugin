@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.30
+- Fixed: starting an existing share waits for fresh server metadata before creating folders from its offline cache. Deleted folders no longer reappear while the first sync is still loading.
+
 ## 0.0.29
 - Fixed: server outages no longer start overlapping inbound downloads. Transient failures stop the current batch and delay polling with exponential backoff; completed downloads remain recorded for recovery.
 - Improved: GET and HEAD requests retry server errors and timeouts at most twice with jittered delays. Mutating requests are never retried automatically.
