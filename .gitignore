@@ -16,6 +16,7 @@ __pycache__/
 *.js
 !src/storage/y-indexeddb.js
 !__tests__/jest.setup.js
+!__tests__/mocks/testGlobal.js
 # jest.config.js predates the *.js rule and is tracked; its live-harness
 # sibling needs an explicit exception or it would silently never be committed.
 !jest.live.config.js

@@ -2,6 +2,7 @@ import { describe, test, expect, jest, beforeEach } from "@jest/globals";
 import { OAuthCallbackServer } from "../src/auth/OAuthCallbackServer";
 import { OAuthCancelledError } from "../src/auth/OAuthCancelledError";
 import { OAuthHandler } from "../src/auth/OAuthHandler";
+import { testGlobal } from "./mocks/testGlobal";
 
 // #68639d74: the browser sign-in wait had no way out. The only signal was a
 // toast that vanishes in ~4 s, there was no cancel, and the password form only
@@ -22,7 +23,7 @@ function serverWithStubHttp(): OAuthCallbackServer {
 
 describe("OAuthCallbackServer.waitForCallback -- cancellation (#68639d74)", () => {
 	beforeEach(() => {
-		(globalThis as unknown as { window: unknown }).window = globalThis;
+		(testGlobal as unknown as { window: unknown }).window = testGlobal;
 	});
 
 	test("a signal that aborts mid-wait settles the wait at once with OAuthCancelledError", async () => {
@@ -36,7 +37,7 @@ describe("OAuthCallbackServer.waitForCallback -- cancellation (#68639d74)", () =
 	});
 
 	test("the wait timer is cleared on cancel (no dangling 5-minute timer)", async () => {
-		const clearSpy = jest.spyOn(globalThis, "clearTimeout");
+		const clearSpy = jest.spyOn(testGlobal, "clearTimeout");
 		const server = serverWithStubHttp();
 		const controller = new AbortController();
 

@@ -6,7 +6,7 @@ interface TestToken {
 	token: string;
 }
 
-async function _testTokenStore() {
+export async function _testTokenStore() {
 	// Setup
 	const testTimeProvider = new MockClock();
 	console.log(testTimeProvider);
@@ -95,12 +95,16 @@ describe("token store", () => {
 
 		try {
 			await store.acquireToken("doc1", "doc1", () => undefined);
-		} catch (_) {}
+		} catch (_) {
+			// expected: token acquisition fails in this scenario
+		}
 		expect((store as any).tokenEntries.get("doc1").attempts).toBe(1);
 
 		try {
 			await store.acquireToken("doc1", "doc1", () => undefined);
-		} catch (_) {}
+		} catch (_) {
+			// expected: token acquisition fails in this scenario
+		}
 
 		expect((store as any).tokenEntries.get("doc1").attempts).toBe(2);
 

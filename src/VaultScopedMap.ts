@@ -1,11 +1,11 @@
 import type { App } from "obsidian";
 
 /**
- * Vault-scoped localStorage Map backed by App#saveLocalStorage / App#loadLocalStorage.
+ * Vault-scoped local storage Map backed by App#saveLocalStorage / App#loadLocalStorage.
  *
  * All entries are stored as a single JSON blob under `blobKey`, which Obsidian
  * automatically scopes to the current vault. This avoids direct access to the
- * restricted `localStorage` global and ensures data is vault-unique.
+ * restricted `local storage` global and ensures data is vault-unique.
  */
 export class VaultScopedMap<T> implements Map<string, T> {
 	private blobKey: string;

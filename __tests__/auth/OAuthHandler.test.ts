@@ -6,7 +6,6 @@
 
 import { describe, test, expect, beforeEach, jest } from "@jest/globals";
 import { OAuthHandler } from "../../src/auth/OAuthHandler";
-import type { AuthResponse } from "../../src/auth/IAuthProvider";
 
 // Mock dependencies
 jest.mock("../../src/logging", () => ({

@@ -17,7 +17,7 @@ import { setDestructiveButton } from "./destructiveButton";
 export class SyncConflictsModal extends Modal {
 	constructor(app: App, private plugin: TeamRelayPlugin) {
 		super(app);
-		this.setTitle("Team Relay sync conflicts");
+		this.setTitle("Team relay sync conflicts");
 	}
 
 	onOpen(): void {

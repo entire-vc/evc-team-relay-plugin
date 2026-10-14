@@ -88,7 +88,7 @@ describe("cached folder startup", () => {
 		jest.spyOn(f.index.kinds, "enabledSyncKinds").mockReturnValue([]);
 		try {
 			const scan = f.share.scanFileTree(f.index);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await new Promise((resolve) => window.setTimeout(resolve, 10));
 			expect([...nodes.keys()]).toEqual(["Shared"]);
 			if (liveFolder) f.server.getMap("filemeta_v0").set("current", makeFolderRecord("current"));
 			Y.applyUpdate(f.cache, Y.encodeStateAsUpdate(f.server));
@@ -204,7 +204,7 @@ describe("cached folder startup", () => {
 			const scan = f.share.scanFileTree(f.index);
 			await Promise.resolve();
 			f.share.dismantle();
-			expect(await Promise.race([scan.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 25))])).toBe(true);
+			expect(await Promise.race([scan.then(() => true), new Promise((resolve) => window.setTimeout(() => resolve(false), 25))])).toBe(true);
 			expect(f.created).toEqual([]);
 		} finally {
 			providerTeardown.mockRestore();

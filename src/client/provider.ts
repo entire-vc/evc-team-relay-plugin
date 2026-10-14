@@ -1,5 +1,5 @@
 /**
- * WebSocket provider for a Yjs document.
+ * WebSocket provider for a Yjs doc.
  *
  * Written for Team Relay. Speaks the standard y-protocols framing over a
  * WebSocket: a varuint message type, then a payload that `y-protocols`

@@ -13,12 +13,13 @@
 import { describe, test, expect, beforeEach, afterEach, jest } from "@jest/globals";
 import * as Y from "yjs";
 import { YSweetProvider } from "../src/client/provider";
+import { testGlobal } from "./mocks/testGlobal";
 
 // jest.setup.js aliases activeWindow -> global (a plain Node object), but
 // provider.ts's constructor calls activeWindow.addEventListener("unload", ...)
 // — stub the missing method so construction doesn't throw in this Node test
 // environment (global has no DOM EventTarget API).
-const globalStub = globalThis as unknown as {
+const globalStub = testGlobal as unknown as {
 	addEventListener?: () => void;
 	removeEventListener?: () => void;
 };
@@ -77,7 +78,7 @@ function latestSocket(): MockWebSocket {
 // runner) — stub it explicitly so the test doesn't depend on that
 // environment difference. Values match the mock's own (spec-standard)
 // numbering, so the readyState comparison in destroy() stays correct.
-(globalThis as unknown as { WebSocket?: unknown }).WebSocket = MockWebSocket;
+(testGlobal as unknown as { WebSocket?: unknown }).WebSocket = MockWebSocket;
 
 describe("YSweetProvider reconnect (TR-12)", () => {
 	let provider: YSweetProvider;

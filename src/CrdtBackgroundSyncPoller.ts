@@ -33,7 +33,7 @@
  * `ydoc.getText("contents").insert()`, invisible to any TransferQueue lane)
  * as a genuine conflict. Confirmed live against the self-hosted stand: doing
  * this via enqueueFetch() produced spurious conflict-copy files on a
- * freshly-created, never-locally-edited document. pullIfUnchanged() only
+ * freshly-created, never-locally-edited doc: pullIfUnchanged() only
  * ever writes disk when it can positively confirm, immediately before
  * writing, that the vault file is unchanged and the relay genuinely differs
  * -- it never touches the Y.Doc and never creates a conflict copy, so a race

@@ -1,4 +1,5 @@
 import { UnsavedFileStore } from "src/UnsavedFile";
+import { testGlobal } from "./mocks/testGlobal";
 
 /**
  * Minimal in-memory IndexedDB fake, scoped to exactly the operations
@@ -63,7 +64,7 @@ function installFakeIndexedDB(): void {
 		}),
 	};
 
-	(global as unknown as { indexedDB: unknown }).indexedDB = {
+	(testGlobal as unknown as { indexedDB: unknown }).indexedDB = {
 		open: (_name: string, _version: number) => {
 			const req = {
 				onupgradeneeded: null as (() => void) | null,

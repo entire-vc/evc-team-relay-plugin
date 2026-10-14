@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { copyToClipboard } from "../utils/clipboard";
 	import { onMount, onDestroy } from "svelte";
 	import { Notice } from "obsidian";
 	import type TeamRelayPlugin from "../main";
@@ -247,7 +248,7 @@
 
 	function copyRevealedKey() {
 		if (!revealedKey) return;
-		navigator.clipboard.writeText(revealedKey.key).then(() => {
+		copyToClipboard(revealedKey.key).then(() => {
 			revealCopied = true;
 			window.setTimeout(() => { revealCopied = false; }, 2000);
 		}).catch(() => {
