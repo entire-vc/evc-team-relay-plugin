@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.33
+- Improved: the first sync of a large vault is up to about a third faster. Documents that go offline no longer keep requesting new access tokens in the background, which freed the request budget for files that are still syncing.
+
 ## 0.0.32
 - Fixed: sign-in sessions are now kept in the plugin's own data store, so they survive plugin updates and are shared correctly across Obsidian windows. Existing sessions are migrated automatically on first launch.
 - Fixed: copy-to-clipboard buttons and links work in pop-out windows.
