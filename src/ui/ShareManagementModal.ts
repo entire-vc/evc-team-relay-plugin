@@ -14,6 +14,7 @@ import { getDefaultServer, type RelayOnPremServer } from "../RelayOnPremConfig";
 import { confirmDialog, promptDialog } from "./dialogs";
 import { setDestructiveButton } from "./destructiveButton";
 import { withOutboundSyncGuard } from "../WebSyncManager";
+import { buildVaultIdentity } from "../vaultIdentity";
 import { collectWebFolderItems, joinFolderPath, resolveShareFolder, toSharePath } from "../vaultRootPath";
 
 export class ShareManagementModal extends Modal {
@@ -1815,6 +1816,7 @@ export class ShareManagementModal extends Modal {
 				kind,
 				visibility,
 				...(password && { password }), // Include password only if provided
+				...buildVaultIdentity(this.plugin.instanceAppId, this.plugin.app.vault.getName()),
 			};
 
 			if (this.plugin.shareClientManager) {

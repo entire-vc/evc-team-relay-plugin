@@ -11,6 +11,7 @@ import type { RelayOnPremServer } from "../RelayOnPremConfig";
 import { getDefaultServer, getServerById } from "../RelayOnPremConfig";
 import { RelayOnPremShareClient } from "../RelayOnPremShareClient";
 import { RelayOnPremShareClientManager } from "../RelayOnPremShareClientManager";
+import { buildVaultIdentity } from "../vaultIdentity";
 
 export class QuickShareModal extends Modal {
 	private selectedServerId: string | undefined;
@@ -167,6 +168,7 @@ export class QuickShareModal extends Modal {
 					kind: "folder",
 					path: this.folderPath,
 					visibility: "private",
+					...buildVaultIdentity(this.plugin.instanceAppId, this.plugin.app.vault.getName()),
 				}
 			);
 

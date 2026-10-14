@@ -10,6 +10,7 @@
 	import { ResourceAddress } from "../ResourceAddress";
 	import { uiText } from "../wording/uiText";
 	import { toSharePath } from "../vaultRootPath";
+	import { buildVaultIdentity } from "../vaultIdentity";
 
 	export let live: TeamRelayPlugin;
 	export let server: RelayOnPremServer;
@@ -59,6 +60,7 @@
 				kind,
 				visibility,
 				...(password.trim() && { password: password.trim() }),
+				...buildVaultIdentity(live.instanceAppId, live.app.vault.getName()),
 			};
 
 			let share: RelayOnPremShare;

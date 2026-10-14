@@ -117,7 +117,7 @@
 					tabindex="0"
 				>
 					<div class="evc-share-item-header">
-						<span class="evc-share-item-name">{share.path}</span>
+						<span class="evc-share-item-name">{share.path || "/"}{share.vault_name ? ` · ${share.vault_name}` : ""}</span>
 						<span class="evc-badge">{share.kind}</span>
 					</div>
 					<div class="evc-share-item-meta">
