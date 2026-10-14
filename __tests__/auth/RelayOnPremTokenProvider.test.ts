@@ -296,6 +296,24 @@ describe("RelayOnPremTokenProvider.requestFileToken", () => {
 		} as Response);
 	}
 
+	test("does not queue behind the doc-token throttle: a burst dispatches immediately", async () => {
+		mockFetch.mockImplementation(() => mockFileTokenResponse(200, FILE_TOKEN_RESPONSE));
+
+		const provider = new RelayOnPremTokenProvider({
+			controlPlaneUrl: "https://cp.example.com",
+			authProvider: makeAuthProvider(),
+		});
+
+		const burst = Array.from({ length: 50 }, (_, i) =>
+			provider.requestFileToken("relay1", "folder1", `file${i}`, "deadbeef", "image/png", 1),
+		);
+		// No timer advance beyond a microtask flush: a throttled call would wait 2.4 s each.
+		await jest.advanceTimersByTimeAsync(0);
+		await Promise.all(burst);
+
+		expect(mockFetch).toHaveBeenCalledTimes(50);
+	});
+
 	test("POSTs to /shares/{folderId}/file-token with fileId as the path, sha256/content_type/content_length in the body", async () => {
 		mockFetch.mockImplementation(() => mockFileTokenResponse(200, FILE_TOKEN_RESPONSE));
 

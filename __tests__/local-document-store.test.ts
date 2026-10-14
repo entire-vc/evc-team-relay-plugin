@@ -96,4 +96,15 @@ describe("LocalDocumentStore", () => {
 		expect(store._destroyed).toBe(true);
 		expect(close).toHaveBeenCalledTimes(1);
 	});
+
+	test("emits the typed synced event with the store as payload", async () => {
+		const doc = new Y.Doc();
+		const store = new LocalDocumentStore(`event-${Math.random()}`, doc);
+		const received: LocalDocumentStore[] = [];
+		store.on("synced", (s) => received.push(s));
+
+		await withTimeout(store.whenSynced, 2000, "whenSynced");
+
+		expect(received).toEqual([store]);
+	});
 });
