@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.32
+- Fixed: sign-in sessions are now kept in the plugin's own data store, so they survive plugin updates and are shared correctly across Obsidian windows. Existing sessions are migrated automatically on first launch.
+- Fixed: copy-to-clipboard buttons and links work in pop-out windows.
+- Improved: internal changes to satisfy community plugin review checks.
+
 ## 0.0.31
 - Added: each share now carries its vault identity, so you can share the whole root of more than one vault. Creating a whole-vault share for a second vault no longer fails with "A share already exists at this exact path". The share list shows the vault name. Existing shares keep working as before.
 
