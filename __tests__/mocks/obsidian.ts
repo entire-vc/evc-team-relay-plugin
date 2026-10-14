@@ -24,17 +24,17 @@ export function debounce<T extends unknown[], V>(
 	timeout = 0,
 	resetTimer = false
 ): ((...args: T) => void) & { cancel: () => void } {
-	let timer: ReturnType<typeof setTimeout> | null = null;
+	let timer: number | null = null;
 	let pendingArgs: T | null = null;
 
 	const debounced = ((...args: T): void => {
 		pendingArgs = args;
 		if (timer && resetTimer) {
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 			timer = null;
 		}
 		if (!timer) {
-			timer = setTimeout(() => {
+			timer = window.setTimeout(() => {
 				timer = null;
 				const args2 = pendingArgs;
 				pendingArgs = null;
@@ -45,7 +45,7 @@ export function debounce<T extends unknown[], V>(
 
 	debounced.cancel = (): void => {
 		if (timer) {
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 			timer = null;
 		}
 		pendingArgs = null;

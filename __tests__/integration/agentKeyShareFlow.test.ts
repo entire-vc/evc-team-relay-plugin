@@ -33,7 +33,6 @@ const mockFetch = platformFetch as jest.MockedFunction<typeof platformFetch>;
 
 const CONTROL_PLANE_URL = "https://relay.example.com";
 const SHARE_ID = "share-integration-001";
-const SERVER_ID = "server-integration-001";
 const AUTH_TOKEN = "bearer-integration-token";
 
 function makeResponse(status: number, data: unknown) {

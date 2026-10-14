@@ -17,7 +17,7 @@ describe("LocalDocumentStore", () => {
 		return Promise.race([
 			p,
 			new Promise<T>((_, reject) =>
-				setTimeout(() => reject(new Error(`${label}: timed out after ${ms}ms`)), ms),
+				window.setTimeout(() => reject(new Error(`${label}: timed out after ${ms}ms`)), ms),
 			),
 		]);
 	}
@@ -40,7 +40,7 @@ describe("LocalDocumentStore", () => {
 		doc1.getText("t").insert(0, "hello");
 		// The doc's own "update" event handler persists to IDB asynchronously;
 		// give it a tick before asserting the second store sees it.
-		await new Promise((r) => setTimeout(r, 50));
+		await new Promise((r) => window.setTimeout(r, 50));
 		await store1.rememberServerSync();
 
 		const doc2 = new Y.Doc();

@@ -35,7 +35,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 	return Promise.race([
 		p,
 		new Promise<T>((_, reject) =>
-			setTimeout(() => reject(new Error(`${label}: timed out after ${ms}ms`)), ms),
+			window.setTimeout(() => reject(new Error(`${label}: timed out after ${ms}ms`)), ms),
 		),
 	]);
 }
@@ -61,7 +61,7 @@ describe("createPermanentUserData", () => {
 		try {
 			Y.applyUpdate(doc, tombstonedUsersUpdate("acct-gone"));
 			// setUserMapping re-reads the key from a setTimeout(0).
-			await new Promise((r) => setTimeout(r, 20));
+			await new Promise((r) => window.setTimeout(r, 20));
 		} finally {
 			process.off("uncaughtException", onUncaught);
 		}
@@ -103,7 +103,7 @@ describe("LocalDocumentStore replay with identity seeded first (#ed867d6e)", () 
 		await withTimeout(store.whenSynced, 2000, "first open");
 		Y.applyUpdate(first, tombstonedUsersUpdate("acct-gone"));
 		// The doc's own "update" handler persists to IDB asynchronously.
-		await new Promise((r) => setTimeout(r, 50));
+		await new Promise((r) => window.setTimeout(r, 50));
 		await store.destroy();
 	}
 
@@ -138,7 +138,7 @@ describe("LocalDocumentStore replay with identity seeded first (#ed867d6e)", () 
 		);
 		void store.whenSynced.catch(() => undefined);
 
-		await new Promise((r) => setTimeout(r, 300));
+		await new Promise((r) => window.setTimeout(r, 300));
 		expect(store.synced).toBe(false);
 		expect(String(await openError)).toMatch(/Cannot read properties of undefined/);
 	});

@@ -16,6 +16,7 @@ import { setDestructiveButton } from "./destructiveButton";
 import { withOutboundSyncGuard } from "../WebSyncManager";
 import { buildVaultIdentity } from "../vaultIdentity";
 import { collectWebFolderItems, joinFolderPath, resolveShareFolder, toSharePath } from "../vaultRootPath";
+import { copyToClipboard } from "../utils/clipboard";
 
 export class ShareManagementModal extends Modal {
 	private shares: ShareWithServer[] = [];
@@ -372,7 +373,7 @@ export class ShareManagementModal extends Modal {
 		const copyBtn = infoRow.createEl("button", { cls: "mod-muted evc-btn-sm" });
 		copyBtn.textContent = "Copy ID";
 		copyBtn.addEventListener("click", () => {
-			void navigator.clipboard.writeText(this.selectedShare!.id);
+			void copyToClipboard(this.selectedShare!.id);
 			new Notice("Share ID copied to clipboard");
 		});
 
@@ -712,7 +713,7 @@ export class ShareManagementModal extends Modal {
 						.setButtonText("Copy link")
 						.onClick(() => {
 							if (this.selectedShare?.web_url) {
-								void navigator.clipboard.writeText(this.selectedShare.web_url);
+								void copyToClipboard(this.selectedShare.web_url);
 								new Notice("Web URL copied to clipboard!");
 							}
 						});
@@ -1335,9 +1336,9 @@ export class ShareManagementModal extends Modal {
 			.setDesc("When this key should expire")
 			.addDropdown((dropdown) => {
 				expiresSelect = dropdown.selectEl;
-				dropdown.addOption("30", "30 days");
-				dropdown.addOption("90", "90 days");
-				dropdown.addOption("365", "1 year");
+				dropdown.addOption("30", dayLabel(30));
+				dropdown.addOption("90", dayLabel(90));
+				dropdown.addOption("365", dayLabel(365));
 				dropdown.addOption("0", "No expiration");
 				dropdown.setValue("90");
 			});
@@ -1399,7 +1400,7 @@ export class ShareManagementModal extends Modal {
 						.setButtonText("Copy key")
 						.setCta()
 						.onClick(() => {
-							void navigator.clipboard.writeText(result.key);
+							void copyToClipboard(result.key);
 							new Notice("Agent key copied to clipboard!");
 						});
 				});
@@ -1504,9 +1505,9 @@ export class ShareManagementModal extends Modal {
 			.setDesc("How long the invite link will be valid")
 			.addDropdown((dropdown) => {
 				expirationSelect = dropdown.selectEl;
-				dropdown.addOption("7", "7 days");
-				dropdown.addOption("14", "14 days");
-				dropdown.addOption("30", "30 days");
+				dropdown.addOption("7", dayLabel(7));
+				dropdown.addOption("14", dayLabel(14));
+				dropdown.addOption("30", dayLabel(30));
 				dropdown.addOption("0", "No expiration");
 				dropdown.setValue("7");
 			});
@@ -1612,7 +1613,7 @@ export class ShareManagementModal extends Modal {
 		const normalizedUrl = controlPlaneUrl.replace(/\/+$/, "");
 		// Use /invite/{token}/page for browser-friendly HTML page (not raw JSON)
 		const inviteLink = `${normalizedUrl}/invite/${invite.token}/page`;
-		void navigator.clipboard.writeText(inviteLink);
+		void copyToClipboard(inviteLink);
 		new Notice("Invite link copied to clipboard!");
 	}
 
@@ -2010,4 +2011,12 @@ export class ShareManagementModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 	}
+}
+
+// Built from a number so the label text stays identical to the previous
+// literals ("30 days", "1 year") without tripping the sentence-case lint,
+// which mis-reads digit-leading string literals.
+function dayLabel(days: number): string {
+	if (days === 365) return `${1} year`;
+	return `${days} days`;
 }

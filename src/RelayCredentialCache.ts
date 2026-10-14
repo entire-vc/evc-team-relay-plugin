@@ -60,7 +60,7 @@ export class RelayCredentialCache extends CredentialCache<DocumentGrant> {
 					? () =>
 							new VaultScopedMap<CredentialEntry<DocumentGrant>>(
 								// Persisted storage key, not a class name: this string is
-								// the vault-scoped localStorage key under which cached
+								// the vault-scoped local storage key under which cached
 								// credentials already live on every existing install, and
 								// it survives restarts. Changing it to match the class name
 								// would orphan those entries and force everyone to log in

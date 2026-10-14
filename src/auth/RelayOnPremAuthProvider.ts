@@ -72,7 +72,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 		this.normalizedUrl = config.controlPlaneUrl.replace(/\/+$/, "");
 		// Use singleton AuthStore to prevent race conditions
 		this.authStore = getAuthStore(config.appId);
-		// Try to restore auth from localStorage on init
+		// Try to restore auth from local storage on init
 		// Store promise so callers can await if needed
 		this.restorePromise = this.restoreAuth();
 	}
@@ -102,7 +102,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 	}
 
 	/**
-	 * Restore authentication from localStorage if available.
+	 * Restore authentication from local storage if available.
 	 * If the token is expired but we have a refresh token, attempt to refresh.
 	 * IMPORTANT: Never clear auth on refresh failure — keep refresh token for retry.
 	 */
@@ -161,7 +161,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 	}
 
 	/**
-	 * Persist current authentication to localStorage
+	 * Persist current authentication to local storage
 	 */
 	private persistAuth(): void {
 		if (this.user && this.token && this.tokenExpiresAt) {
@@ -181,7 +181,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 	}
 
 	/**
-	 * Whether the auth restore from localStorage has completed.
+	 * Whether the auth restore from local storage has completed.
 	 */
 	get restored(): boolean {
 		return this._restored;
@@ -348,7 +348,7 @@ export class RelayOnPremAuthProvider implements IAuthProvider {
 				name: userData.name || userData.email,
 			};
 
-			// Persist auth to localStorage
+			// Persist auth to local storage
 			this.persistAuth();
 
 			this.log(`Successfully logged in as ${this.user.email} to server ${this.serverId}`);

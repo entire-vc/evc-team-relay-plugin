@@ -70,7 +70,7 @@ const gate = process.env.LIVE_RELAY === "1" ? describe : describe.skip;
 // Helpers (test-side only — none of these stand in for a module under test)
 // ---------------------------------------------------------------------------
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 
 async function assertStackReachable(): Promise<void> {
 	const probes: Array<[string, string]> = [

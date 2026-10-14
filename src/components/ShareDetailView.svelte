@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { copyToClipboard } from "../utils/clipboard";
 	import { onMount } from "svelte";
 	import { Notice, Setting, TFile } from "obsidian";
 	import { createEventDispatcher } from "svelte";
@@ -144,7 +145,7 @@
 	}
 
 	function copyId() {
-		navigator.clipboard.writeText(currentShare.id);
+		copyToClipboard(currentShare.id);
 		new Notice(uiText("shareDetail.idCopiedNotice"));
 	}
 
@@ -243,7 +244,7 @@
 	function copyInviteLink(invite: Invite) {
 		const normalizedUrl = server.controlPlaneUrl.replace(/\/+$/, "");
 		const link = `${normalizedUrl}/invite/${invite.token}/page`;
-		navigator.clipboard.writeText(link);
+		copyToClipboard(link);
 		new Notice(uiText("shareDetail.invites.linkCopiedNotice"));
 	}
 
@@ -800,7 +801,7 @@
 								<span class="evc-setting-desc">{currentShare.web_url}</span>
 							</div>
 							<div class="evc-setting-actions">
-								<button class="evc-small-btn" on:click={() => { navigator.clipboard.writeText(currentShare.web_url || ''); new Notice(uiText("shareDetail.webPublish.urlCopiedNotice")); }}>{uiText("shareDetail.webPublish.copyButton")}</button>
+								<button class="evc-small-btn" on:click={() => { copyToClipboard(currentShare.web_url || ''); new Notice(uiText("shareDetail.webPublish.urlCopiedNotice")); }}>{uiText("shareDetail.webPublish.copyButton")}</button>
 								<button class="evc-small-btn" on:click={() => window.open(currentShare.web_url || '', '_blank')}>{uiText("shareDetail.webPublish.openButton")}</button>
 							</div>
 						</div>

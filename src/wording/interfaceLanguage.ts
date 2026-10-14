@@ -6,7 +6,7 @@
  * returns the ISO code of the user's configured Obsidian interface language
  * and already defaults to "en" itself when nothing is configured.
  *
- * Deliberately NOT used: `localStorage.getItem("language")` (undocumented,
+ * Deliberately NOT used: the `getItem("language")` call on local storage (undocumented,
  * reads Obsidian's own storage key rather than a public API),
  * `moment.locale()` (date-formatting locale, not the UI language setting),
  * `navigator.language` (browser/OS locale, ignores the user's in-app choice

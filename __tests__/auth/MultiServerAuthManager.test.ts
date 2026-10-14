@@ -24,27 +24,12 @@ jest.mock("../../src/logging", () => ({
 
 jest.mock("../../src/platformFetch");
 import { platformFetch } from "../../src/platformFetch";
+import { createAuthStorageShim } from "../mocks/authStorageShim";
 const mockFetch = platformFetch as jest.MockedFunction<typeof platformFetch>;
 
 jest.mock("../../src/auth/OAuthHandler");
 
-const mockStorage = new Map<string, string>();
-Object.defineProperty(global, "window", {
-	value: {
-		localStorage: {
-			getItem: (key: string) => mockStorage.get(key) ?? null,
-			setItem: (key: string, value: string) => mockStorage.set(key, value),
-			removeItem: (key: string) => mockStorage.delete(key),
-			get length() {
-				return mockStorage.size;
-			},
-			key: (index: number) => [...mockStorage.keys()][index] ?? null,
-			clear: () => mockStorage.clear(),
-		},
-		open: jest.fn(),
-	},
-	writable: true,
-});
+const mockStorage = createAuthStorageShim("test-app-id");
 
 function mockFetchResponse(status: number, data: unknown, ok = true) {
 	return Promise.resolve({

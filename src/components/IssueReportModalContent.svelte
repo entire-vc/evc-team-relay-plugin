@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { copyToClipboard } from "../utils/clipboard";
 	import ConfigRow from "./ConfigRow.svelte";
 	import type TeamRelayPlugin from "../main";
 	import { listLogFiles, readAllLogs } from "../logging";
@@ -40,7 +41,7 @@
 	// clipboard contents in.
 	async function copyReportToClipboard(report: string) {
 		try {
-			await navigator.clipboard.writeText(report);
+			await copyToClipboard(report);
 		} catch (e: unknown) {
 			// Clipboard access can be denied in some contexts; the
 			// pre-filled issue body still carries the metadata and

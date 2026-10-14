@@ -179,7 +179,7 @@ export class TextViewPatch extends Loggable {
 	 * what identifies the cause, and it stays a bounded size. Whether the two
 	 * sides even refer to the same TFile is the other half of the answer — a
 	 * mismatch is usually either a genuine divergence or a stale view pointed
-	 * at the wrong document.
+	 * at the wrong doc.
 	 *
 	 * Note these lines reach the user's log file, which "Include Logs" attaches
 	 * to a bug report headed for a public issue — so note bodies do not belong

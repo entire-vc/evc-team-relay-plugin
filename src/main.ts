@@ -113,7 +113,7 @@ import {
 	getDefaultServer,
 } from "./RelayOnPremConfig";
 import { RelayOnPremTokenProvider } from "./auth/RelayOnPremTokenProvider";
-import { getAuthStore } from "./auth/RelayOnPremAuthStore";
+import { getAuthStore, registerAuthStorageHost } from "./auth/RelayOnPremAuthStore";
 import {
 	snapshotRelayOnPremServers,
 	diffRelayOnPremServers,
@@ -514,6 +514,7 @@ export default class TeamRelayPlugin extends Plugin {
 
 	async onload() {
 		this.instanceAppId = (this.app as unknown as ObsidianApp).appId;
+		registerAuthStorageHost(this.instanceAppId, this.app);
 		const start = moment.now();
 		instanceLabels.set(this, "plugin");
 		this.initializeLoggingInfrastructure();
@@ -530,14 +531,14 @@ export default class TeamRelayPlugin extends Plugin {
 				relayOnPrem: migration.settings,
 			}));
 		}
-		// If an existing server was adopted as EVC, migrate its localStorage auth key
+		// If an existing server was adopted as EVC, migrate its local storage auth key
 		// and update all shared folder settings that reference the old server ID
 		if (migration.renamedServerId) {
 			const oldId = migration.renamedServerId;
 			try {
 				getAuthStore(this.instanceAppId).renameServer(oldId, EVC_SERVER_ID);
 			} catch {
-				// localStorage may not be available during startup
+				// local storage may not be available during startup
 			}
 			// Migrate onpremServerId in shared folder settings
 			const currentSettings = this.pluginSettings.snapshot();

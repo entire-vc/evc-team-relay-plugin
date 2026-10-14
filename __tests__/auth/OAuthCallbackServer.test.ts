@@ -135,7 +135,7 @@ describe("OAuthCallbackServer", () => {
 			const callbackPromise = server.waitForCallback("test_state", 5000);
 
 			// Send callback request without code (await both in parallel)
-			const [httpResult] = await Promise.all([
+			await Promise.all([
 				new Promise<void>((resolve, reject) => {
 					const req = http.request(
 						{
@@ -294,7 +294,7 @@ describe("OAuthCallbackServer", () => {
 				await Promise.race([
 					callbackPromise,
 					new Promise((_, reject) =>
-						setTimeout(() => reject(new Error("Timeout")), 100),
+						window.setTimeout(() => reject(new Error("Timeout")), 100),
 					),
 				]);
 			} catch (error) {

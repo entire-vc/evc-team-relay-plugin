@@ -19,6 +19,7 @@
  */
 
 import { describe, test, expect, beforeEach, jest } from "@jest/globals";
+import { createAuthStorageShim } from "../mocks/authStorageShim";
 
 jest.mock("../../src/logging", () => ({
 	namedLogger: () => jest.fn(),
@@ -36,23 +37,7 @@ const mockFetch = platformFetch as jest.MockedFunction<typeof platformFetch>;
 
 jest.mock("../../src/auth/OAuthHandler");
 
-const mockStorage = new Map<string, string>();
-Object.defineProperty(global, "window", {
-	value: {
-		localStorage: {
-			getItem: (key: string) => mockStorage.get(key) ?? null,
-			setItem: (key: string, value: string) => mockStorage.set(key, value),
-			removeItem: (key: string) => mockStorage.delete(key),
-			get length() {
-				return mockStorage.size;
-			},
-			key: (index: number) => [...mockStorage.keys()][index] ?? null,
-			clear: () => mockStorage.clear(),
-		},
-		open: jest.fn(),
-	},
-	writable: true,
-});
+const mockStorage = createAuthStorageShim("test-vault-tr55");
 
 import { MultiServerAuthManager } from "../../src/auth/MultiServerAuthManager";
 import { getAuthStore } from "../../src/auth/RelayOnPremAuthStore";

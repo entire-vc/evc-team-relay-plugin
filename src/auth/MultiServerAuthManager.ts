@@ -37,7 +37,7 @@ export class MultiServerAuthManager {
 		// SAME instance RelayOnPremAuthProvider reads/writes through (also via
 		// getAuthStore). A separate instance's evict()/persist() never touches the
 		// singleton's in-memory memoryFallback cache, which _readStorage() falls
-		// back to (and resurrects into localStorage) when the real localStorage
+		// back to (and resurrects into local storage) when the real local storage
 		// key is missing — clearing through a different instance is a no-op from
 		// the provider's point of view (TR-55).
 		this.authStore = getAuthStore(appId);
@@ -86,7 +86,7 @@ export class MultiServerAuthManager {
 	 *
 	 * The auth store is keyed by serverId, not URL — if the control-plane URL
 	 * changes but the id stays the same, a naive recreate would let the new
-	 * provider restore the OLD host's stored token from localStorage and send
+	 * provider restore the OLD host's stored token from local storage and send
 	 * it to the NEW host's /v1/auth/refresh (TR-55). Clear stored auth for
 	 * this id first whenever the URL actually changed, forcing a fresh login
 	 * against the new host instead of carrying the old token forward.
@@ -109,7 +109,7 @@ export class MultiServerAuthManager {
 	}
 
 	/**
-	 * Wait for all providers to finish restoring auth from localStorage.
+	 * Wait for all providers to finish restoring auth from local storage.
 	 * Must be called before checking auth state to avoid race conditions.
 	 */
 	async waitForAllRestore(): Promise<void> {

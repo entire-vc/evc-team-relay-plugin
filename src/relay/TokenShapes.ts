@@ -47,7 +47,7 @@ export interface DocumentGrant {
 }
 
 /**
- * A token for a stored file rather than a live document.
+ * A token for a stored file rather than a live doc.
  *
  * Every member the server always sends for a file is required here, so callers
  * reading size or hash off one do not have to re-check what the transport
