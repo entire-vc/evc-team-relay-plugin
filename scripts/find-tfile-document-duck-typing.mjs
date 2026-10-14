@@ -107,8 +107,6 @@ if (!documentType || !tfileType) {
 console.log("Document assignable to TFile (structural)?", checker.isTypeAssignableTo(documentType, tfileType));
 console.log("TFile assignable to Document?", checker.isTypeAssignableTo(tfileType, documentType));
 
-const TFILE_FIELDS = new Set(["name", "extension", "basename", "stat", "vault", "parent"]);
-
 function typeIncludesDocument(t) {
   const parts = t.isUnion() ? t.types : [t];
   return parts.some((p) => p === documentType || checker.typeToString(p) === "Document");
@@ -214,7 +212,6 @@ for (const sf of program.getSourceFiles()) {
       const arrType = checker.getContextualType(node);
       if (arrType) {
         const elemType = checker.getIndexTypeOfType ? checker.getIndexTypeOfType(arrType, ts.IndexKind.Number) : null;
-        const numIndex = checker.getTypeArguments ? null : null; // no-op, keep lint calm
         if (elemType && isUnguardedTFileSlot(elemType)) {
           node.elements.forEach((el) => {
             const elType = checker.getTypeAtLocation(el);

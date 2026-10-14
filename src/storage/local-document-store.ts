@@ -164,7 +164,7 @@ export class LocalDocumentStore extends PersistenceObservable {
 	readonly _dbref: Promise<IDBDatabase>;
 	db: IDBDatabase | null = null;
 
-	/** True once everything already on disk has been applied to the document. */
+	/** True once everything already on disk has been applied to the doc. */
 	synced = false;
 	/** Resolves when `synced` first becomes true. */
 	readonly whenSynced: Promise<LocalDocumentStore>;

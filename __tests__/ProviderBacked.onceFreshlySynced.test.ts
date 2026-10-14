@@ -130,9 +130,7 @@ function makeProviderBacked(guid: string): ProviderBacked {
 	);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function fakeProviderOf(hp: ProviderBacked): any {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return (hp as any)._liveProvider;
 }
 

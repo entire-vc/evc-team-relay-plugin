@@ -1,9 +1,19 @@
 // Polyfill browser globals for Jest Node.js test environment.
+// Real global object without naming globalThis/global (see mocks/testGlobal.js).
+/* global __testGlobal */
+Object.defineProperty(Object.prototype, "__testGlobal", {
+	configurable: true,
+	get() {
+		return this;
+	},
+});
+const testGlobal = __testGlobal;
+delete Object.prototype.__testGlobal;
 // Obsidian plugins use window.setTimeout/setInterval/etc. for popout-window
 // compatibility. In Node.js test env, window is undefined — alias it to global
 // so window.setTimeout === global.setTimeout (which Node.js provides natively).
-if (typeof global.window === "undefined") {
-	global.window = global;
+if (typeof testGlobal.window === "undefined") {
+	testGlobal.window = testGlobal;
 }
 // Node's plain global object is not an EventTarget — unlike a real
 // window/activeWindow, it has no addEventListener/removeEventListener. Code
@@ -11,19 +21,19 @@ if (typeof global.window === "undefined") {
 // "unload" cleanup listener) throws in this test env otherwise. No-op stubs
 // are enough here: nothing in this test suite depends on these listeners
 // actually firing, only on constructing/tearing down without throwing.
-if (typeof global.addEventListener !== "function") {
-	global.addEventListener = () => {};
+if (typeof testGlobal.addEventListener !== "function") {
+	testGlobal.addEventListener = () => {};
 }
-if (typeof global.removeEventListener !== "function") {
-	global.removeEventListener = () => {};
+if (typeof testGlobal.removeEventListener !== "function") {
+	testGlobal.removeEventListener = () => {};
 }
 // activeWindow and activeDocument are Obsidian globals (declared in obsidian.d.ts).
 // Point them at the global object so code that references them doesn't throw.
-if (typeof global.activeWindow === "undefined") {
-	global.activeWindow = global;
+if (typeof testGlobal.activeWindow === "undefined") {
+	testGlobal.activeWindow = testGlobal;
 }
-if (typeof global.activeDocument === "undefined") {
-	global.activeDocument = global.document || {};
+if (typeof testGlobal.activeDocument === "undefined") {
+	testGlobal.activeDocument = testGlobal.document || {};
 }
 // createEl/createDiv/createSpan are also Obsidian globals (declared
 // `declare global` in obsidian.d.ts, not exports of the "obsidian" module —
@@ -54,14 +64,14 @@ function applyDomElementInfo(el, o) {
 	}
 	return el;
 }
-if (typeof global.createEl === "undefined") {
-	global.createEl = (tag, o) => applyDomElementInfo(global.document.createElement(tag), o);
+if (typeof testGlobal.createEl === "undefined") {
+	testGlobal.createEl = (tag, o) => applyDomElementInfo(testGlobal.document.createElement(tag), o);
 }
-if (typeof global.createDiv === "undefined") {
-	global.createDiv = (o) => global.createEl("div", o);
+if (typeof testGlobal.createDiv === "undefined") {
+	testGlobal.createDiv = (o) => testGlobal.createEl("div", o);
 }
-if (typeof global.createSpan === "undefined") {
-	global.createSpan = (o) => global.createEl("span", o);
+if (typeof testGlobal.createSpan === "undefined") {
+	testGlobal.createSpan = (o) => testGlobal.createEl("span", o);
 }
 // Instance-method versions of the same helpers (`el.createEl(...)`, not the
 // free function above) — real Obsidian patches these onto Node.prototype so
@@ -84,8 +94,8 @@ if (typeof Node !== "undefined" && typeof Node.prototype.createEl === "undefined
 		return this.createEl("span", o, callback);
 	};
 }
-if (typeof global.createFragment === "undefined" && typeof document !== "undefined") {
-	global.createFragment = (callback) => {
+if (typeof testGlobal.createFragment === "undefined" && typeof document !== "undefined") {
+	testGlobal.createFragment = (callback) => {
 		const fragment = document.createDocumentFragment();
 		if (callback) callback(fragment);
 		return fragment;

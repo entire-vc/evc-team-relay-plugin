@@ -61,6 +61,7 @@ import { RemoteFolderAddress } from "../src/ResourceAddress";
 import type { RelayCredentialCache } from "../src/RelayCredentialCache";
 import type { AuthSession } from "../src/AuthSession";
 import type { DocumentGrant } from "../src/relay/TokenShapes";
+import { testGlobal } from "./mocks/testGlobal";
 
 const grant = (token: string, expiryTime: number): DocumentGrant =>
 	({
@@ -90,15 +91,15 @@ function build(getToken: jest.Mock) {
 const urls = () => FakeWS.instances.map((w) => w.url);
 
 describe("onclose reconnect never reuses an expired token (#b3f8e33e)", () => {
-	const RealWS = (globalThis as { WebSocket?: unknown }).WebSocket;
+	const RealWS = (testGlobal as { WebSocket?: unknown }).WebSocket;
 	beforeEach(() => {
 		jest.useFakeTimers();
 		FakeWS.instances = [];
-		(globalThis as { WebSocket?: unknown }).WebSocket = FakeWS;
+		(testGlobal as { WebSocket?: unknown }).WebSocket = FakeWS;
 	});
 	afterEach(() => {
 		jest.useRealTimers();
-		(globalThis as { WebSocket?: unknown }).WebSocket = RealWS;
+		(testGlobal as { WebSocket?: unknown }).WebSocket = RealWS;
 	});
 
 	test("expired token: the reconnect after a silent drop opens with a NEWLY minted token, never the old one", async () => {

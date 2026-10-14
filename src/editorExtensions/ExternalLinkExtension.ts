@@ -109,17 +109,17 @@ export class ExternalLinkPluginValue {
 		if (this.viewRegistry) {
 			this.viewBinding = this.viewRegistry.locateMarkdownView(this.editorView);
 		}
-		const document = this.viewBinding?.boundDocument;
-		return !!(this.obsidianApp && document && document.vaultShare && document.obsidianFile);
+		const boundDoc = this.viewBinding?.boundDocument;
+		return !!(this.obsidianApp && boundDoc && boundDoc.vaultShare && boundDoc.obsidianFile);
 	}
 
 	private isOutsideVaultShare(linkPath: string, sourcePath: string): boolean {
-		const document = this.viewBinding?.boundDocument;
-		if (!this.obsidianApp || !document?.vaultShare) {
+		const boundDoc = this.viewBinding?.boundDocument;
+		if (!this.obsidianApp || !boundDoc?.vaultShare) {
 			return false;
 		}
 		const target = this.obsidianApp.metadataCache.getFirstLinkpathDest(linkPath, sourcePath);
-		return !!target && !document.vaultShare.containsPath(target.path);
+		return !!target && !boundDoc.vaultShare.containsPath(target.path);
 	}
 
 	/** Rebuilds `trackedLinks` from a fresh metadata-cache snapshot (links + embeds alike). */

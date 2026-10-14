@@ -9,6 +9,7 @@ const fetch = jest.fn();
 const addServer = jest.fn();
 const mutateValue = jest.fn();
 import { loadSvelteComponent } from "../scripts/test/svelteDOM.cjs";
+import { testGlobal } from "./mocks/testGlobal";
 
 let Component: typeof SvelteComponent;
 let component: SvelteComponent;
@@ -31,7 +32,7 @@ beforeAll(async () => {
 	};
 	const loaded = loadSvelteComponent(path.resolve(__dirname, "../src/components/RelayOnPremServerList.svelte"), dependencies);
 	closeDom = () => loaded.dom.window.close();
-	Object.assign(globalThis, { window: loaded.dom.window, document: loaded.dom.window.document,
+	Object.assign(testGlobal, { window: loaded.dom.window, document: loaded.dom.window.document,
 		activeDocument: loaded.dom.window.document, Event: loaded.dom.window.Event });
 	Component = loaded.default;
 });

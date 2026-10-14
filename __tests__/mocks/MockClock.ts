@@ -74,7 +74,7 @@ export class MockClock implements Clock {
 	}
 
 	teardown() {
-		this.timers.forEach((timer) => clearTimeout(timer.id));
+		this.timers.forEach((timer) => window.clearTimeout(timer.id));
 		this.timers = [];
 	}
 

@@ -11,7 +11,7 @@ interface ReadingViewInternal {
 	onInternalDataChange?: () => void;
 }
 
-/** Keeps Reading view's rendered text in sync with the CRDT document. */
+/** Keeps Reading view's rendered text in sync with the CRDT doc. */
 export class ReadingViewSync extends Loggable implements DocumentSurfaceSync {
 	private markdownView: MarkdownView;
 	private destroyed = false;

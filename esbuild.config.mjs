@@ -67,7 +67,6 @@ const staging = process.argv[2] === "staging";
 const watch = process.argv[2] === "watch" || staging;
 const debug = process.argv[2] === "debug" || watch || staging || develop;
 const out = process.argv[3] || ".";
-const tld = staging ? "dev" : "md";
 
 // Obsidian vault plugin directory for auto-copy on build
 // Opt-in only. This used to hold one developer's personal vault path: a public
