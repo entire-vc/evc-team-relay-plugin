@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.31
+- Added: each share now carries its vault identity, so you can share the whole root of more than one vault. Creating a whole-vault share for a second vault no longer fails with "A share already exists at this exact path". The share list shows the vault name. Existing shares keep working as before.
+
 ## 0.0.30
 - Fixed: starting an existing share waits for fresh server metadata before creating folders from its offline cache. Deleted folders no longer reappear while the first sync is still loading.
 
