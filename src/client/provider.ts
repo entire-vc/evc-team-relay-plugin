@@ -27,7 +27,7 @@ import * as decoding from "lib0/decoding";
 import * as syncProtocol from "y-protocols/sync";
 import * as authProtocol from "y-protocols/auth";
 import * as awarenessProtocol from "y-protocols/awareness";
-import { Observable } from "lib0/observable";
+import { ObservableV2 } from "lib0/observable";
 import * as math from "lib0/math";
 import * as url from "lib0/url";
 
@@ -314,7 +314,15 @@ const setupWS = (provider: YSweetProvider): void => {
 	provider.emit("status", [{ status: "connecting", intent: provider.intent }]);
 };
 
-export class YSweetProvider extends Observable<string> {
+export type YSweetProviderEvents = {
+	status: (state: ConnectionState) => void;
+	synced: (state: boolean) => void;
+	sync: (state: boolean) => void;
+	"connection-error": (event: Event, provider: YSweetProvider) => void;
+	"connection-close": (event: CloseEvent, provider: YSweetProvider) => void;
+};
+
+export class YSweetProvider extends ObservableV2<YSweetProviderEvents> {
 	maxBackoffTime: number;
 	bcChannel: string;
 	url: string;
