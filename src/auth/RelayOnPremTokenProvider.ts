@@ -302,8 +302,10 @@ export class RelayOnPremTokenProvider {
 			content_length: contentLength,
 		};
 
-		await this.throttle.acquire();
-
+		// Deliberately NOT routed through this.throttle: POST /file-token has no
+		// control-plane rate limit (the 30/min ceiling applies to doc tokens), and
+		// sharing the 25/min queue made attachment tokens the bulk of initial-sync
+		// lane time. A 429 still surfaces as RateLimitError and is retried by the caller.
 		try {
 			const response = await platformFetch(
 				`${this.normalizedUrl}/v1/shares/${folderId}/file-token`,
