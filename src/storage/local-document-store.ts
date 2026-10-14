@@ -15,7 +15,7 @@
 
 import * as Y from "yjs";
 import * as idb from "lib0/indexeddb";
-import { Observable } from "lib0/observable";
+import { ObservableV2 } from "lib0/observable";
 
 const CUSTOM_STORE = "custom";
 const UPDATES_STORE = "updates";
@@ -149,14 +149,11 @@ export const dropStoredDocument = async (name: string): Promise<void> => {
 	await idb.deleteDB(name);
 };
 
-// Persistence closes its database asynchronously. Keep the same Observable
-// implementation, but allow teardown to finish asynchronously in subclasses.
-const PersistenceObservable: new () => Omit<Observable<string>, "destroy" | "once"> & {
-	once(name: string, f: (...args: never[]) => void): void;
-	destroy(): void | Promise<void>;
-} = Observable;
+type LocalDocumentStoreEvents = {
+	synced: (store: LocalDocumentStore) => void;
+};
 
-export class LocalDocumentStore extends PersistenceObservable {
+export class LocalDocumentStore extends ObservableV2<LocalDocumentStoreEvents> {
 	readonly doc: Y.Doc;
 	readonly name: string;
 
@@ -259,9 +256,12 @@ export class LocalDocumentStore extends PersistenceObservable {
 	 * `whenSynced` and callers that attach late both depend on this: without
 	 * it, subscribing after the load finished waits forever.
 	 */
-	once(name: string, f: (...args: never[]) => void): void {
+	once<NAME extends keyof LocalDocumentStoreEvents & string>(
+		name: NAME,
+		f: LocalDocumentStoreEvents[NAME],
+	): void {
 		if (name === "synced" && this.synced) {
-			(f as (...args: unknown[]) => void)(this);
+			(f as LocalDocumentStoreEvents["synced"])(this);
 			return;
 		}
 		super.once(name, f);
