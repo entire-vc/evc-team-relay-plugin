@@ -20,6 +20,8 @@ export interface RelayOnPremShare {
 	visibility: "private" | "public" | "protected";
 	password_hash?: string | null;
 	owner_user_id: string;
+	vault_id?: string | null;
+	vault_name?: string | null;
 	created_at: string;
 	updated_at: string;
 	// Web publishing fields (v1.7)
@@ -75,6 +77,8 @@ export interface CreateShareRequest {
 	path: string;
 	visibility: "private" | "public" | "protected";
 	password?: string; // Optional password for protected shares
+	vault_id?: string; // Stable per-vault id (app.appId); lets one owner share several whole vaults
+	vault_name?: string; // Human-readable vault name for share lists
 }
 
 /**
