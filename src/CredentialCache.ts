@@ -123,7 +123,9 @@ export class CredentialCache<TokenType extends TokenBearing> {
 				documentId,
 				(token) => resolve(token),
 				(error) => {
-					this.dropFromQueue(documentId);
+					// A failed refresh must not unsubscribe: a retry may still succeed
+					// and the doc is still in use. Only goOffline() unsubscribes.
+					this.pendingQueue.delete(documentId);
 					reject(error);
 				},
 			);
@@ -208,8 +210,14 @@ export class CredentialCache<TokenType extends TokenBearing> {
 		);
 	}
 
+	/**
+	 * Called when a doc goes offline: forget its pending refresh AND its
+	 * subscriber, so the expiry sweep stops re-issuing a token nobody is using.
+	 * acquireToken() re-subscribes when the doc comes back online.
+	 */
 	dropFromQueue(documentId: string) {
 		this.logLine(`dropping ${documentId} from the pending refresh queue`);
+		this.subscriberCallbacks.delete(documentId);
 		return this.pendingQueue.delete(documentId);
 	}
 
@@ -222,11 +230,11 @@ export class CredentialCache<TokenType extends TokenBearing> {
 			return;
 		}
 		const existing = this.tokenEntries.get(documentId) as CredentialEntry<TokenType>;
-		const callback = this.subscriberCallbacks.get(documentId) as (token: TokenType) => void;
+		const callback = this.subscriberCallbacks.get(documentId);
 		const expiryTime = this.resolveJwtExpiry(token);
 		this.logLine(`recorded new expiry: ${expiryTime}`);
 		this.tokenEntries.set(documentId, { ...existing, token, expiryTime });
-		callback(token);
+		callback?.(token);
 		this.logLine(`refresh complete for ${existing.friendlyName} (${documentId})`);
 	}
 
@@ -291,6 +299,9 @@ export class CredentialCache<TokenType extends TokenBearing> {
 	) {
 		const existingActive = this._inFlightPromises.get(documentId);
 		if (existingActive) {
+			// Re-subscribe: the doc may have gone offline (subscriber dropped)
+			// while this refresh was in flight and is now being reacquired.
+			this.subscriberCallbacks.set(documentId, callback);
 			return existingActive;
 		}
 
