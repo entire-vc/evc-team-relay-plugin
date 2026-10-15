@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.36
+- Fixed: a device that has no saved record of the old folder layout (new install, cleared cache) now also recognises a folder the server moved into `artifacts/`, moves or cleans up the old local copy, and no longer publishes it again.
+
 ## 0.0.35
 - Improved: internal changes to satisfy community plugin review checks.
 

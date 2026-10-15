@@ -64,7 +64,14 @@ import { findNestingConflictPath } from "./vaultShareNesting";
 import { isRootSharePath, resolveShareFolder } from "./vaultRootPath";
 import { buildConflictCopyPath, isConflictCopyPath } from "./conflictCopyPath";
 import { partitionByKnownGuid } from "./mintGate";
-import { findServerMoves, isUnderSkippedPath, takeRecordSnapshot, type RecordSnapshot } from "./serverRelocation";
+import {
+	findServerMoves,
+	findStructuralMoves,
+	isUnderSkippedPath,
+	takeRecordSnapshot,
+	type RecordSnapshot,
+	type ServerMove,
+} from "./serverRelocation";
 import {
 	findByPath,
 	hasUnsyncedEdit,
@@ -509,7 +516,23 @@ export class VaultShare extends ProviderBacked {
 	 */
 	private async applyServerMoves(persisted: RecordSnapshot): Promise<void> {
 		if (this.isTornDown) return;
-		const moves = findServerMoves(persisted, takeRecordSnapshot(this.folderIndex));
+		const synced = takeRecordSnapshot(this.folderIndex);
+		const moves: ServerMove[] = findServerMoves(persisted, synced);
+		// IndexedDB may be empty or already hold the post-move state (a client
+		// that connected before this instance existed), so also recognise the
+		// move from what is on disk versus what the share tracks.
+		let localRoots: string[] = [];
+		try {
+			localRoots = this.vaultFilesInScope()
+				.filter((file) => file instanceof TFolder)
+				.map((folder) => this.toVirtualPath(folder.path))
+				.filter((vpath) => !vpath.includes("/"));
+		} catch {
+			// No on-disk folder yet: nothing local to match against.
+		}
+		for (const move of findStructuralMoves(localRoots, synced)) {
+			if (!moves.some((known) => known.from === move.from)) moves.push(move);
+		}
 		for (const { from, to } of moves) {
 			try {
 				const source = this.vaultApi.getAbstractFileByPath(this.absolutePath(from));
@@ -517,6 +540,7 @@ export class VaultShare extends ProviderBacked {
 				if (this.vaultApi.getAbstractFileByPath(this.absolutePath(to))) {
 					// Keep the old copy on disk, but never publish it again.
 					this.followedMoveSkips.add(from);
+					await this.trashDuplicatesOfMovedRoot(from, to);
 					continue;
 				}
 				await this._ensureParentDir(to);
@@ -527,6 +551,44 @@ export class VaultShare extends ProviderBacked {
 				this.followedMoveSkips.add(from);
 				console.warn(`[VaultShare] ${this.path}: could not follow server move ${from} -> ${to}`, e);
 			}
+		}
+	}
+
+	/**
+	 * The destination copy already exists on disk, so the old root is a stale
+	 * duplicate: send files whose content is byte-identical to their twin to the
+	 * trash (recoverable), then any folder that ends up empty. Anything that
+	 * differs or has no twin stays, and stays unpublished via followedMoveSkips.
+	 */
+	private async trashDuplicatesOfMovedRoot(from: string, to: string): Promise<void> {
+		try {
+			const prefix = `${this.absolutePath(from)}/`;
+			const adapter = this.vaultApi.adapter;
+			const inside = this.vaultFilesInScope().filter((file) => file.path.startsWith(prefix));
+			for (const file of inside) {
+				if (!(file instanceof TFile)) continue;
+				const twin = normalizePath(this.absolutePath(`${to}/${file.path.slice(prefix.length)}`));
+				if (!(await adapter.exists(twin))) continue;
+				const [a, b] = await Promise.all([adapter.readBinary(file.path), adapter.readBinary(twin)]);
+				if (a.byteLength !== b.byteLength) continue;
+				const x = new Uint8Array(a);
+				const y = new Uint8Array(b);
+				if (x.some((byte, i) => byte !== y[i])) continue;
+				await this.vaultApi.trash(file, false);
+			}
+			const folders = inside
+				.filter((file): file is TFolder => file instanceof TFolder)
+				.sort((l, r) => r.path.length - l.path.length);
+			const root = this.vaultApi.getAbstractFileByPath(this.absolutePath(from));
+			if (root instanceof TFolder) folders.push(root);
+			for (const folder of folders) {
+				const live = this.vaultApi.getAbstractFileByPath(folder.path);
+				if (live instanceof TFolder && live.children.length === 0) {
+					await this.vaultApi.trash(live, false);
+				}
+			}
+		} catch (e: unknown) {
+			console.warn(`[VaultShare] ${this.path}: could not clean up the stale copy of ${from}`, e);
 		}
 	}
 

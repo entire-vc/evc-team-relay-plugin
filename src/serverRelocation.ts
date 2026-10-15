@@ -98,3 +98,36 @@ export function isUnderSkippedPath(vpath: string, skipped: Iterable<string>): bo
 	}
 	return false;
 }
+
+/** Root names the relocation tool moves: `<8 hex>[__name]`, plus its fixed extras. */
+const RELOCATABLE_ROOT = /^[0-9a-fA-F]{8}(?:__[^/]+)?$/;
+const EXTRA_ROOTS = new Set(["_probe", "mesh-artifacts"]);
+
+export function isRelocatableRoot(name: string): boolean {
+	return RELOCATABLE_ROOT.test(name) || EXTRA_ROOTS.has(name);
+}
+
+/**
+ * Moves visible from the synced records alone, for clients with no usable
+ * "before" state (empty or already-updated IndexedDB): a local top-level root
+ * the share does not track at all, while `artifacts/<root>` is a tracked
+ * folder. Only the tool's own root names qualify, so an ordinary folder that
+ * merely shares a name with something under `artifacts/` is still published.
+ */
+export function findStructuralMoves(localRoots: Iterable<string>, records: RecordSnapshot): ServerMove[] {
+	const moves: ServerMove[] = [];
+	for (const root of localRoots) {
+		if (!isRelocatableRoot(root) || records.has(root)) continue;
+		const target = `${RELOCATION_ROOT}/${root}`;
+		if (records.get(target)?.type !== "folder") continue;
+		let tracked = false;
+		for (const path of records.keys()) {
+			if (path.startsWith(`${root}/`)) {
+				tracked = true;
+				break;
+			}
+		}
+		if (!tracked) moves.push({ from: root, to: target });
+	}
+	return moves;
+}
