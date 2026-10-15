@@ -137,7 +137,7 @@ describe("offline client + server relocation", () => {
 		// persisted snapshot) as soon as IndexedDB has loaded, before the provider syncs.
 		(f.share as unknown as { _onSynced(): void })._onSynced();
 		const ready = (f.share as unknown as { _onReady(): Promise<void> })._onReady();
-		await new Promise((resolve) => setTimeout(resolve, 5));
+		await new Promise((resolve) => window.setTimeout(resolve, 5));
 		Y.applyUpdate(f.cache, Y.encodeStateAsUpdate(f.server));
 		f.confirm();
 		await ready;
@@ -156,7 +156,7 @@ describe("offline client + server relocation", () => {
 		// persisted snapshot) as soon as IndexedDB has loaded, before the provider syncs.
 		(f.share as unknown as { _onSynced(): void })._onSynced();
 		const ready = (f.share as unknown as { _onReady(): Promise<void> })._onReady();
-		await new Promise((resolve) => setTimeout(resolve, 5));
+		await new Promise((resolve) => window.setTimeout(resolve, 5));
 		Y.applyUpdate(f.cache, Y.encodeStateAsUpdate(f.server));
 		f.confirm();
 		await ready;
@@ -172,7 +172,7 @@ describe("offline client + server relocation", () => {
 		};
 		(f.share as unknown as { _onSynced(): void })._onSynced();
 		const ready = (f.share as unknown as { _onReady(): Promise<void> })._onReady();
-		await new Promise((resolve) => setTimeout(resolve, 5));
+		await new Promise((resolve) => window.setTimeout(resolve, 5));
 		Y.applyUpdate(f.cache, Y.encodeStateAsUpdate(f.server));
 		f.confirm();
 		await ready;
