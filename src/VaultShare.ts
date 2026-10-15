@@ -64,6 +64,7 @@ import { findNestingConflictPath } from "./vaultShareNesting";
 import { isRootSharePath, resolveShareFolder } from "./vaultRootPath";
 import { buildConflictCopyPath, isConflictCopyPath } from "./conflictCopyPath";
 import { partitionByKnownGuid } from "./mintGate";
+import { findServerMoves, isUnderSkippedPath, takeRecordSnapshot, type RecordSnapshot } from "./serverRelocation";
 import {
 	findByPath,
 	hasUnsyncedEdit,
@@ -447,6 +448,8 @@ export class VaultShare extends ProviderBacked {
 			console.debug(
 				`[VaultShare] isPrepared to syncNow: path=${this.path}, synced=${this.isSynced}, isAuthority=${this.isAuthority}, freshlyCreated=${this.freshlyCreated}, allowMint=${allowMint}`,
 			);
+			// Local renames for server-side moves must land before adoption.
+			if (freshlySynced && this._wantsConnection) await this.awaitFolderTreeReady();
 			await this.adoptLocalFiles(allowMint);
 			void this.scanFileTree(this.folderIndex);
 		}
@@ -470,6 +473,9 @@ export class VaultShare extends ProviderBacked {
 	}
 
 	/** One startup barrier for observers, manual sync, and automatic tree scans. */
+	/** Old paths of server moves whose destination already exists locally. */
+	private followedMoveSkips = new Set<string>();
+
 	private awaitFolderTreeReady(): Promise<boolean> {
 		if (this.isTornDown) return Promise.resolve(false);
 		if (!this.initialFolderSync) {
@@ -480,7 +486,11 @@ export class VaultShare extends ProviderBacked {
 				(async () => {
 					await this.awaitSynced();
 					if (!this.freshlyCreated && !this.isTornDown) {
+						// Persisted records, before the server's changes land: the only
+						// place an offline client can still see old paths.
+						const persisted = takeRecordSnapshot(this.folderIndex);
 						await this.onceFreshlySynced();
+						await this.applyServerMoves(persisted);
 					}
 					return !this.isTornDown;
 				})(),
@@ -488,6 +498,36 @@ export class VaultShare extends ProviderBacked {
 			]);
 		}
 		return this.initialFolderSync;
+	}
+
+	/**
+	 * Renames local folders/files the server moved while this client was
+	 * offline (relocate-artifacts), so adoptLocalFiles() finds them at their
+	 * new, already-tracked path instead of publishing the old one again.
+	 * Never overwrites: if the destination already exists locally, the old
+	 * path is left alone.
+	 */
+	private async applyServerMoves(persisted: RecordSnapshot): Promise<void> {
+		if (this.isTornDown) return;
+		const moves = findServerMoves(persisted, takeRecordSnapshot(this.folderIndex));
+		for (const { from, to } of moves) {
+			try {
+				const source = this.vaultApi.getAbstractFileByPath(this.absolutePath(from));
+				if (!source) continue;
+				if (this.vaultApi.getAbstractFileByPath(this.absolutePath(to))) {
+					// Keep the old copy on disk, but never publish it again.
+					this.followedMoveSkips.add(from);
+					continue;
+				}
+				await this._ensureParentDir(to);
+				await this.fileOps.renameFile(source, normalizePath(this.absolutePath(to)));
+				console.debug(`[VaultShare] ${this.path}: followed server move ${from} -> ${to}`);
+			} catch (e: unknown) {
+				// The move failed, so the old root is still on disk: keep it out of adoption.
+				this.followedMoveSkips.add(from);
+				console.warn(`[VaultShare] ${this.path}: could not follow server move ${from} -> ${to}`, e);
+			}
+		}
 	}
 
 	/** Body of the fire-and-forget IIFE from the constructor. */
@@ -518,6 +558,11 @@ export class VaultShare extends ProviderBacked {
 	 */
 	private adoptLocalFiles = async (allowMint = true) => {
 		let syncTFiles = this.vaultFilesInScope();
+		if (this.followedMoveSkips.size > 0) {
+			syncTFiles = syncTFiles.filter(
+				(tfile) => !isUnderSkippedPath(this.toVirtualPath(tfile.path), this.followedMoveSkips),
+			);
+		}
 		if (!allowMint) {
 			const { known, unknown } = partitionByKnownGuid(
 				syncTFiles,

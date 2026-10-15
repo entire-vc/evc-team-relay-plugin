@@ -36,6 +36,7 @@ function makeFakeVaultShare(overrides: Record<string, unknown> = {}) {
 		adoptLocalFiles: jest.fn(async () => {}),
 		scanFileTree: jest.fn(async () => {}),
 		folderIndex: {},
+		awaitFolderTreeReady: jest.fn(async () => true),
 		...overrides,
 	});
 	return fake as unknown as {
