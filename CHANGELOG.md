@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.35
+- Improved: internal changes to satisfy community plugin review checks.
+
 ## 0.0.34
 - Fixed: when a folder was moved on the server into `artifacts/` while this device was offline, the plugin now moves the local folder to the new place instead of publishing the old one again.
 
