@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.34
+- Fixed: when a folder was moved on the server into `artifacts/` while this device was offline, the plugin now moves the local folder to the new place instead of publishing the old one again.
+
 ## 0.0.33
 - Improved: the first sync of a large vault is up to about a third faster. Documents that go offline no longer keep requesting new access tokens in the background, which freed the request budget for files that are still syncing.
 
